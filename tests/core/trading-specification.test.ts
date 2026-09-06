@@ -45,6 +45,13 @@ describe("createTradingSpecification", () => {
         },
       }),
     ).toThrow("maxQuantity must be greater than or equal to minQuantity");
+
+    expect(() =>
+      createTradingSpecification({
+        ...specification,
+        contract: { contractSize: -1 },
+      }),
+    ).toThrow("contractSize must be a finite positive number");
   });
 
   it("rejects invalid precision values", () => {
@@ -54,6 +61,16 @@ describe("createTradingSpecification", () => {
         price: { tickSize: 0.01, pricePrecision: 1.5 },
       }),
     ).toThrow("pricePrecision must be a non-negative integer");
+
+    expect(() =>
+      createTradingSpecification({
+        ...specification,
+        quantity: {
+          ...specification.quantity,
+          quantityPrecision: -1,
+        },
+      }),
+    ).toThrow("quantityPrecision must be a non-negative integer");
   });
 
   it("returns an immutable specification", () => {
@@ -73,7 +90,13 @@ describe("isValidPrice", () => {
   it("rejects prices that violate the tick or precision", () => {
     expect(isValidPrice(67432.125, specification.price)).toBe(false);
     expect(isValidPrice(67432.121, specification.price)).toBe(false);
+  });
+
+  it("rejects non-positive and non-finite prices", () => {
     expect(isValidPrice(0, specification.price)).toBe(false);
+    expect(isValidPrice(-1, specification.price)).toBe(false);
+    expect(isValidPrice(Number.NaN, specification.price)).toBe(false);
+    expect(isValidPrice(Number.POSITIVE_INFINITY, specification.price)).toBe(false);
   });
 });
 
@@ -91,6 +114,36 @@ describe("isValidQuantity", () => {
 
   it("rejects quantities that violate the step or precision", () => {
     expect(isValidQuantity(0.0015, specification.quantity)).toBe(false);
-    expect(isValidQuantity(0.0001, specification.quantity)).toBe(false);
+    expect(isValidQuantity(1.2345, specification.quantity)).toBe(false);
+  });
+
+  it("supports step increments from the configured minimum", () => {
+    const steppedSpecification = createTradingSpecification({
+      price: {
+        tickSize: 0.01,
+        pricePrecision: 2,
+      },
+      quantity: {
+        minQuantity: 0.001,
+        maxQuantity: 1,
+        quantityStep: 0.003,
+        quantityPrecision: 3,
+      },
+      contract: {
+        contractSize: 1,
+      },
+    });
+
+    expect(isValidQuantity(0.001, steppedSpecification.quantity)).toBe(true);
+    expect(isValidQuantity(0.004, steppedSpecification.quantity)).toBe(true);
+    expect(isValidQuantity(0.007, steppedSpecification.quantity)).toBe(true);
+    expect(isValidQuantity(0.005, steppedSpecification.quantity)).toBe(false);
+  });
+
+  it("rejects non-positive and non-finite quantities", () => {
+    expect(isValidQuantity(0, specification.quantity)).toBe(false);
+    expect(isValidQuantity(-1, specification.quantity)).toBe(false);
+    expect(isValidQuantity(Number.NaN, specification.quantity)).toBe(false);
+    expect(isValidQuantity(Number.POSITIVE_INFINITY, specification.quantity)).toBe(false);
   });
 });
