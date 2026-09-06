@@ -1,0 +1,21 @@
+{
+  "name": "tradeledger",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Personal quantitative trading, research, execution, analytics, and trading operating system.",
+  "packageManager": "npm@11",
+  "workspaces": [
+    "core/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
