@@ -9,6 +9,7 @@ const baseOrder = {
   accountId: "account-001",
   instrumentId,
   side: "buy" as const,
+  type: "market" as const,
   quantity: 0.5,
   timeInForce: "gtc" as const,
   createdAt: "2026-09-07T12:00:00.000Z",
@@ -16,10 +17,7 @@ const baseOrder = {
 
 describe("createOrder", () => {
   it("creates a valid market order", () => {
-    const order = createOrder({
-      ...baseOrder,
-      type: "market",
-    });
+    const order = createOrder(baseOrder);
 
     expect(order.type).toBe("market");
     expect(order.status).toBe("created");
