@@ -7,3 +7,4 @@
 
 export * from "./instrument.js";
 export * from "./trading-specification.js";
+export * from "./order.js";
