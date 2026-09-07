@@ -68,6 +68,18 @@ function requirePositiveFinite(value: number, field: string): number {
   return value;
 }
 
+function requireValidValue<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  field: string,
+): T {
+  if (!allowed.includes(value as T)) {
+    throw new Error(`${field} must be one of: ${allowed.join(", ")}`);
+  }
+
+  return value as T;
+}
+
 function requireValidCreatedAt(value: string): string {
   const normalized = requireNonEmpty(value, "createdAt");
   const timestamp = Date.parse(normalized);
@@ -124,6 +136,13 @@ export function createOrder(input: OrderInput): Order {
   const id = requireNonEmpty(input.id, "id") as OrderId;
   const accountId = requireNonEmpty(input.accountId, "accountId") as AccountId;
   const instrumentId = requireNonEmpty(input.instrumentId, "instrumentId") as InstrumentId;
+  const side = requireValidValue(input.side, ORDER_SIDES, "side");
+  const type = requireValidValue(input.type, ORDER_TYPES, "type");
+  const timeInForce = requireValidValue(
+    input.timeInForce,
+    TIME_IN_FORCE_VALUES,
+    "timeInForce",
+  );
   const quantity = requirePositiveFinite(input.quantity, "quantity");
 
   const limitPrice = input.limitPrice === undefined
@@ -133,18 +152,18 @@ export function createOrder(input: OrderInput): Order {
     ? undefined
     : requirePositiveFinite(input.stopPrice, "stopPrice");
 
-  validatePricePresence(input.type, limitPrice, stopPrice);
+  validatePricePresence(type, limitPrice, stopPrice);
 
   const order: Order = {
     id,
     accountId,
     instrumentId,
-    side: input.side,
-    type: input.type,
+    side,
+    type,
     quantity,
     ...(limitPrice === undefined ? {} : { limitPrice }),
     ...(stopPrice === undefined ? {} : { stopPrice }),
-    timeInForce: input.timeInForce,
+    timeInForce,
     status: "created",
     createdAt: requireValidCreatedAt(input.createdAt),
   };
