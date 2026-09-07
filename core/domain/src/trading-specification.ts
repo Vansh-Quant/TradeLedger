@@ -156,8 +156,9 @@ function countDecimalPlaces(value: number): number {
   const text = value.toString().toLowerCase();
 
   if (text.includes("e")) {
-    const [coefficient, exponentText] = text.split("e");
-    const exponent = Number(exponentText);
+    const parts = text.split("e");
+    const coefficient = parts[0] ?? "";
+    const exponent = Number(parts[1] ?? 0);
     const decimals = coefficient.split(".")[1]?.length ?? 0;
     return Math.max(0, decimals - exponent);
   }
