@@ -111,6 +111,23 @@ describe("createOrder", () => {
     );
   });
 
+  it("rejects invalid runtime enum values", () => {
+    expect(() => createOrder({
+      ...baseOrder,
+      side: "hold" as never,
+    })).toThrow("side must be one of: buy, sell");
+
+    expect(() => createOrder({
+      ...baseOrder,
+      type: "trailing-stop" as never,
+    })).toThrow("type must be one of: market, limit, stop, stop-limit");
+
+    expect(() => createOrder({
+      ...baseOrder,
+      timeInForce: "gtc-plus" as never,
+    })).toThrow("timeInForce must be one of: day, gtc, ioc, fok");
+  });
+
   it("preserves the requested side and time-in-force", () => {
     const order = createOrder({
       ...baseOrder,
