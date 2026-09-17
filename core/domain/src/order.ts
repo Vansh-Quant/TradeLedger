@@ -7,6 +7,7 @@
  */
 
 import type { InstrumentId } from "./instrument.js";
+import type { AccountId } from "./account.js";
 
 export const ORDER_SIDES = ["buy", "sell"] as const;
 export type OrderSide = (typeof ORDER_SIDES)[number];
@@ -21,7 +22,6 @@ export const ORDER_STATUSES = ["created"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export type OrderId = string & { readonly __brand: "OrderId" };
-export type AccountId = string & { readonly __brand: "AccountId" };
 
 export interface OrderInput {
   readonly id: string;
