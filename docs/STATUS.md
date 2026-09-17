@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-17
 
 ## Current Milestone
 
@@ -17,16 +17,20 @@
 - Position domain model
 - Portfolio aggregate foundation
 - Execution domain foundation
+- Account domain foundation
+- Cash and equity foundation
 - Domain test coverage for the completed components
 
 ## Validation
 
-Latest local validation on 2026-09-14:
+Latest user-reported local validation on 2026-09-14:
 
 - TypeScript typecheck: passing
 - Vitest: **6 test files passing**
 - Tests: **48/48 passing**
 - Execution tests: **8/8 passing**
+
+Account and Cash foundations have been implemented on `feature/account-cash-foundation`. Final repository validation for these new changes must be run locally before promotion.
 
 ## Execution Domain Decision
 
@@ -36,10 +40,16 @@ Latest local validation on 2026-09-14:
 - Broker connectivity, reconciliation, richer fee modeling, settlement, and execution-quality analytics remain outside this initial domain foundation.
 - See `docs/architecture/ADR-002-execution-domain-foundation.md` for the accepted boundary and deferred work.
 
+## Account and Cash Decision
+
+- `Account` owns identity, base currency, and lifecycle state.
+- `CashBalance` owns base-currency settled cash operations.
+- Equity is initially `settled cash + unrealized P&L`.
+- Buying power, leverage, margin, financing, multi-currency cash, settlement, broker reconciliation, and account/portfolio wiring remain deferred.
+- See `docs/architecture/ADR-003-account-and-cash-foundation.md` for the accepted boundary.
+
 ## Next
 
-- Account domain foundation
-- Cash and equity model
 - Buying power foundation
 - Basic risk boundaries
 - Account/Portfolio integration
