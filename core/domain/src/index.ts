@@ -7,6 +7,7 @@
 
 export * from "./instrument.js";
 export * from "./trading-specification.js";
+export * from "./account.js";
 export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
