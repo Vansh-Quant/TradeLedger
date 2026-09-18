@@ -19,6 +19,7 @@
 - Execution domain foundation
 - Account domain foundation
 - Cash and equity foundation
+- Buying power foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -30,7 +31,7 @@ Latest user-reported local validation on 2026-09-14:
 - Tests: **48/48 passing**
 - Execution tests: **8/8 passing**
 
-Account and Cash foundations have been implemented on `feature/account-cash-foundation`. Final repository validation for these new changes must be run locally before promotion.
+Account and Cash foundations were promoted to `main`. Buying Power foundation has been implemented on `feature/buying-power-foundation`. Final repository validation for this change must be run locally before promotion.
 
 ## Execution Domain Decision
 
@@ -50,7 +51,6 @@ Account and Cash foundations have been implemented on `feature/account-cash-foun
 
 ## Next
 
-- Buying power foundation
 - Basic risk boundaries
 - Account/Portfolio integration
 
