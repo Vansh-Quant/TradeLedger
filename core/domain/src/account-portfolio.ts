@@ -1,6 +1,7 @@
 import type { Account } from "./account.js";
 import type { Execution } from "./execution.js";
-import { applyFill, createPosition, setPosition, type Portfolio } from "./portfolio.js";
+import { applyFill, createPosition } from "./position.js";
+import { setPosition, type Portfolio } from "./portfolio.js";
 
 export interface AccountPortfolio {
   readonly accountId: Account["id"];
