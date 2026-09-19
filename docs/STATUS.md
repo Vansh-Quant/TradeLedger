@@ -21,6 +21,7 @@
 - Cash and equity foundation
 - Buying power foundation
 - Basic risk boundaries foundation
+- Account/Portfolio integration foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -57,9 +58,16 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Broker-specific margin, leverage, advanced risk models, and automatic order admission remain outside this foundation.
 - See `docs/architecture/ADR-005-basic-risk-boundaries.md` for the accepted boundary.
 
+## Account and Portfolio Integration Decision
+
+- `AccountPortfolio` binds account identity to portfolio state without turning `Account` into a catch-all financial aggregate.
+- Actual `Execution` records drive position and portfolio updates.
+- Buying power, risk admission, cash settlement, and broker concerns remain separate.
+- See `docs/architecture/ADR-006-account-portfolio-integration.md` for the accepted boundary.
+
 ## Next
 
-- Account/Portfolio integration
+- Order admission and risk workflow
 
 ## Guiding Principle
 
