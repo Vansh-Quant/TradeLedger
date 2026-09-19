@@ -1,0 +1,1 @@
+docs(architecture): record account portfolio integration
