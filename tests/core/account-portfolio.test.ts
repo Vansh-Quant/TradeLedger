@@ -1,0 +1,1 @@
+test(core): cover account portfolio integration
