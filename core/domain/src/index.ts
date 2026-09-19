@@ -10,6 +10,7 @@ export * from "./trading-specification.js";
 export * from "./account.js";
 export * from "./cash.js";
 export * from "./buying-power.js";
+export * from "./risk-boundary.js";
 export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
