@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-19
 
 ## Current Milestone
 
@@ -20,6 +20,7 @@
 - Account domain foundation
 - Cash and equity foundation
 - Buying power foundation
+- Basic risk boundaries foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -31,7 +32,7 @@ Latest user-reported local validation on 2026-09-14:
 - Tests: **48/48 passing**
 - Execution tests: **8/8 passing**
 
-Account and Cash foundations were promoted to `main`. Buying Power foundation has been implemented on `feature/buying-power-foundation`. Final repository validation for this change must be run locally before promotion.
+Account and Cash foundations were promoted to `main`. Buying Power foundation was promoted to `main` after local validation of 69/69 tests.
 
 ## Execution Domain Decision
 
@@ -46,12 +47,18 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation ha
 - `Account` owns identity, base currency, and lifecycle state.
 - `CashBalance` owns base-currency settled cash operations.
 - Equity is initially `settled cash + unrealized P&L`.
-- Buying power, leverage, margin, financing, multi-currency cash, settlement, broker reconciliation, and account/portfolio wiring remain deferred.
+- Leverage, margin, financing, multi-currency cash, settlement, broker reconciliation, and account/portfolio wiring remain deferred.
 - See `docs/architecture/ADR-003-account-and-cash-foundation.md` for the accepted boundary.
+
+## Basic Risk Boundaries Decision
+
+- `RiskLimits` defines immutable hard boundaries for order notional, position notional, gross exposure, absolute net exposure, and daily loss.
+- Risk checks return deterministic allowed/rejected results.
+- Broker-specific margin, leverage, advanced risk models, and automatic order admission remain outside this foundation.
+- See `docs/architecture/ADR-005-basic-risk-boundaries.md` for the accepted boundary.
 
 ## Next
 
-- Basic risk boundaries
 - Account/Portfolio integration
 
 ## Guiding Principle
