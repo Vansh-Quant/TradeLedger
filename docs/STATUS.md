@@ -23,6 +23,7 @@
 - Basic risk boundaries foundation
 - Account/Portfolio integration foundation
 - Order admission and risk workflow foundation
+- Order lifecycle foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -74,9 +75,18 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Order lifecycle, broker submission, margin/leverage, settlement, and execution remain separate concerns.
 - See `docs/architecture/ADR-007-order-admission-risk-workflow.md` for the accepted boundary.
 
+## Order Lifecycle Decision
+
+- Order lifecycle states are explicit and immutable.
+- `filledQuantity` tracks actual quantity applied to an order and cannot exceed ordered quantity.
+- Partial and complete fills update lifecycle state deterministically.
+- Cancellation requests remain distinct from cancellation completion.
+- Broker transport, external reconciliation, buying-power release, and execution pricing remain outside this domain foundation.
+- See `docs/architecture/ADR-008-order-lifecycle-foundation.md` for the accepted boundary.
+
 ## Next
 
-- Order lifecycle / execution-state workflow
+- Execution-state reconciliation
 
 ## Guiding Principle
 
