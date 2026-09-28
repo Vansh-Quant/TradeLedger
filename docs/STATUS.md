@@ -22,6 +22,7 @@
 - Buying power foundation
 - Basic risk boundaries foundation
 - Account/Portfolio integration foundation
+- Order admission and risk workflow foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -65,9 +66,17 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Buying power, risk admission, cash settlement, and broker concerns remain separate.
 - See `docs/architecture/ADR-006-account-portfolio-integration.md` for the accepted boundary.
 
+## Order Admission and Risk Workflow Decision
+
+- `admitOrder()` composes Order intent, deterministic RiskLimits, and BuyingPower capacity.
+- Risk boundaries are checked before buying power is reserved.
+- Rejected admission leaves buying-power state unchanged.
+- Order lifecycle, broker submission, margin/leverage, settlement, and execution remain separate concerns.
+- See `docs/architecture/ADR-007-order-admission-risk-workflow.md` for the accepted boundary.
+
 ## Next
 
-- Order admission and risk workflow
+- Order lifecycle / execution-state workflow
 
 ## Guiding Principle
 
