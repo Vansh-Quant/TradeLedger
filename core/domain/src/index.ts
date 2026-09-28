@@ -13,6 +13,7 @@ export * from "./buying-power.js";
 export * from "./risk-boundary.js";
 export * from "./account-portfolio.js";
 export * from "./order-admission.js";
+export * from "./order-lifecycle.js";
 export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
