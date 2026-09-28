@@ -24,6 +24,7 @@
 - Account/Portfolio integration foundation
 - Order admission and risk workflow foundation
 - Order lifecycle foundation
+- Execution-state reconciliation foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -84,9 +85,17 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Broker transport, external reconciliation, buying-power release, and execution pricing remain outside this domain foundation.
 - See `docs/architecture/ADR-008-order-lifecycle-foundation.md` for the accepted boundary.
 
+## Execution-State Reconciliation Decision
+
+- `ExecutionReconciliation` bridges actual executions into Order fill state and AccountPortfolio position state.
+- Execution IDs are applied at most once within the reconciliation state.
+- Duplicate execution delivery is idempotent.
+- Broker transport, durable idempotency, settlement, and external reconciliation infrastructure remain separate concerns.
+- See `docs/architecture/ADR-009-execution-state-reconciliation.md` for the accepted boundary.
+
 ## Next
 
-- Execution-state reconciliation
+- Durable execution/reconciliation infrastructure
 
 ## Guiding Principle
 
