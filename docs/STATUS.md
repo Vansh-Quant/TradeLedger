@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-28
 
 ## Current Milestone
 
@@ -25,6 +25,7 @@
 - Order admission and risk workflow foundation
 - Order lifecycle foundation
 - Execution-state reconciliation foundation
+- Execution event store and deterministic replay foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -92,6 +93,16 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Duplicate execution delivery is idempotent.
 - Broker transport, durable idempotency, settlement, and external reconciliation infrastructure remain separate concerns.
 - See `docs/architecture/ADR-009-execution-state-reconciliation.md` for the accepted boundary.
+
+## Execution Event Store and Replay Decision
+
+- Execution history now has an explicit append-oriented event-store contract.
+- Execution IDs are the idempotency identity for recorded execution events.
+- A deterministic in-memory store provides the reference implementation for local development and tests.
+- Replay rebuilds order and portfolio state through the canonical execution reconciliation workflow.
+- Processing records a successfully reconciled execution and rejects invalid executions before recording them.
+- Database persistence, transactional durability, crash recovery, schema evolution, retention, and external broker reconciliation remain deferred.
+- See `docs/architecture/ADR-010-execution-event-store-and-replay.md` for the accepted boundary.
 
 ## Next
 
