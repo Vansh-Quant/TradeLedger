@@ -4,6 +4,7 @@ import {
   createAccount,
   createAccountPortfolio,
   createExecution,
+  createExecutionReconciliation,
   createOrder,
   createPortfolio,
   processExecution,
@@ -25,10 +26,10 @@ function makeState() {
     timeInForce: "day",
     createdAt: "2026-09-28T10:00:00Z",
   });
-  return {
-    order: Object.freeze({ ...order, status: "acknowledged" as const }),
-    accountPortfolio: createAccountPortfolio(account, createPortfolio()),
-  };
+  return createExecutionReconciliation(
+    Object.freeze({ ...order, status: "acknowledged" as const }),
+    createAccountPortfolio(account, createPortfolio()),
+  );
 }
 
 function makeExecution(id = "EXE-001", quantity = 4) {
@@ -48,11 +49,7 @@ describe("execution processing workflow", () => {
   it("records and reconciles a new execution", () => {
     const base = makeState();
     const state = processExecution({
-      ...base,
-      state: {
-        ...base,
-        appliedExecutionIds: new Set<string>(),
-      } as never,
+      state: base,
       execution: makeExecution(),
       eventStore: new InMemoryExecutionEventStore(),
       eventId: "EVT-001",
@@ -65,10 +62,7 @@ describe("execution processing workflow", () => {
     const base = makeState();
     const eventStore = new InMemoryExecutionEventStore();
 
-    const reconciliationState = {
-      ...base,
-      appliedExecutionIds: new Set<string>(),
-    } as never;
+    const reconciliationState = base;
 
     expect(() =>
       processExecution({
@@ -90,11 +84,7 @@ describe("execution processing workflow", () => {
 
     const first = processExecution({
       ...base,
-      state: {
-        order: base.order,
-        accountPortfolio: base.accountPortfolio,
-        appliedExecutionIds: new Set<string>(),
-      },
+      state: base,
       execution,
       eventStore,
       eventId: "EVT-001",
@@ -119,11 +109,7 @@ describe("execution processing workflow", () => {
   it("updates order and portfolio together", () => {
     const base = makeState();
     const result = processExecution({
-      state: {
-        order: base.order,
-        accountPortfolio: base.accountPortfolio,
-        appliedExecutionIds: new Set<string>(),
-      },
+      state: base,
       execution: makeExecution("EXE-001", 4),
       eventStore: new InMemoryExecutionEventStore(),
       eventId: "EVT-001",
