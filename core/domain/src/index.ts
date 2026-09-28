@@ -17,6 +17,7 @@ export * from "./order-lifecycle.js";
 export * from "./execution-reconciliation.js";
 export * from "./execution-event-store.js";
 export * from "./execution-replay.js";
+export * from "./execution-processing.js";
 export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
