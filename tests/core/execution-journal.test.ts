@@ -123,40 +123,25 @@ describe("journal replay checkpoints", () => {
   });
 
   it("can resume replay from a checkpoint", () => {
-    const journal = new InMemoryExecutionJournal();
+    const firstJournal = new InMemoryExecutionJournal();
+    const fullJournal = new InMemoryExecutionJournal();
 
-    journal.append(makeEvent("EVT-001", makeExecution("EXE-001", 4, "01")));
-    journal.append(makeEvent("EVT-002", makeExecution("EXE-002", 6, "03")));
+    const firstEvent = makeEvent("EVT-001", makeExecution("EXE-001", 4, "01"));
+    const secondEvent = makeEvent("EVT-002", makeExecution("EXE-002", 6, "03"));
 
-    const firstPass = replayExecutionJournal(journal, makeState());
+    firstJournal.append(firstEvent);
+    fullJournal.append(firstEvent);
+    fullJournal.append(secondEvent);
 
-    const resumed = replayExecutionJournal(
-      journal,
-      makeState(),
-      {
-        state: createExecutionReconciliation(
-          Object.freeze({ ...makeState().order, filledQuantity: 4, status: "partially_filled" as const }),
-          Object.freeze({
-            accountId: account.id,
-            portfolio: Object.freeze({
-              ...makeState().accountPortfolio.portfolio,
-              positions: new Map([
-                ["AAPL" as InstrumentId, Object.freeze({
-                  ...makeState().accountPortfolio.portfolio.positions.get("AAPL" as InstrumentId) ??
-                    { instrumentId: "AAPL" as InstrumentId, quantity: 4, averagePrice: 100, realizedPnl: 0 },
-                })]),
-              }),
-            }),
-          }),
-        ),
-        lastSequence: 1,
-      },
-    );
+    const checkpoint = replayExecutionJournal(firstJournal, makeState()).checkpoint;
+    const resumed = replayExecutionJournal(fullJournal, makeState(), checkpoint);
 
-    expect(firstPass.checkpoint.state.order.filledQuantity).toBe(10);
+    expect(checkpoint.lastSequence).toBe(1);
+    expect(checkpoint.state.order.filledQuantity).toBe(4);
     expect(resumed.appliedExecutionCount).toBe(1);
     expect(resumed.checkpoint.lastSequence).toBe(2);
     expect(resumed.checkpoint.state.order.filledQuantity).toBe(10);
+    expect(resumed.checkpoint.state.order.status).toBe("filled");
   });
 
   it("does not replay entries before the checkpoint", () => {
