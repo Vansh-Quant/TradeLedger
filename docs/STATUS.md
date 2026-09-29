@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-28
+**Last updated:** 2026-09-29
 
 ## Current Milestone
 
@@ -26,6 +26,7 @@
 - Order lifecycle foundation
 - Execution-state reconciliation foundation
 - Execution event store and deterministic replay foundation
+- Ordered execution journal and replay checkpoint foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -103,6 +104,15 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Processing records a successfully reconciled execution and rejects invalid executions before recording them.
 - Database persistence, transactional durability, crash recovery, schema evolution, retention, and external broker reconciliation remain deferred.
 - See `docs/architecture/ADR-010-execution-event-store-and-replay.md` for the accepted boundary.
+
+## Execution Journal and Replay Checkpoint Decision
+
+- Execution history now has ordered local journal sequence numbers.
+- Replay checkpoints contain reconciled state plus the last processed journal sequence.
+- Replay can resume from a checkpoint and process only later execution events.
+- Duplicate execution IDs remain idempotent and conflicting reuse remains rejected.
+- Durable persistence, transactional checkpoints, crash-consistent snapshots, compaction, archival, and distributed ordering remain deferred.
+- See `docs/architecture/ADR-011-execution-journal-and-replay-checkpoints.md` for the accepted boundary.
 
 ## Next
 
