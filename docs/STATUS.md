@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-29
 
 ## Current Milestone
 
@@ -25,16 +25,17 @@
 - Order admission and risk workflow foundation
 - Order lifecycle foundation
 - Execution-state reconciliation foundation
+- Execution event store and deterministic replay foundation
+- Ordered execution journal and replay checkpoint foundation
 - Domain test coverage for the completed components
 
 ## Validation
 
-Latest user-reported local validation on 2026-09-14:
+Latest user-reported local validation:
 
-- TypeScript typecheck: passing
-- Vitest: **6 test files passing**
-- Tests: **48/48 passing**
-- Execution tests: **8/8 passing**
+- 2026-09-14: TypeScript typecheck passing; Vitest 6 test files and 48/48 tests passing; Execution tests 8/8 passing.
+- 2026-09-28: Event store/replay feature validated locally; 16 test files and 120/120 tests passing.
+- 2026-09-29: Ordered execution journal and replay checkpoint feature validated locally with `npm run check` passing. Exact test totals were not recorded in this status entry.
 
 Account and Cash foundations were promoted to `main`. Buying Power foundation was promoted to `main` after local validation of 69/69 tests.
 
@@ -92,6 +93,25 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Duplicate execution delivery is idempotent.
 - Broker transport, durable idempotency, settlement, and external reconciliation infrastructure remain separate concerns.
 - See `docs/architecture/ADR-009-execution-state-reconciliation.md` for the accepted boundary.
+
+## Execution Event Store and Replay Decision
+
+- Execution history now has an explicit append-oriented event-store contract.
+- Execution IDs are the idempotency identity for recorded execution events.
+- A deterministic in-memory store provides the reference implementation for local development and tests.
+- Replay rebuilds order and portfolio state through the canonical execution reconciliation workflow.
+- Processing records a successfully reconciled execution and rejects invalid executions before recording them.
+- Database persistence, transactional durability, crash recovery, schema evolution, retention, and external broker reconciliation remain deferred.
+- See `docs/architecture/ADR-010-execution-event-store-and-replay.md` for the accepted boundary.
+
+## Execution Journal and Replay Checkpoint Decision
+
+- Execution history now has ordered local journal sequence numbers.
+- Replay checkpoints contain reconciled state plus the last processed journal sequence.
+- Replay can resume from a checkpoint and process only later execution events.
+- Duplicate execution IDs remain idempotent and conflicting reuse remains rejected.
+- Durable persistence, transactional checkpoints, crash-consistent snapshots, compaction, archival, and distributed ordering remain deferred.
+- See `docs/architecture/ADR-011-execution-journal-and-replay-checkpoints.md` for the accepted boundary.
 
 ## Next
 
