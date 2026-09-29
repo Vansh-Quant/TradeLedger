@@ -31,12 +31,11 @@
 
 ## Validation
 
-Latest user-reported local validation on 2026-09-14:
+Latest user-reported local validation:
 
-- TypeScript typecheck: passing
-- Vitest: **6 test files passing**
-- Tests: **48/48 passing**
-- Execution tests: **8/8 passing**
+- 2026-09-14: TypeScript typecheck passing; Vitest 6 test files and 48/48 tests passing; Execution tests 8/8 passing.
+- 2026-09-28: Event store/replay feature validated locally; 16 test files and 120/120 tests passing.
+- 2026-09-29: Ordered execution journal and replay checkpoint feature validated locally with `npm run check` passing. Exact test totals were not recorded in this status entry.
 
 Account and Cash foundations were promoted to `main`. Buying Power foundation was promoted to `main` after local validation of 69/69 tests.
 
