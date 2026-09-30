@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-29
+**Last updated:** 2026-09-30
 
 ## Current Milestone
 
@@ -27,6 +27,7 @@
 - Execution-state reconciliation foundation
 - Execution event store and deterministic replay foundation
 - Ordered execution journal and replay checkpoint foundation
+- Deterministic execution recovery workflow foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -35,7 +36,8 @@ Latest user-reported local validation:
 
 - 2026-09-14: TypeScript typecheck passing; Vitest 6 test files and 48/48 tests passing; Execution tests 8/8 passing.
 - 2026-09-28: Event store/replay feature validated locally; 16 test files and 120/120 tests passing.
-- 2026-09-29: Ordered execution journal and replay checkpoint feature validated locally with `npm run check` passing. Exact test totals were not recorded in this status entry.
+- 2026-09-29: Ordered execution journal and replay checkpoint feature validated locally with `npm run check` passing.
+- 2026-09-30: Deterministic execution recovery feature validated locally with TypeScript typecheck passing; Vitest **18 test files passing** and **133/133 tests passing**.
 
 Account and Cash foundations were promoted to `main`. Buying Power foundation was promoted to `main` after local validation of 69/69 tests.
 
@@ -112,6 +114,15 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Duplicate execution IDs remain idempotent and conflicting reuse remains rejected.
 - Durable persistence, transactional checkpoints, crash-consistent snapshots, compaction, archival, and distributed ordering remain deferred.
 - See `docs/architecture/ADR-011-execution-journal-and-replay-checkpoints.md` for the accepted boundary.
+
+## Deterministic Execution Recovery Decision
+
+- Recovery now has an explicit deterministic entry point for rebuilding state from the ordered execution journal.
+- Recovery validates checkpoint position against the journal head before replay.
+- A current checkpoint produces an `already_current` result without repeating reconciliation.
+- A stale checkpoint replays only later journal entries through canonical execution reconciliation.
+- Durable snapshots, atomic journal/snapshot transactions, crash-consistent storage, and broker-side recovery remain deferred.
+- See `docs/architecture/ADR-012-deterministic-execution-recovery.md` for the accepted boundary.
 
 ## Next
 
