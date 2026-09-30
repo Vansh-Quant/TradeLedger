@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-29
+**Last updated:** 2026-09-30
 
 ## Current Milestone
 
@@ -27,6 +27,7 @@
 - Execution-state reconciliation foundation
 - Execution event store and deterministic replay foundation
 - Ordered execution journal and replay checkpoint foundation
+- Deterministic execution recovery workflow foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -112,6 +113,15 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Duplicate execution IDs remain idempotent and conflicting reuse remains rejected.
 - Durable persistence, transactional checkpoints, crash-consistent snapshots, compaction, archival, and distributed ordering remain deferred.
 - See `docs/architecture/ADR-011-execution-journal-and-replay-checkpoints.md` for the accepted boundary.
+
+## Deterministic Execution Recovery Decision
+
+- Recovery now has an explicit deterministic entry point for rebuilding state from the ordered execution journal.
+- Recovery validates checkpoint position against the journal head before replay.
+- A current checkpoint produces an `already_current` result without repeating reconciliation.
+- A stale checkpoint replays only later journal entries through canonical execution reconciliation.
+- Durable snapshots, atomic journal/snapshot transactions, crash-consistent storage, and broker-side recovery remain deferred.
+- See `docs/architecture/ADR-012-deterministic-execution-recovery.md` for the accepted boundary.
 
 ## Next
 
