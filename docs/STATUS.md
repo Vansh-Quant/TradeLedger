@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-01
 
 ## Current Milestone
 
@@ -28,6 +28,7 @@
 - Execution event store and deterministic replay foundation
 - Ordered execution journal and replay checkpoint foundation
 - Deterministic execution recovery workflow foundation
+- Deterministic trading core order-to-execution workflow foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -123,6 +124,16 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - A stale checkpoint replays only later journal entries through canonical execution reconciliation.
 - Durable snapshots, atomic journal/snapshot transactions, crash-consistent storage, and broker-side recovery remain deferred.
 - See `docs/architecture/ADR-012-deterministic-execution-recovery.md` for the accepted boundary.
+
+## Deterministic Trading Core Workflow Decision
+
+- `admitTradingOrder()` composes the existing risk, buying-power, and order lifecycle boundaries.
+- Successful admission produces an acknowledged order with the corresponding buying-power reservation.
+- Rejected admission leaves buying-power reservation unchanged.
+- `processTradingExecution()` delegates actual fills to the canonical execution-processing and reconciliation workflow.
+- Duplicate execution IDs remain idempotent at the composed trading-core boundary.
+- Broker transport, durable transactions, dynamic market-data calculations, advanced portfolio risk, and reservation release/settlement remain separate concerns.
+- See `docs/architecture/ADR-013-deterministic-trading-core-workflow.md` for the accepted boundary.
 
 ## Next
 
