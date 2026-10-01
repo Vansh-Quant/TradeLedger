@@ -30,6 +30,7 @@
 - Deterministic execution recovery workflow foundation
 - Deterministic trading core order-to-execution workflow foundation
 - Order-level buying-power reservation lifecycle foundation
+- Durable execution persistence boundary foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -145,9 +146,18 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Cash settlement, broker-specific margin/leverage, dynamic reservation adjustments, and portfolio collateral remain separate concerns.
 - See `docs/architecture/ADR-014-order-buying-power-reservation-lifecycle.md` for the accepted boundary.
 
+## Durable Execution Persistence Decision
+
+- Execution persistence now has an infrastructure-level contract separate from deterministic domain reconciliation.
+- Execution records receive monotonic journal sequences and preserve execution-ID idempotency.
+- Recovery snapshots are validated against the persisted journal head and checkpoint sequence.
+- An in-memory infrastructure adapter provides the reference implementation for tests and local development.
+- PostgreSQL, atomic event/snapshot transactions, crash-consistent durability, schema evolution, retention, archival, and distributed concurrency remain deferred.
+- See `docs/architecture/ADR-015-durable-execution-persistence-boundary.md` for the accepted boundary.
+
 ## Next
 
-- Durable execution/reconciliation infrastructure
+- Durable database adapter and transactional execution/recovery persistence
 
 ## Guiding Principle
 
