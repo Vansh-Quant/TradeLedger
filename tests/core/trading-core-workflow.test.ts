@@ -9,6 +9,8 @@ import {
   createPortfolio,
   createRiskLimits,
   processTradingExecution,
+  requestTradingOrderCancellation,
+  completeTradingOrderCancellation,
   type InstrumentId,
 } from "../../core/domain/src/index.js";
 
@@ -85,6 +87,7 @@ describe("trading core workflow", () => {
     expect(result.state.order.status).toBe("acknowledged");
     expect(result.state.order.filledQuantity).toBe(0);
     expect(result.state.buyingPower.reservedCapacity).toBe(1_000);
+    expect(result.state.reservation?.remainingAmount).toBe(1_000);
     expect(result.state.reconciliation.order.status).toBe("acknowledged");
   });
 
@@ -123,6 +126,8 @@ describe("trading core workflow", () => {
     expect(result.state.order.status).toBe("partially_filled");
     expect(result.state.order.filledQuantity).toBe(4);
     expect(result.state.reconciliation.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
+    expect(result.state.buyingPower.reservedCapacity).toBe(600);
+    expect(result.state.reservation?.remainingAmount).toBe(600);
     expect(eventStore.hasExecution("EXE-001")).toBe(true);
   });
 
@@ -152,6 +157,7 @@ describe("trading core workflow", () => {
     expect(second.duplicate).toBe(true);
     expect(second.state.order.filledQuantity).toBe(4);
     expect(second.state.reconciliation.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
+    expect(second.state.buyingPower.reservedCapacity).toBe(600);
   });
 
   it("allows a complete fill through the composed workflow", () => {
@@ -169,5 +175,48 @@ describe("trading core workflow", () => {
     expect(result.state.order.status).toBe("filled");
     expect(result.state.order.filledQuantity).toBe(10);
     expect(result.state.reconciliation.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(10);
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+    expect(result.state.reservation?.remainingAmount).toBe(0);
   });
 });
+
+
+  it("keeps a cancellation request separate from reservation release", () => {
+    const admitted = makeAdmission();
+    const requested = requestTradingOrderCancellation(admitted.state);
+
+    expect(requested.order.status).toBe("cancel_requested");
+    expect(requested.buyingPower.reservedCapacity).toBe(1_000);
+    expect(requested.reservation?.remainingAmount).toBe(1_000);
+  });
+
+  it("releases remaining reservation when cancellation completes", () => {
+    const admitted = makeAdmission();
+    const requested = requestTradingOrderCancellation(admitted.state);
+    const cancelled = completeTradingOrderCancellation(requested);
+
+    expect(cancelled.order.status).toBe("cancelled");
+    expect(cancelled.buyingPower.reservedCapacity).toBe(0);
+    expect(cancelled.reservation?.remainingAmount).toBe(0);
+  });
+
+  it("releases only the unfilled reservation after a partial fill is cancelled", () => {
+    const admitted = makeAdmission();
+    const eventStore = new InMemoryExecutionEventStore();
+
+    const partiallyFilled = processTradingExecution({
+      state: admitted.state,
+      execution: makeExecution("EXE-001", 4),
+      eventStore,
+      eventId: "EVT-001",
+      recordedAt: "2026-10-01T10:02:00Z",
+    });
+
+    const requested = requestTradingOrderCancellation(partiallyFilled.state);
+    const cancelled = completeTradingOrderCancellation(requested);
+
+    expect(cancelled.order.status).toBe("cancelled");
+    expect(cancelled.order.filledQuantity).toBe(4);
+    expect(cancelled.buyingPower.reservedCapacity).toBe(0);
+    expect(cancelled.reservation?.remainingAmount).toBe(0);
+  });
