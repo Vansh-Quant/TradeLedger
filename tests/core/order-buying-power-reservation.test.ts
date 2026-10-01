@@ -9,6 +9,7 @@ import {
   releaseRemainingOrderReservation,
   releaseReservationForFill,
   reserveBuyingPower,
+  type InstrumentId,
 } from "../../core/domain/src/index.js";
 
 const account = createAccount({ id: "ACC-001", baseCurrency: "USD" });
@@ -17,7 +18,7 @@ function makeOrder(quantity = 10) {
   return createOrder({
     id: "ORD-001",
     accountId: account.id,
-    instrumentId: "AAPL",
+    instrumentId: "AAPL" as InstrumentId,
     side: "buy",
     type: "limit",
     quantity,
