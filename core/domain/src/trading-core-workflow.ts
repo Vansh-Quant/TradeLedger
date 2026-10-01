@@ -10,11 +10,19 @@ import {
 } from "./execution-reconciliation.js";
 import { processExecution } from "./execution-processing.js";
 import type { Order } from "./order.js";
+import {
+  applyReservationRelease,
+  createOrderBuyingPowerReservation,
+  releaseRemainingOrderReservation,
+  releaseReservationForFill,
+  type OrderBuyingPowerReservation,
+} from "./order-buying-power-reservation.js";
 import type { RiskLimits } from "./risk-boundary.js";
 
 export interface TradingCoreState {
   readonly order: Order;
   readonly buyingPower: BuyingPower;
+  readonly reservation?: OrderBuyingPowerReservation;
   readonly reconciliation: ExecutionReconciliation;
 }
 
@@ -98,6 +106,10 @@ export function admitTradingOrder(
 
   const submitted = transitionOrder(input.order, "submitted");
   const acknowledged = transitionOrder(submitted, "acknowledged");
+  const reservation = createOrderBuyingPowerReservation(
+    acknowledged,
+    input.orderNotional,
+  );
   const reconciliation = createExecutionReconciliation(
     acknowledged,
     input.accountPortfolio,
@@ -108,6 +120,7 @@ export function admitTradingOrder(
     state: Object.freeze({
       order: acknowledged,
       buyingPower: admission.buyingPower,
+      reservation,
       reconciliation,
     }),
   });
@@ -129,13 +142,82 @@ export function processTradingExecution(
     recordedAt: input.recordedAt,
   });
 
+  let buyingPower = input.state.buyingPower;
+  let reservation = input.state.reservation;
+
+  if (result.applied && reservation !== undefined) {
+    const nextReservation = releaseReservationForFill(
+      reservation,
+      input.execution.quantity,
+    );
+    buyingPower = applyReservationRelease(
+      buyingPower,
+      reservation,
+      nextReservation,
+    );
+    reservation = nextReservation;
+  }
+
   return Object.freeze({
     state: Object.freeze({
       order: result.state.order,
-      buyingPower: input.state.buyingPower,
+      buyingPower,
+      ...(reservation === undefined ? {} : { reservation }),
       reconciliation: result.state,
     }),
     applied: result.applied,
     duplicate: result.duplicate,
+  });
+}
+
+
+export function requestTradingOrderCancellation(
+  state: TradingCoreState,
+): TradingCoreState {
+  const order = transitionOrder(state.order, "cancel_requested");
+
+  return Object.freeze({
+    ...state,
+    order,
+    reconciliation: createExecutionReconciliation(
+      order,
+      state.reconciliation.accountPortfolio,
+    ),
+  });
+}
+
+export function completeTradingOrderCancellation(
+  state: TradingCoreState,
+): TradingCoreState {
+  const order = transitionOrder(state.order, "cancelled");
+  const reservation = state.reservation;
+
+  if (reservation === undefined) {
+    return Object.freeze({
+      ...state,
+      order,
+      reconciliation: createExecutionReconciliation(
+        order,
+        state.reconciliation.accountPortfolio,
+      ),
+    });
+  }
+
+  const releasedReservation = releaseRemainingOrderReservation(reservation);
+  const buyingPower = applyReservationRelease(
+    state.buyingPower,
+    reservation,
+    releasedReservation,
+  );
+
+  return Object.freeze({
+    ...state,
+    order,
+    buyingPower,
+    reservation: releasedReservation,
+    reconciliation: createExecutionReconciliation(
+      order,
+      state.reconciliation.accountPortfolio,
+    ),
   });
 }
