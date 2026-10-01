@@ -31,6 +31,7 @@
 - Deterministic trading core order-to-execution workflow foundation
 - Order-level buying-power reservation lifecycle foundation
 - Durable execution persistence boundary foundation
+- Transactional execution persistence boundary foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -154,6 +155,16 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - An in-memory infrastructure adapter provides the reference implementation for tests and local development.
 - PostgreSQL, atomic event/snapshot transactions, crash-consistent durability, schema evolution, retention, archival, and distributed concurrency remain deferred.
 - See `docs/architecture/ADR-015-durable-execution-persistence-boundary.md` for the accepted boundary.
+
+## Transactional Execution Persistence Decision
+
+- Execution persistence now exposes an explicit transaction boundary for event and snapshot commits.
+- Transactions stage events and recovery snapshots before commit.
+- Rollback leaves persisted state unchanged.
+- Snapshot validation accounts for events staged within the same transaction.
+- Nested and closed transaction misuse is rejected deterministically.
+- PostgreSQL transactions, isolation levels, cross-process locking, write-ahead logging, and storage-level crash recovery remain deferred.
+- See `docs/architecture/ADR-016-transactional-execution-persistence.md` for the accepted boundary.
 
 ## Next
 
