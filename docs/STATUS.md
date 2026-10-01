@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-01
 
 ## Current Milestone
 
@@ -28,6 +28,8 @@
 - Execution event store and deterministic replay foundation
 - Ordered execution journal and replay checkpoint foundation
 - Deterministic execution recovery workflow foundation
+- Deterministic trading core order-to-execution workflow foundation
+- Order-level buying-power reservation lifecycle foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -123,6 +125,25 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - A stale checkpoint replays only later journal entries through canonical execution reconciliation.
 - Durable snapshots, atomic journal/snapshot transactions, crash-consistent storage, and broker-side recovery remain deferred.
 - See `docs/architecture/ADR-012-deterministic-execution-recovery.md` for the accepted boundary.
+
+## Deterministic Trading Core Workflow Decision
+
+- `admitTradingOrder()` composes the existing risk, buying-power, and order lifecycle boundaries.
+- Successful admission produces an acknowledged order with the corresponding buying-power reservation.
+- Rejected admission leaves buying-power reservation unchanged.
+- `processTradingExecution()` delegates actual fills to the canonical execution-processing and reconciliation workflow.
+- Duplicate execution IDs remain idempotent at the composed trading-core boundary.
+- Broker transport, durable transactions, dynamic market-data calculations, advanced portfolio risk, and reservation release/settlement remain separate concerns.
+- See `docs/architecture/ADR-013-deterministic-trading-core-workflow.md` for the accepted boundary.
+
+## Order Buying-Power Reservation Lifecycle Decision
+
+- Admitted orders now carry an explicit immutable buying-power reservation.
+- Applied fills release reservation proportionally to filled quantity.
+- Duplicate executions do not release reservation twice.
+- Cancellation request preserves the reservation; cancellation completion releases all remaining reservation.
+- Cash settlement, broker-specific margin/leverage, dynamic reservation adjustments, and portfolio collateral remain separate concerns.
+- See `docs/architecture/ADR-014-order-buying-power-reservation-lifecycle.md` for the accepted boundary.
 
 ## Next
 
