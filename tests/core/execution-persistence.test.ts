@@ -125,3 +125,75 @@ describe("execution persistence foundation", () => {
     ).toThrow("snapshot sequence must match checkpoint sequence");
   });
 });
+
+
+  it("commits events and a matching snapshot atomically", () => {
+    const store = new InMemoryExecutionPersistence();
+    const transaction = store.beginTransaction();
+
+    transaction.appendExecutionEvent(event("EVT-001", "EXE-001", 4));
+    transaction.saveSnapshot({
+      checkpoint: {
+        state: {} as never,
+        lastSequence: 1,
+      },
+      journalSequence: 1,
+      savedAt: "2026-10-01T10:03:00Z",
+    });
+    transaction.commit();
+
+    expect(store.latestSequence()).toBe(1);
+    expect(store.loadLatestSnapshot()?.journalSequence).toBe(1);
+  });
+
+  it("does not persist staged events when a transaction is rolled back", () => {
+    const store = new InMemoryExecutionPersistence();
+    const transaction = store.beginTransaction();
+
+    transaction.appendExecutionEvent(event("EVT-001", "EXE-001", 4));
+    transaction.rollback();
+
+    expect(store.latestSequence()).toBe(0);
+    expect(store.listExecutionEntriesAfter(0)).toHaveLength(0);
+  });
+
+  it("rejects snapshots ahead of staged journal state", () => {
+    const store = new InMemoryExecutionPersistence();
+    const transaction = store.beginTransaction();
+
+    transaction.appendExecutionEvent(event("EVT-001", "EXE-001", 4));
+
+    expect(() =>
+      transaction.saveSnapshot({
+        checkpoint: {
+          state: {} as never,
+          lastSequence: 2,
+        },
+        journalSequence: 2,
+        savedAt: "2026-10-01T10:03:00Z",
+      }),
+    ).toThrow("snapshot sequence cannot exceed journal head");
+
+    transaction.rollback();
+  });
+
+  it("prevents nested transactions", () => {
+    const store = new InMemoryExecutionPersistence();
+    const transaction = store.beginTransaction();
+
+    expect(() => store.beginTransaction()).toThrow(
+      "execution persistence transaction already open",
+    );
+
+    transaction.rollback();
+  });
+
+  it("prevents use after transaction close", () => {
+    const store = new InMemoryExecutionPersistence();
+    const transaction = store.beginTransaction();
+    transaction.rollback();
+
+    expect(() =>
+      transaction.appendExecutionEvent(event("EVT-001", "EXE-001", 4)),
+    ).toThrow("execution persistence transaction is closed");
+  });
