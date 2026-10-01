@@ -87,7 +87,7 @@ export function admitTradingOrder(
 
     return Object.freeze({
       admitted: false,
-      reason: admission.reason,
+      ...(admission.reason === undefined ? {} : { reason: admission.reason }),
       state: Object.freeze({
         order: rejectedOrder,
         buyingPower: admission.buyingPower,
