@@ -20,6 +20,7 @@ export * from "./execution-replay.js";
 export * from "./execution-processing.js";
 export * from "./execution-journal.js";
 export * from "./execution-recovery.js";
+export * from "./trading-core-workflow.js";
 export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
