@@ -26,3 +26,4 @@ export * from "./order.js";
 export * from "./execution.js";
 export * from "./position.js";
 export * from "./portfolio.js";
+export * from "./market-data.js";
