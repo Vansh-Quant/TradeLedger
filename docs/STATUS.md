@@ -32,6 +32,7 @@
 - Order-level buying-power reservation lifecycle foundation
 - Durable execution persistence boundary foundation
 - Transactional execution persistence boundary foundation
+- PostgreSQL-oriented execution persistence adapter foundation
 - Domain test coverage for the completed components
 
 ## Validation
