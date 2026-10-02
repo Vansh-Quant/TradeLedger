@@ -41,7 +41,7 @@ describe("provider market data ingestion", () => {
     const provider = makeProvider();
     const accepted: MarketDataPoint[] = [];
     const ingestion = new ProviderMarketDataIngestion(provider, {
-      accept: (data) => accepted.push(data),
+      accept: (data) => { accepted.push(data); },
     });
 
     await ingestion.start(
