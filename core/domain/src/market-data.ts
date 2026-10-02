@@ -130,6 +130,7 @@ export function createQuote(input: QuoteInput): Quote {
     throw new Error("bid must be less than or equal to ask");
   }
 
+  const source = normalizeSource(input.source);
   const quote: Quote = {
     kind: "quote",
     instrumentId: input.instrumentId,
@@ -138,15 +139,14 @@ export function createQuote(input: QuoteInput): Quote {
     ask,
     askSize: requireFinitePositive(input.askSize, "askSize"),
     observedAt: requireTimestamp(input.observedAt, "observedAt"),
-    ...(normalizeSource(input.source) === undefined
-      ? {}
-      : { source: normalizeSource(input.source) }),
+    ...(source === undefined ? {} : { source }),
   };
 
   return Object.freeze(quote);
 }
 
 export function createTradePrint(input: TradeInput): TradePrint {
+  const source = normalizeSource(input.source);
   const trade: TradePrint = {
     kind: "trade",
     instrumentId: input.instrumentId,
@@ -154,9 +154,7 @@ export function createTradePrint(input: TradeInput): TradePrint {
     quantity: requireFinitePositive(input.quantity, "quantity"),
     observedAt: requireTimestamp(input.observedAt, "observedAt"),
     ...(input.side === undefined ? {} : { side: input.side }),
-    ...(normalizeSource(input.source) === undefined
-      ? {}
-      : { source: normalizeSource(input.source) }),
+    ...(source === undefined ? {} : { source }),
   };
 
   return Object.freeze(trade);
@@ -183,6 +181,7 @@ export function createBar(input: BarInput): Bar {
     throw new Error("low must be less than or equal to open and close");
   }
 
+  const source = normalizeSource(input.source);
   const bar: Bar = {
     kind: "bar",
     instrumentId: input.instrumentId,
@@ -197,9 +196,7 @@ export function createBar(input: BarInput): Bar {
     low,
     close,
     volume: requireNonNegative(input.volume, "volume"),
-    ...(normalizeSource(input.source) === undefined
-      ? {}
-      : { source: normalizeSource(input.source) }),
+    ...(source === undefined ? {} : { source }),
   };
 
   return Object.freeze(bar);
