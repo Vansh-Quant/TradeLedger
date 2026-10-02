@@ -44,7 +44,7 @@ class FakeSqlClient implements SqlTransactionClient {
   committed = false;
   rolledBack = false;
 
-  async query<Row extends Record<string, unknown> = Record<string, unknown>>(
+  async query<Row = unknown>(
     text: string,
     values: readonly unknown[] = [],
   ): Promise<SqlQueryResult<Row>> {
@@ -73,7 +73,7 @@ class FakeSqlClient implements SqlTransactionClient {
       return {
         rows: [...this.events.values()].filter(
           (event) => event.sequence > Number(values[0]),
-        ) as unknown as Row[],
+        ) as unknown as unknown as Row[],
       };
     }
 
