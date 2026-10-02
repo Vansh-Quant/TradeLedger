@@ -12,12 +12,20 @@ export interface DurableExecutionSnapshot {
   readonly savedAt: string;
 }
 
+export interface ExecutionPersistenceTransaction {
+  appendExecutionEvent(event: ExecutionEvent): DurableExecutionRecord;
+  saveSnapshot(snapshot: DurableExecutionSnapshot): void;
+  commit(): void;
+  rollback(): void;
+}
+
 export interface ExecutionPersistence {
   appendExecutionEvent(event: ExecutionEvent): DurableExecutionRecord;
   listExecutionEntriesAfter(sequence: number): readonly DurableExecutionRecord[];
   saveSnapshot(snapshot: DurableExecutionSnapshot): void;
   loadLatestSnapshot(): DurableExecutionSnapshot | undefined;
   latestSequence(): number;
+  beginTransaction(): ExecutionPersistenceTransaction;
 }
 
 function requireNonNegativeInteger(value: number, field: string): number {
@@ -34,16 +42,18 @@ function requireTimestamp(value: string, field: string): string {
   return value;
 }
 
-/**
- * Infrastructure persistence boundary for execution history.
- *
- * This interface intentionally does not expose domain mutation operations.
- * A PostgreSQL/event-store adapter can implement it later without changing
- * trading-core reconciliation or recovery rules.
- */
+function cloneSnapshot(snapshot: DurableExecutionSnapshot): DurableExecutionSnapshot {
+  return Object.freeze({
+    checkpoint: snapshot.checkpoint,
+    journalSequence: snapshot.journalSequence,
+    savedAt: snapshot.savedAt,
+  });
+}
+
 export function validateSnapshot(
-  persistence: ExecutionPersistence,
+  persistence: Pick<ExecutionPersistence, "latestSequence">,
   snapshot: DurableExecutionSnapshot,
+  journalHead = persistence.latestSequence(),
 ): void {
   const sequence = requireNonNegativeInteger(
     snapshot.journalSequence,
@@ -54,50 +64,46 @@ export function validateSnapshot(
     throw new Error("snapshot sequence must match checkpoint sequence");
   }
 
-  if (sequence > persistence.latestSequence()) {
+  if (sequence > journalHead) {
     throw new Error("snapshot sequence cannot exceed journal head");
   }
 
   requireTimestamp(snapshot.savedAt, "savedAt");
 }
 
+/**
+ * Infrastructure persistence boundary for execution history.
+ *
+ * Transactions provide an atomic application boundary for execution records
+ * and recovery snapshots. A database adapter can implement the same contract
+ * with a real database transaction.
+ */
 export class InMemoryExecutionPersistence implements ExecutionPersistence {
   private readonly entries: DurableExecutionRecord[] = [];
   private readonly byExecutionId = new Map<string, DurableExecutionRecord>();
   private latestSnapshot?: DurableExecutionSnapshot;
   private nextSequence = 1;
+  private transactionOpen = false;
 
   appendExecutionEvent(event: ExecutionEvent): DurableExecutionRecord {
     const existing = this.byExecutionId.get(event.execution.id);
 
     if (existing !== undefined) {
-      if (
-        JSON.stringify(existing.entry.execution) !==
-        JSON.stringify(event.execution)
-      ) {
-        throw new Error(
-          "execution id already exists with different execution data",
-        );
+      if (JSON.stringify(existing.entry.execution) !== JSON.stringify(event.execution)) {
+        throw new Error("execution id already exists with different execution data");
       }
       return existing;
     }
 
-    const entry = Object.freeze({
-      ...event,
-      sequence: this.nextSequence,
-    });
-
+    const entry = Object.freeze({ ...event, sequence: this.nextSequence });
     const record = Object.freeze({ entry });
     this.entries.push(record);
     this.byExecutionId.set(event.execution.id, record);
     this.nextSequence += 1;
-
     return record;
   }
 
-  listExecutionEntriesAfter(
-    sequence: number,
-  ): readonly DurableExecutionRecord[] {
+  listExecutionEntriesAfter(sequence: number): readonly DurableExecutionRecord[] {
     const cursor = requireNonNegativeInteger(sequence, "sequence");
     return Object.freeze(
       this.entries.filter((record) => record.entry.sequence > cursor).slice(),
@@ -106,11 +112,7 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
 
   saveSnapshot(snapshot: DurableExecutionSnapshot): void {
     validateSnapshot(this, snapshot);
-    this.latestSnapshot = Object.freeze({
-      checkpoint: snapshot.checkpoint,
-      journalSequence: snapshot.journalSequence,
-      savedAt: snapshot.savedAt,
-    });
+    this.latestSnapshot = cloneSnapshot(snapshot);
   }
 
   loadLatestSnapshot(): DurableExecutionSnapshot | undefined {
@@ -121,5 +123,92 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
     return this.entries.length === 0
       ? 0
       : this.entries[this.entries.length - 1]!.entry.sequence;
+  }
+
+  beginTransaction(): ExecutionPersistenceTransaction {
+    if (this.transactionOpen) {
+      throw new Error("execution persistence transaction already open");
+    }
+
+    this.transactionOpen = true;
+    const staged: ExecutionEvent[] = [];
+    let stagedSnapshot: DurableExecutionSnapshot | undefined;
+    let closed = false;
+
+    const ensureOpen = (): void => {
+      if (closed) throw new Error("execution persistence transaction is closed");
+    };
+
+    const transaction: ExecutionPersistenceTransaction = {
+      appendExecutionEvent: (event) => {
+        ensureOpen();
+
+        const existing = this.byExecutionId.get(event.execution.id);
+        if (existing !== undefined) {
+          if (JSON.stringify(existing.entry.execution) !== JSON.stringify(event.execution)) {
+            throw new Error("execution id already exists with different execution data");
+          }
+          return existing;
+        }
+
+        const stagedExisting = staged.find(
+          (candidate) => candidate.execution.id === event.execution.id,
+        );
+        if (stagedExisting !== undefined) {
+          if (JSON.stringify(stagedExisting.execution) !== JSON.stringify(event.execution)) {
+            throw new Error("execution id already exists with different execution data");
+          }
+
+          const stagedIndex = staged.findIndex(
+            (candidate) => candidate.execution.id === event.execution.id,
+          );
+          return Object.freeze({
+            entry: Object.freeze({
+              ...stagedExisting,
+              sequence: this.latestSequence() + stagedIndex + 1,
+            }),
+          });
+        }
+
+        staged.push(event);
+
+        return Object.freeze({
+          entry: Object.freeze({
+            ...event,
+            sequence: this.latestSequence() + staged.length,
+          }),
+        });
+      },
+
+      saveSnapshot: (snapshot) => {
+        ensureOpen();
+        validateSnapshot(this, snapshot, this.latestSequence() + staged.length);
+        stagedSnapshot = cloneSnapshot(snapshot);
+      },
+
+      commit: () => {
+        ensureOpen();
+
+        for (const event of staged) {
+          this.appendExecutionEvent(event);
+        }
+
+        if (stagedSnapshot !== undefined) {
+          validateSnapshot(this, stagedSnapshot);
+          this.latestSnapshot = cloneSnapshot(stagedSnapshot);
+        }
+
+        closed = true;
+        this.transactionOpen = false;
+      },
+
+      rollback: () => {
+        ensureOpen();
+        closed = true;
+        this.transactionOpen = false;
+      },
+    };
+
+    return Object.freeze(transaction);
   }
 }
