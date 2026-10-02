@@ -13,6 +13,7 @@
 - Development workflow documentation
 - Instrument domain model
 - Normalized market-data domain foundation
+- Provider-neutral market-data subscription and ingestion boundary
 - Trading specification domain model
 - Order domain model
 - Position domain model
