@@ -1,13 +1,16 @@
 import type { ExecutionEvent } from "../../domain/src/execution-event-store.js";
-import type { ExecutionJournalEntry } from "../../domain/src/execution-journal.js";
 import type { ExecutionRecoveryCheckpoint } from "../../domain/src/execution-recovery.js";
+import type {
+  DurableExecutionRecord,
+  DurableExecutionSnapshot,
+} from "./execution-persistence.js";
 
-export interface SqlQueryResult<Row extends Record<string, unknown> = Record<string, unknown>> {
+export interface SqlQueryResult<Row = unknown> {
   readonly rows: readonly Row[];
 }
 
 export interface SqlClient {
-  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+  query<Row = unknown>(
     text: string,
     values?: readonly unknown[],
   ): Promise<SqlQueryResult<Row>>;
@@ -20,16 +23,6 @@ export interface SqlTransactionClient extends SqlClient {
 
 export interface SqlTransactionFactory {
   begin(): Promise<SqlTransactionClient>;
-}
-
-export interface DurableExecutionRecord {
-  readonly entry: ExecutionJournalEntry;
-}
-
-export interface DurableExecutionSnapshot {
-  readonly checkpoint: ExecutionRecoveryCheckpoint;
-  readonly journalSequence: number;
-  readonly savedAt: string;
 }
 
 export interface SqlExecutionPersistence {
