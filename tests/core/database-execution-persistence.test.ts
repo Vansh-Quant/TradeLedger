@@ -66,7 +66,7 @@ class FakeSqlClient implements SqlTransactionClient {
     }
 
     if (text.includes("COALESCE(MAX(sequence)")) {
-      return { rows: [{ sequence: this.events.size } as Row] };
+      return { rows: [{ sequence: this.events.size } as unknown as Row] };
     }
 
     if (text.includes("WHERE sequence >")) {
