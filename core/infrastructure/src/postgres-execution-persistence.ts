@@ -1,6 +1,5 @@
 import type { ExecutionEvent } from "../../domain/src/execution-event-store.js";
 import type { ExecutionRecoveryCheckpoint } from "../../domain/src/execution-recovery.js";
-import type { DurableExecutionRecord, DurableExecutionSnapshot } from "./execution-persistence.js";
 import type {
   DurableExecutionRecord,
   DurableExecutionSnapshot,
