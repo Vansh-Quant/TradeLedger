@@ -12,6 +12,8 @@
 - Security and Git workflow documentation
 - Development workflow documentation
 - Instrument domain model
+- Normalized market-data domain foundation
+- Provider-neutral market-data subscription and ingestion boundary
 - Trading specification domain model
 - Order domain model
 - Position domain model
@@ -30,6 +32,8 @@
 - Deterministic execution recovery workflow foundation
 - Deterministic trading core order-to-execution workflow foundation
 - Order-level buying-power reservation lifecycle foundation
+- Durable execution persistence boundary foundation
+- Transactional execution persistence boundary foundation
 - Domain test coverage for the completed components
 
 ## Validation
@@ -145,9 +149,35 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Cash settlement, broker-specific margin/leverage, dynamic reservation adjustments, and portfolio collateral remain separate concerns.
 - See `docs/architecture/ADR-014-order-buying-power-reservation-lifecycle.md` for the accepted boundary.
 
+## Durable Execution Persistence Decision
+
+- Execution persistence now has an infrastructure-level contract separate from deterministic domain reconciliation.
+- Execution records receive monotonic journal sequences and preserve execution-ID idempotency.
+- Recovery snapshots are validated against the persisted journal head and checkpoint sequence.
+- An in-memory infrastructure adapter provides the reference implementation for tests and local development.
+- PostgreSQL, atomic event/snapshot transactions, crash-consistent durability, schema evolution, retention, archival, and distributed concurrency remain deferred.
+- See `docs/architecture/ADR-015-durable-execution-persistence-boundary.md` for the accepted boundary.
+
+## Transactional Execution Persistence Decision
+
+- Execution persistence now exposes an explicit transaction boundary for event and snapshot commits.
+- Transactions stage events and recovery snapshots before commit.
+- Rollback leaves persisted state unchanged.
+- Snapshot validation accounts for events staged within the same transaction.
+- Nested and closed transaction misuse is rejected deterministically.
+- PostgreSQL transactions, isolation levels, cross-process locking, write-ahead logging, and storage-level crash recovery remain deferred.
+- See `docs/architecture/ADR-016-transactional-execution-persistence.md` for the accepted boundary.
+
+## Normalized Market Data Decision
+
+- Canonical Quote, TradePrint, Bar, and MarketDataEnvelope objects now define the normalized market-data domain boundary.
+- Structural market-data invariants are validated deterministically at construction.
+- Provider formats, ingestion transport, subscriptions, persistence, calendars, and data-quality infrastructure remain separate concerns.
+- See `docs/architecture/ADR-018-normalized-market-data-foundation.md` for the accepted boundary.
+
 ## Next
 
-- Durable execution/reconciliation infrastructure
+- Market-data ingestion and provider abstraction
 
 ## Guiding Principle
 
