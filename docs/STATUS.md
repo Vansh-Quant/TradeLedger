@@ -12,6 +12,7 @@
 - Security and Git workflow documentation
 - Development workflow documentation
 - Instrument domain model
+- Normalized market-data domain foundation
 - Trading specification domain model
 - Order domain model
 - Position domain model
@@ -166,9 +167,16 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - PostgreSQL transactions, isolation levels, cross-process locking, write-ahead logging, and storage-level crash recovery remain deferred.
 - See `docs/architecture/ADR-016-transactional-execution-persistence.md` for the accepted boundary.
 
+## Normalized Market Data Decision
+
+- Canonical Quote, TradePrint, Bar, and MarketDataEnvelope objects now define the normalized market-data domain boundary.
+- Structural market-data invariants are validated deterministically at construction.
+- Provider formats, ingestion transport, subscriptions, persistence, calendars, and data-quality infrastructure remain separate concerns.
+- See `docs/architecture/ADR-018-normalized-market-data-foundation.md` for the accepted boundary.
+
 ## Next
 
-- Durable database adapter and transactional execution/recovery persistence
+- Market-data ingestion and provider abstraction
 
 ## Guiding Principle
 
