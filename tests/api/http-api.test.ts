@@ -1,0 +1,217 @@
+import { describe, expect, it } from "vitest";
+import {
+  AllowListedAuthorization,
+  InMemoryOrderStateStore,
+  InMemoryTradingContext,
+  TradingApplicationService,
+  fixedClock,
+  fixedOrderIdGenerator,
+  type ApplicationPrincipal,
+  type TradingContext,
+} from "../../packages/application/src/index.js";
+import {
+  createAccount,
+  createAccountPortfolio,
+  createBuyingPower,
+  createPortfolio,
+  createRiskLimits,
+} from "../../core/domain/src/index.js";
+import {
+  createHttpApi,
+  staticBearerAuthenticator,
+} from "../../packages/api/src/index.js";
+
+const principal: ApplicationPrincipal = { id: "api-user", roles: ["trader"] };
+const account = createAccount({ id: "ACC-API", baseCurrency: "USD" });
+const context: TradingContext = {
+  accountId: account.id,
+  accountPortfolio: createAccountPortfolio(account, createPortfolio()),
+  buyingPower: createBuyingPower(10_000),
+  riskLimits: createRiskLimits({
+    maxOrderNotional: 5_000,
+    maxPositionNotional: 10_000,
+    maxGrossExposure: 20_000,
+    maxNetExposure: 15_000,
+    maxDailyLoss: 1_000,
+  }),
+};
+
+function application() {
+  return new TradingApplicationService(
+    new InMemoryTradingContext([context]),
+    new InMemoryOrderStateStore(),
+    new AllowListedAuthorization([
+      "api-user:order.submit:ACC-API",
+      "api-user:order.read:ACC-API",
+      "api-user:order.cancel:ACC-API",
+    ]),
+    fixedOrderIdGenerator("ORD-API-001"),
+    fixedClock("2026-10-03T12:00:00.000Z"),
+  );
+}
+
+function auth() {
+  return staticBearerAuthenticator(new Map([["test-token", principal]]));
+}
+
+function orderBody() {
+  return JSON.stringify({
+    accountId: "ACC-API",
+    instrumentId: "AAPL",
+    side: "buy",
+    type: "limit",
+    quantity: 10,
+    limitPrice: 100,
+    timeInForce: "day",
+    orderNotional: 1_000,
+    projectedPositionNotional: 1_000,
+    projectedGrossExposure: 1_000,
+    projectedNetExposure: 1_000,
+    dailyLoss: 0,
+  });
+}
+
+async function withServer<T>(
+  fn: (baseUrl: string) => Promise<T>,
+  options?: Parameters<typeof createHttpApi>[1],
+) {
+  const server = createHttpApi(
+    { application: application(), authenticate: auth() },
+    options,
+  );
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("server did not bind");
+  try {
+    return await fn(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+describe("HTTP API security boundary", () => {
+  it("exposes minimal unauthenticated health state", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/health`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ status: "ok" });
+    });
+  });
+
+  it("requires bearer authentication for trading routes", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`);
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({
+        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
+      });
+    });
+  });
+
+  it("creates an order through the application boundary", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(201);
+      expect((await response.json()).admitted).toBe(true);
+    });
+  });
+
+  it("does not leak authentication details for invalid tokens", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer wrong-token",
+          "content-type": "application/json",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({
+        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
+      });
+    });
+  });
+
+  it("rejects non-JSON bodies before application execution", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "text/plain",
+        },
+        body: "not-json",
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  it("rejects oversized request bodies", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ data: "x".repeat(100) }),
+      });
+      expect(response.status).toBe(400);
+    }, { maxBodyBytes: 32 });
+  });
+
+  it("returns restrictive security headers and an opaque request id", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/health`);
+      expect(response.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
+      expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    });
+  });
+
+  it("rate limits repeated requests", async () => {
+    await withServer(async (baseUrl) => {
+      expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+      expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+      expect((await fetch(`${baseUrl}/health`)).status).toBe(429);
+    }, { rateLimit: { windowMs: 60_000, maxRequests: 2 } });
+  });
+
+  it("maps unexpected application failures without leaking internals", async () => {
+    const server = createHttpApi({
+      application: {
+        submitOrder: () => { throw new Error("secret internal detail"); },
+      } as never,
+      authenticate: auth(),
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("server did not bind");
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({
+        error: { code: "INTERNAL_ERROR", message: "internal server error" },
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
