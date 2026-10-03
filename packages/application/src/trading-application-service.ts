@@ -10,6 +10,7 @@ import type {
   AuthorizationPort,
   CancelOrderCommand,
   CancelOrderResult,
+  CompleteOrderCancellationCommand,
   Clock,
   GetOrderQuery,
   GetOrderResult,
@@ -143,7 +144,35 @@ export class TradingApplicationService {
     }
 
     const requested = requestTradingOrderCancellation(current);
-    const cancelled = completeTradingOrderCancellation(requested);
+
+    this.orders.save(requested);
+
+    return Object.freeze({
+      order: requested.order,
+      state: requested,
+    });
+  }
+
+
+  completeOrderCancellation(
+    command: CompleteOrderCancellationCommand,
+  ): CancelOrderResult {
+    const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
+    const orderId = requireNonEmpty(command.orderId, "orderId");
+
+    this.authorization.authorize(
+      command.principal,
+      "order.cancel",
+      accountId,
+    );
+
+    const current = this.orders.get(orderId);
+
+    if (current === undefined || current.order.accountId !== accountId) {
+      throw new NotFoundError(`order ${orderId} was not found`);
+    }
+
+    const cancelled = completeTradingOrderCancellation(current);
 
     this.orders.save(cancelled);
     this.context.saveContext({
