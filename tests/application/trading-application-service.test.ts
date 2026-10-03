@@ -132,9 +132,19 @@ describe("trading application service", () => {
       orderId: submitted.order.id,
     });
 
-    expect(result.order.status).toBe("cancelled");
-    expect(result.state.buyingPower.reservedCapacity).toBe(0);
-    expect(result.state.reservation?.remainingAmount).toBe(0);
+    expect(result.order.status).toBe("cancel_requested");
+    expect(result.state.buyingPower.reservedCapacity).toBe(1_000);
+    expect(result.state.reservation?.remainingAmount).toBe(1_000);
+
+    const completed = application.completeOrderCancellation({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+    });
+
+    expect(completed.order.status).toBe("cancelled");
+    expect(completed.state.buyingPower.reservedCapacity).toBe(0);
+    expect(completed.state.reservation?.remainingAmount).toBe(0);
   });
 
   it("persists buying-power changes across commands", () => {
