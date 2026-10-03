@@ -173,7 +173,7 @@ async function route(
     const result = deps.application.cancelOrder({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(order[1]),
+      orderId: decodeURIComponent(order[1] ?? ""),
     });
     send(response, id, 202, result);
     return;
