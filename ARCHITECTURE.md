@@ -87,7 +87,41 @@ Event Bus
       └── Intelligence
 ```
 
-## 5. Service Boundaries
+## 5. Application Boundary
+
+The application layer is the use-case boundary between transports and the deterministic domain.
+
+```text
+HTTP / Desktop / CLI / Voice
+            ↓
+      Application Services
+            ↓
+      Deterministic Domain
+            ↓
+ Infrastructure / Persistence
+```
+
+Application services own:
+
+- command/query contracts
+- basic input validation
+- authorization
+- use-case orchestration
+- DTO/result mapping
+- coordination through infrastructure ports
+
+They must not duplicate:
+
+- risk calculations
+- buying-power rules
+- accounting
+- order lifecycle
+- execution reconciliation
+- position/P&L calculation
+
+Cancellation is explicitly request/acknowledgement based: a request moves an order to `cancel_requested`; reservation release occurs only when cancellation completion is confirmed.
+
+## 6. Service Boundaries
 
 Each major subsystem should define:
 
