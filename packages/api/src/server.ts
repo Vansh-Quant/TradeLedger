@@ -22,7 +22,10 @@ function send(response: ServerResponse, id: string, status: number, body: unknow
 
 async function readJson(request: IncomingMessage, maxBytes: number): Promise<Record<string, unknown>> {
   const contentType = request.headers["content-type"];
-  if (typeof contentType !== "string" || !contentType.toLowerCase().startsWith("application/json")) {
+  const mediaType = typeof contentType === "string"
+    ? contentType.split(";", 1)[0]?.trim().toLowerCase()
+    : undefined;
+  if (mediaType !== "application/json") {
     throw new ValidationError("content-type must be application/json");
   }
   const contentLength = request.headers["content-length"];
@@ -94,6 +97,16 @@ function principalOrThrow(principal: ApplicationPrincipal | undefined): Applicat
   return principal;
 }
 
+function decodeOrderId(match: RegExpExecArray): string {
+  const value = match[1];
+  if (value === undefined || value.length === 0) throw new ValidationError("order id is required");
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new ValidationError("order id is invalid");
+  }
+}
+
 async function route(
   request: IncomingMessage,
   response: ServerResponse,
@@ -102,7 +115,12 @@ async function route(
   id: string,
 ): Promise<void> {
   const method = request.method ?? "GET";
-  const parsed = new URL(request.url ?? "/", "http://tradeledger.local");
+  let parsed: URL;
+  try {
+    parsed = new URL(request.url ?? "/", "http://tradeledger.local");
+  } catch {
+    throw new ValidationError("request URL is invalid");
+  }
   const path = parsed.pathname;
   const apiRequest: ApiRequest = {
     method,
@@ -152,7 +170,7 @@ async function route(
     const result = deps.application.completeOrderCancellation({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(completion[1] ?? ""),
+      orderId: decodeOrderId(completion),
     });
     send(response, id, 200, result);
     return;
@@ -163,7 +181,7 @@ async function route(
     const result = deps.application.getOrder({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(order[1] ?? ""),
+      orderId: decodeOrderId(order),
     });
     send(response, id, 200, result);
     return;
