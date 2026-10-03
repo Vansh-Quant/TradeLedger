@@ -7,7 +7,7 @@
  * concerns.
  */
 
-interface CashBalance {
+export interface CashBalance {
   readonly currency: string;
   readonly amount: number;
 }
@@ -44,13 +44,6 @@ function normalizeCurrency(value: string): string {
   return requireNonEmpty(value, "currency").toUpperCase();
 }
 
-/**
- * Creates an immutable cash balance.
- *
- * Negative cash is rejected at this foundation layer. Borrowing, margin,
- * credit facilities, and financing costs will require an explicit later model
- * rather than silently turning a cash balance into a debt account.
- */
 export function createCashBalance(currency: string, amount = 0): CashBalance {
   const balance: CashBalance = {
     currency: normalizeCurrency(currency),
