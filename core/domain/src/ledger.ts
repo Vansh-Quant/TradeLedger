@@ -265,7 +265,7 @@ export function withdrawFromLedger(
     ledgerId,
     accountId: state.account.id,
     txDate: input.txDate,
-    description: input.description,
+    ...(input.description === undefined ? {} : { description: input.description }),
     category: input.category,
     debit: input.amount,
     credit: 0,
