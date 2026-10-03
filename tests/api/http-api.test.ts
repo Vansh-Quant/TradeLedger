@@ -187,6 +187,34 @@ describe("HTTP API security boundary", () => {
     }, { rateLimit: { windowMs: 60_000, maxRequests: 2 } });
   });
 
+
+
+  it("rejects JSON-looking content types that are not application/json", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/jsonish",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  it("rejects malformed percent-encoded order ids without leaking parser errors", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders/%E0%A4%A?accountId=ACC-API`, {
+        headers: { authorization: "Bearer test-token" },
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: { code: "VALIDATION_ERROR", message: "order id is invalid" },
+      });
+    });
+  });
+
   it("maps unexpected application failures without leaking internals", async () => {
     const server = createHttpApi({
       application: {
