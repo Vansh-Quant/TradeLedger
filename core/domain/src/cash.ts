@@ -44,13 +44,6 @@ function normalizeCurrency(value: string): string {
   return requireNonEmpty(value, "currency").toUpperCase();
 }
 
-/**
- * Creates an immutable cash balance.
- *
- * Negative cash is rejected at this foundation layer. Borrowing, margin,
- * credit facilities, and financing costs will require an explicit later model
- * rather than silently turning a cash balance into a debt account.
- */
 export function createCashBalance(currency: string, amount = 0): CashBalance {
   const balance: CashBalance = {
     currency: normalizeCurrency(currency),
@@ -89,9 +82,6 @@ export function withdrawCash(balance: CashBalance, amount: number): CashBalance 
  * Realized P&L is intentionally not added separately because realized P&L is
  * assumed to already be reflected in the cash balance by the accounting flow.
  */
-export function calculateEquity(
-  balance: CashBalance,
-  unrealizedPnl: number,
-): number {
+export function calculateEquity(balance: CashBalance, unrealizedPnl: number): number {
   return balance.amount + requireFinite(unrealizedPnl, "unrealizedPnl");
 }

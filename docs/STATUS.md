@@ -1,10 +1,10 @@
 # TradeLedger Status
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-03
 
 ## Current Milestone
 
-`v0.1-foundation`
+v0.1-foundation
 
 ## Completed
 
@@ -34,150 +34,114 @@
 - Order-level buying-power reservation lifecycle foundation
 - Durable execution persistence boundary foundation
 - Transactional execution persistence boundary foundation
-- Domain test coverage for the completed components
+- Normalized market-data foundation
+- Accounting ledger foundation
+- Centralized risk-engine foundation
+- OMS orchestration foundation
+- Domain hardening tests for accounting, risk, and OMS
+- Canonical-domain delegation for OMS lifecycle and execution behavior
 
 ## Validation
 
-Latest user-reported local validation:
+The current feature branch adds new domain code and tests after the previously validated 24-file / 180-test baseline.
 
-- 2026-09-14: TypeScript typecheck passing; Vitest 6 test files and 48/48 tests passing; Execution tests 8/8 passing.
-- 2026-09-28: Event store/replay feature validated locally; 16 test files and 120/120 tests passing.
-- 2026-09-29: Ordered execution journal and replay checkpoint feature validated locally with `npm run check` passing.
-- 2026-09-30: Deterministic execution recovery feature validated locally with TypeScript typecheck passing; Vitest **18 test files passing** and **133/133 tests passing**.
+Final local promotion gate for this branch:
 
-Account and Cash foundations were promoted to `main`. Buying Power foundation was promoted to `main` after local validation of 69/69 tests.
+- npm run check
+- full Vitest suite
 
-## Execution Domain Decision
+Do not mark this feature complete until the local commands pass.
 
-- `Execution` records an immutable actual fill associated with an `Order`.
+## Domain Decisions
+
+### Accounting Ledger
+
+- Cash operations delegate to the canonical Cash domain.
+- Realized and unrealized P&L are signed.
+- Equity is settled cash plus current unrealized P&L.
+- Ledger transaction timestamps are explicit and validated.
+- Cash reservations cannot exceed available unreserved cash.
+- Ledger entries cannot contain both debit and credit.
+- See docs/architecture/ADR-019-domain-hardening-accounting-oms-risk.md.
+
+### Centralized Risk Engine
+
+- Risk decisions are deterministic.
+- Policies are account-scoped.
+- Net exposure is evaluated by absolute magnitude.
+- Draft, paused, retired, and disabled policies do not admit orders.
+- Buying-power availability is part of final admission evaluation.
+- Advanced margin, leverage, VaR, financing, and portfolio optimization remain deferred.
+
+### OMS
+
+- OMS composes the existing deterministic TradingCoreWorkflow.
+- OrderLifecycle remains canonical for state transitions.
+- ExecutionReconciliation remains canonical for execution application.
+- Buying-power reservation and release remain canonical.
+- OMS does not maintain an independent portfolio or position engine.
+- Duplicate executions remain idempotent.
+
+## Previously Accepted Foundations
+
+### Execution
+
+- Execution records an immutable actual fill associated with an Order.
 - One order may produce zero, one, or many executions.
 - Position changes are based on actual executions, not requested order quantity.
-- Broker connectivity, reconciliation, richer fee modeling, settlement, and execution-quality analytics remain outside this initial domain foundation.
-- See `docs/architecture/ADR-002-execution-domain-foundation.md` for the accepted boundary and deferred work.
+- Broker connectivity, richer fee modeling, settlement, and execution-quality analytics remain deferred.
+- See docs/architecture/ADR-002-execution-domain-foundation.md.
 
-## Account and Cash Decision
+### Account and Cash
 
-- `Account` owns identity, base currency, and lifecycle state.
-- `CashBalance` owns base-currency settled cash operations.
-- Equity is initially `settled cash + unrealized P&L`.
-- Leverage, margin, financing, multi-currency cash, settlement, broker reconciliation, and account/portfolio wiring remain deferred.
-- See `docs/architecture/ADR-003-account-and-cash-foundation.md` for the accepted boundary.
+- Account owns identity, base currency, and lifecycle state.
+- CashBalance owns base-currency settled cash operations.
+- Equity is initially settled cash plus unrealized P&L.
+- Leverage, margin, financing, multi-currency cash, settlement, and broker reconciliation remain deferred.
+- See docs/architecture/ADR-003-account-and-cash-foundation.md.
 
-## Basic Risk Boundaries Decision
+### Risk Boundaries
 
-- `RiskLimits` defines immutable hard boundaries for order notional, position notional, gross exposure, absolute net exposure, and daily loss.
+- RiskLimits defines immutable hard boundaries for order notional, position notional, gross exposure, absolute net exposure, and daily loss.
 - Risk checks return deterministic allowed/rejected results.
-- Broker-specific margin, leverage, advanced risk models, and automatic order admission remain outside this foundation.
-- See `docs/architecture/ADR-005-basic-risk-boundaries.md` for the accepted boundary.
+- Broker-specific margin, leverage, advanced risk models, and automatic order admission remain separate concerns.
+- See docs/architecture/ADR-005-basic-risk-boundaries.md.
 
-## Account and Portfolio Integration Decision
+### Account and Portfolio Integration
 
-- `AccountPortfolio` binds account identity to portfolio state without turning `Account` into a catch-all financial aggregate.
-- Actual `Execution` records drive position and portfolio updates.
+- AccountPortfolio binds account identity to portfolio state.
+- Actual Execution records drive position and portfolio updates.
 - Buying power, risk admission, cash settlement, and broker concerns remain separate.
-- See `docs/architecture/ADR-006-account-portfolio-integration.md` for the accepted boundary.
+- See docs/architecture/ADR-006-account-portfolio-integration.md.
 
-## Order Admission and Risk Workflow Decision
+### Order Admission and Lifecycle
 
-- `admitOrder()` composes Order intent, deterministic RiskLimits, and BuyingPower capacity.
-- Risk boundaries are checked before buying power is reserved.
-- Rejected admission leaves buying-power state unchanged.
-- Order lifecycle, broker submission, margin/leverage, settlement, and execution remain separate concerns.
-- See `docs/architecture/ADR-007-order-admission-risk-workflow.md` for the accepted boundary.
+- admitOrder composes deterministic risk boundaries and buying-power capacity.
+- OrderLifecycle defines immutable state transitions.
+- filledQuantity tracks actual applied quantity and cannot exceed ordered quantity.
+- See ADR-007 and ADR-008.
 
-## Order Lifecycle Decision
+### Execution Reconciliation and Recovery
 
-- Order lifecycle states are explicit and immutable.
-- `filledQuantity` tracks actual quantity applied to an order and cannot exceed ordered quantity.
-- Partial and complete fills update lifecycle state deterministically.
-- Cancellation requests remain distinct from cancellation completion.
-- Broker transport, external reconciliation, buying-power release, and execution pricing remain outside this domain foundation.
-- See `docs/architecture/ADR-008-order-lifecycle-foundation.md` for the accepted boundary.
-
-## Execution-State Reconciliation Decision
-
-- `ExecutionReconciliation` bridges actual executions into Order fill state and AccountPortfolio position state.
-- Execution IDs are applied at most once within the reconciliation state.
+- Execution IDs are applied at most once.
 - Duplicate execution delivery is idempotent.
-- Broker transport, durable idempotency, settlement, and external reconciliation infrastructure remain separate concerns.
-- See `docs/architecture/ADR-009-execution-state-reconciliation.md` for the accepted boundary.
+- Execution history has explicit event-store, journal, replay, checkpoint, and recovery boundaries.
+- Durable database persistence and crash-consistent storage remain infrastructure concerns.
+- See ADR-009 through ADR-016.
 
-## Execution Event Store and Replay Decision
+### Normalized Market Data
 
-- Execution history now has an explicit append-oriented event-store contract.
-- Execution IDs are the idempotency identity for recorded execution events.
-- A deterministic in-memory store provides the reference implementation for local development and tests.
-- Replay rebuilds order and portfolio state through the canonical execution reconciliation workflow.
-- Processing records a successfully reconciled execution and rejects invalid executions before recording them.
-- Database persistence, transactional durability, crash recovery, schema evolution, retention, and external broker reconciliation remain deferred.
-- See `docs/architecture/ADR-010-execution-event-store-and-replay.md` for the accepted boundary.
-
-## Execution Journal and Replay Checkpoint Decision
-
-- Execution history now has ordered local journal sequence numbers.
-- Replay checkpoints contain reconciled state plus the last processed journal sequence.
-- Replay can resume from a checkpoint and process only later execution events.
-- Duplicate execution IDs remain idempotent and conflicting reuse remains rejected.
-- Durable persistence, transactional checkpoints, crash-consistent snapshots, compaction, archival, and distributed ordering remain deferred.
-- See `docs/architecture/ADR-011-execution-journal-and-replay-checkpoints.md` for the accepted boundary.
-
-## Deterministic Execution Recovery Decision
-
-- Recovery now has an explicit deterministic entry point for rebuilding state from the ordered execution journal.
-- Recovery validates checkpoint position against the journal head before replay.
-- A current checkpoint produces an `already_current` result without repeating reconciliation.
-- A stale checkpoint replays only later journal entries through canonical execution reconciliation.
-- Durable snapshots, atomic journal/snapshot transactions, crash-consistent storage, and broker-side recovery remain deferred.
-- See `docs/architecture/ADR-012-deterministic-execution-recovery.md` for the accepted boundary.
-
-## Deterministic Trading Core Workflow Decision
-
-- `admitTradingOrder()` composes the existing risk, buying-power, and order lifecycle boundaries.
-- Successful admission produces an acknowledged order with the corresponding buying-power reservation.
-- Rejected admission leaves buying-power reservation unchanged.
-- `processTradingExecution()` delegates actual fills to the canonical execution-processing and reconciliation workflow.
-- Duplicate execution IDs remain idempotent at the composed trading-core boundary.
-- Broker transport, durable transactions, dynamic market-data calculations, advanced portfolio risk, and reservation release/settlement remain separate concerns.
-- See `docs/architecture/ADR-013-deterministic-trading-core-workflow.md` for the accepted boundary.
-
-## Order Buying-Power Reservation Lifecycle Decision
-
-- Admitted orders now carry an explicit immutable buying-power reservation.
-- Applied fills release reservation proportionally to filled quantity.
-- Duplicate executions do not release reservation twice.
-- Cancellation request preserves the reservation; cancellation completion releases all remaining reservation.
-- Cash settlement, broker-specific margin/leverage, dynamic reservation adjustments, and portfolio collateral remain separate concerns.
-- See `docs/architecture/ADR-014-order-buying-power-reservation-lifecycle.md` for the accepted boundary.
-
-## Durable Execution Persistence Decision
-
-- Execution persistence now has an infrastructure-level contract separate from deterministic domain reconciliation.
-- Execution records receive monotonic journal sequences and preserve execution-ID idempotency.
-- Recovery snapshots are validated against the persisted journal head and checkpoint sequence.
-- An in-memory infrastructure adapter provides the reference implementation for tests and local development.
-- PostgreSQL, atomic event/snapshot transactions, crash-consistent durability, schema evolution, retention, archival, and distributed concurrency remain deferred.
-- See `docs/architecture/ADR-015-durable-execution-persistence-boundary.md` for the accepted boundary.
-
-## Transactional Execution Persistence Decision
-
-- Execution persistence now exposes an explicit transaction boundary for event and snapshot commits.
-- Transactions stage events and recovery snapshots before commit.
-- Rollback leaves persisted state unchanged.
-- Snapshot validation accounts for events staged within the same transaction.
-- Nested and closed transaction misuse is rejected deterministically.
-- PostgreSQL transactions, isolation levels, cross-process locking, write-ahead logging, and storage-level crash recovery remain deferred.
-- See `docs/architecture/ADR-016-transactional-execution-persistence.md` for the accepted boundary.
-
-## Normalized Market Data Decision
-
-- Canonical Quote, TradePrint, Bar, and MarketDataEnvelope objects now define the normalized market-data domain boundary.
-- Structural market-data invariants are validated deterministically at construction.
+- Canonical Quote, TradePrint, Bar, and MarketDataEnvelope objects define the normalized market-data boundary.
 - Provider formats, ingestion transport, subscriptions, persistence, calendars, and data-quality infrastructure remain separate concerns.
-- See `docs/architecture/ADR-018-normalized-market-data-foundation.md` for the accepted boundary.
+- See docs/architecture/ADR-018-normalized-market-data-foundation.md.
 
 ## Next
 
-- Market-data ingestion and provider abstraction
+- API / application service layer
+- Explicit DTO and command/query boundaries
+- Application-level validation and authorization
+- HTTP transport without moving financial logic into controllers
+- Integration tests from API/application boundary into deterministic domain
 
 ## Guiding Principle
 
