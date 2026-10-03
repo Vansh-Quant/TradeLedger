@@ -86,6 +86,12 @@ export interface CancelOrderResult {
   readonly state: TradingCoreState;
 }
 
+export interface CompleteOrderCancellationCommand {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+  readonly orderId: string;
+}
+
 export interface GetOrderQuery {
   readonly principal: ApplicationPrincipal;
   readonly accountId: string;
