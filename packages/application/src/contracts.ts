@@ -35,6 +35,7 @@ export interface TradingContext {
 
 export interface TradingContextPort {
   getContext(accountId: AccountId): TradingContext;
+  saveContext(context: TradingContext): void;
 }
 
 export interface OrderStatePort {
