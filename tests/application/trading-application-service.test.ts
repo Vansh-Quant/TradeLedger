@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
   InMemoryOrderStateStore,
+  InMemoryTradingContext,
   TradingApplicationService,
   fixedClock,
   fixedOrderIdGenerator,
@@ -47,8 +48,9 @@ function service(
   ],
 ) {
   const orders = new InMemoryOrderStateStore();
+  const tradingContext = new InMemoryTradingContext([context]);
   const application = new TradingApplicationService(
-    { getContext: () => context },
+    tradingContext,
     orders,
     new AllowListedAuthorization(permissions),
     fixedOrderIdGenerator("ORD-APP-001"),
@@ -133,6 +135,22 @@ describe("trading application service", () => {
     expect(result.order.status).toBe("cancelled");
     expect(result.state.buyingPower.reservedCapacity).toBe(0);
     expect(result.state.reservation?.remainingAmount).toBe(0);
+  });
+
+  it("persists buying-power changes across commands", () => {
+    const { application } = service();
+
+    application.submitOrder(command());
+    const second = application.submitOrder({
+      ...command(),
+      orderNotional: 9_001,
+      projectedPositionNotional: 9_001,
+      projectedGrossExposure: 9_001,
+      projectedNetExposure: 9_001,
+    });
+
+    expect(second.admitted).toBe(false);
+    expect(second.reason).toContain("buying power");
   });
 
   it("preserves immutable state across command execution", () => {
