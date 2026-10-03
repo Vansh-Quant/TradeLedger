@@ -19,6 +19,10 @@
 - Central data core
 - Event bus
 - Account engine
+- Application service boundary
+- Command/query contracts
+- Application validation and authorization
+- HTTP/API transport boundary
 - OMS
 - Position engine
 - Risk engine
