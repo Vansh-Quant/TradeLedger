@@ -108,7 +108,7 @@ async function route(
     method,
     url: request.url ?? "/",
     headers: request.headers,
-    remoteAddress: request.socket.remoteAddress,
+    ...(request.socket.remoteAddress === undefined ? {} : { remoteAddress: request.socket.remoteAddress }),
     raw: request,
   };
 
@@ -152,7 +152,7 @@ async function route(
     const result = deps.application.completeOrderCancellation({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(completion[1]),
+      orderId: decodeURIComponent(completion[1] ?? ""),
     });
     send(response, id, 200, result);
     return;
@@ -163,7 +163,7 @@ async function route(
     const result = deps.application.getOrder({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(order[1]),
+      orderId: decodeURIComponent(order[1] ?? ""),
     });
     send(response, id, 200, result);
     return;
