@@ -103,6 +103,10 @@ export class TradingApplicationService {
     });
 
     this.orders.save(admission.state);
+    this.context.saveContext({
+      ...tradingContext,
+      buyingPower: admission.state.buyingPower,
+    });
 
     const result: SubmitOrderResult = {
       admitted: admission.admitted,
@@ -142,6 +146,10 @@ export class TradingApplicationService {
     const cancelled = completeTradingOrderCancellation(requested);
 
     this.orders.save(cancelled);
+    this.context.saveContext({
+      ...this.context.getContext(accountId),
+      buyingPower: cancelled.buyingPower,
+    });
 
     return Object.freeze({
       order: cancelled.order,
