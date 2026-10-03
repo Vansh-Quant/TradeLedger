@@ -10,6 +10,7 @@ import {
   type TradingCoreAdmissionInput,
   type TradingCoreState,
 } from "./trading-core-workflow.js";
+import { transitionOrder } from "./order-lifecycle.js";
 import type { Order } from "./order.js";
 import type { RiskLimits } from "./risk-boundary.js";
 
@@ -80,31 +81,11 @@ export function admitOmsOrder(input: OmsAdmissionInput): OmsAdmissionResult {
   });
 }
 
-export function submitOmsOrder(input: OmsOrderState): OmsOrderState {
-  if (input.order.status !== "created") {
-    throw new Error(
-      `cannot submit a terminal or already-submitted order from status ${input.order.status}`,
-    );
-  }
-
-  return Object.freeze({
-    ...input,
-    order: Object.freeze({ ...input.order, status: "submitted" }),
-    reconciliation: Object.freeze({
-      ...input.reconciliation,
-      order: Object.freeze({ ...input.order, status: "submitted" }),
-    }),
-  });
-}
-
-export function acknowledgeOmsOrder(input: OmsOrderState): OmsOrderState {
-  if (input.order.status !== "submitted") {
-    throw new Error(
-      `cannot acknowledge order from status ${input.order.status}`,
-    );
-  }
-
-  const order = Object.freeze({ ...input.order, status: "acknowledged" });
+function mapOrderState(
+  input: OmsOrderState,
+  nextStatus: Parameters<typeof transitionOrder>[1],
+): OmsOrderState {
+  const order = transitionOrder(input.order, nextStatus);
 
   return Object.freeze({
     ...input,
@@ -116,44 +97,23 @@ export function acknowledgeOmsOrder(input: OmsOrderState): OmsOrderState {
   });
 }
 
-export function rejectOmsOrder(input: OmsRejectState): OmsRejectState {
-  if (
-    input.order.status !== "created" &&
-    input.order.status !== "submitted" &&
-    input.order.status !== "acknowledged"
-  ) {
-    throw new Error(
-      `cannot reject order from status ${input.order.status}`,
-    );
-  }
+export function submitOmsOrder(input: OmsOrderState): OmsOrderState {
+  return mapOrderState(input, "submitted");
+}
 
+export function acknowledgeOmsOrder(input: OmsOrderState): OmsOrderState {
+  return mapOrderState(input, "acknowledged");
+}
+
+export function rejectOmsOrder(input: OmsRejectState): OmsRejectState {
   return Object.freeze({
     ...input,
-    order: Object.freeze({ ...input.order, status: "rejected" }),
+    order: transitionOrder(input.order, "rejected"),
   });
 }
 
 export function expireOmsOrder(input: OmsOrderState): OmsOrderState {
-  if (
-    input.order.status !== "created" &&
-    input.order.status !== "submitted" &&
-    input.order.status !== "acknowledged"
-  ) {
-    throw new Error(
-      `cannot expire order from status ${input.order.status}`,
-    );
-  }
-
-  const order = Object.freeze({ ...input.order, status: "expired" });
-
-  return Object.freeze({
-    ...input,
-    order,
-    reconciliation: Object.freeze({
-      ...input.reconciliation,
-      order,
-    }),
-  });
+  return mapOrderState(input, "expired");
 }
 
 export function processOmsExecution(
