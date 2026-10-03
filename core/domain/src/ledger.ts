@@ -1,4 +1,10 @@
 import type { Account } from "./account.js";
+import {
+  calculateEquity,
+  depositCash,
+  withdrawCash,
+  type CashBalance,
+} from "./cash.js";
 import type { Portfolio } from "./portfolio.js";
 
 export type LedgerStatus = "pending" | "applied" | "reversed";
@@ -35,7 +41,7 @@ export interface BookedEntry {
 
 export interface AccountingState {
   readonly account: Account;
-  readonly cashBalance: Readonly<{ currency: string; amount: number }>;
+  readonly cashBalance: CashBalance;
   readonly portfolio: Portfolio;
   readonly ledger: readonly LedgerEntry[];
   readonly booked: readonly BookedEntry[];
@@ -53,33 +59,25 @@ function requireFinite(value: number, field: string): number {
 }
 
 function requireNonNegative(value: number, field: string): number {
-  requireFinite(value, field);
-  if (value < 0) {
+  const normalized = requireFinite(value, field);
+  if (normalized < 0) {
     throw new Error(`${field} must be non-negative`);
   }
-  return value;
+  return normalized;
 }
 
 function requirePositive(value: number, field: string): number {
-  requireFinite(value, field);
-  if (value <= 0) {
+  const normalized = requireFinite(value, field);
+  if (normalized <= 0) {
     throw new Error(`${field} must be positive`);
   }
-  return value;
+  return normalized;
 }
 
 function requireNonEmpty(value: string, field: string): string {
   const normalized = value.trim();
   if (normalized.length === 0) {
     throw new Error(`${field} must not be empty`);
-  }
-  return normalized;
-}
-
-function requireCurrency(value: string): string {
-  const normalized = requireNonEmpty(value, "currency").toUpperCase();
-  if (!/^[A-Z]{3}$/.test(normalized)) {
-    throw new Error("currency must be a three-letter ISO code");
   }
   return normalized;
 }
@@ -102,42 +100,6 @@ function createLedgerId(): string {
   return crypto.randomUUID();
 }
 
-export function createCashBalance(
-  currency: string,
-  amount = 0,
-): Readonly<{ currency: string; amount: number }> {
-  return Object.freeze({
-    currency: requireCurrency(currency),
-    amount: requireNonNegative(amount, "amount"),
-  });
-}
-
-export function depositCash(
-  balance: Readonly<{ currency: string; amount: number }>,
-  amount: number,
-): Readonly<{ currency: string; amount: number }> {
-  const deposit = requirePositive(amount, "amount");
-  return Object.freeze({ ...balance, amount: balance.amount + deposit });
-}
-
-export function withdrawCash(
-  balance: Readonly<{ currency: string; amount: number }>,
-  amount: number,
-): Readonly<{ currency: string; amount: number }> {
-  const withdrawal = requirePositive(amount, "amount");
-  if (withdrawal > balance.amount) {
-    throw new Error("withdrawal amount exceeds available cash");
-  }
-  return Object.freeze({ ...balance, amount: balance.amount - withdrawal });
-}
-
-export function calculateEquity(
-  balance: Readonly<{ currency: string; amount: number }>,
-  unrealizedPnl: number,
-): number {
-  return balance.amount + requireFinite(unrealizedPnl, "unrealizedPnl");
-}
-
 export function createLedgerEntry(input: {
   readonly ledgerId: string;
   readonly accountId: string;
@@ -156,6 +118,7 @@ export function createLedgerEntry(input: {
   const category = requireNonEmpty(input.category, "category");
   const debit = requireNonNegative(input.debit, "debit");
   const credit = requireNonNegative(input.credit, "credit");
+
   assertStatus(input.status);
 
   if (debit === 0 && credit === 0) {
@@ -188,6 +151,13 @@ export function createBookedEntry(input: {
   readonly currency: string;
   readonly status: LedgerStatus;
 }): BookedEntry {
+  const amount = requireNonNegative(input.amount, "amount");
+  const currency = requireNonEmpty(input.currency, "currency").toUpperCase();
+
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error("currency must be a three-letter ISO code");
+  }
+
   const entry = {
     ledgerId: requireNonEmpty(input.ledgerId, "ledgerId"),
     accountId: requireNonEmpty(input.accountId, "accountId"),
@@ -195,8 +165,8 @@ export function createBookedEntry(input: {
     description:
       input.description === undefined ? undefined : input.description.trim(),
     category: requireNonEmpty(input.category, "category"),
-    amount: requireNonNegative(input.amount, "amount"),
-    currency: requireCurrency(input.currency),
+    amount,
+    currency,
     status: input.status,
   };
 
@@ -206,7 +176,7 @@ export function createBookedEntry(input: {
 
 export function createAccountingState(input: {
   readonly account: Account;
-  readonly cashBalance: Readonly<{ currency: string; amount: number }>;
+  readonly cashBalance: CashBalance;
   readonly portfolio: Portfolio;
   readonly ledger?: readonly LedgerEntry[];
   readonly booked?: readonly BookedEntry[];
@@ -220,23 +190,28 @@ export function createAccountingState(input: {
     input.unrealizedPnl ?? input.portfolio.unrealizedPnl,
     "unrealizedPnl",
   );
-  const totalEquity =
-    input.totalEquity ??
-    calculateEquity(input.cashBalance, unrealizedPnl);
+  const totalEquity = requireFinite(
+    input.totalEquity ?? calculateEquity(input.cashBalance, unrealizedPnl),
+    "totalEquity",
+  );
   const reservedAmount = requireNonNegative(
     input.reservedAmount ?? 0,
     "reservedAmount",
   );
 
+  if (reservedAmount > input.cashBalance.amount) {
+    throw new Error("reservedAmount cannot exceed available cash");
+  }
+
   return Object.freeze({
     account: input.account,
-    cashBalance: Object.freeze({ ...input.cashBalance }),
+    cashBalance: input.cashBalance,
     portfolio: input.portfolio,
     ledger: Object.freeze([...(input.ledger ?? [])]),
     booked: Object.freeze([...(input.booked ?? [])]),
     realizedPnl,
     unrealizedPnl,
-    totalEquity: requireFinite(totalEquity, "totalEquity"),
+    totalEquity,
     reservedAmount,
   });
 }
@@ -312,6 +287,7 @@ export function reserveCash(
 ): AccountingState {
   const reservation = requirePositive(amount, "amount");
   const availableCash = state.cashBalance.amount - state.reservedAmount;
+
   if (reservation > availableCash) {
     throw new Error("reservation amount exceeds available cash");
   }
@@ -326,6 +302,7 @@ export function releaseReservation(
   amount: number,
 ): AccountingState {
   const release = requirePositive(amount, "amount");
+
   if (release > state.reservedAmount) {
     throw new Error("release amount exceeds reserved amount");
   }
@@ -367,6 +344,7 @@ export function reportUnrealizedPnl(
   unrealizedPnl: number,
 ): AccountingState {
   const nextUnrealizedPnl = requireFinite(unrealizedPnl, "unrealizedPnl");
+
   return withState(state, {
     unrealizedPnl: nextUnrealizedPnl,
     totalEquity: calculateEquity(state.cashBalance, nextUnrealizedPnl),
