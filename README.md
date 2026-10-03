@@ -66,7 +66,7 @@ TradeLedger/
 
 **Phase:** `v0.1-foundation`
 
-The repository has just been established. The first milestone is to create the engineering foundation, domain contracts, development standards, testing structure, and service boundaries required for the rest of TradeLedger.
+The deterministic trading foundation and the first application-service boundary are established. The current work is moving upward from domain contracts into transport-independent application use cases before introducing HTTP/UI concerns.
 
 ## Long-Term System Layers
 
