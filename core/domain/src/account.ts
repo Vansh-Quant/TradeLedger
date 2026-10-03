@@ -6,6 +6,8 @@
  * responsibilities and are introduced by their respective domain models.
  */
 
+
+
 export const ACCOUNT_STATUSES = ["active", "suspended", "closed"] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
@@ -24,11 +26,9 @@ export interface Account {
 
 function requireNonEmpty(value: string, field: string): string {
   const normalized = value.trim();
-
   if (normalized.length === 0) {
     throw new Error(`${field} must not be empty`);
   }
-
   return normalized;
 }
 
@@ -42,20 +42,12 @@ function assertStatus(status: AccountStatus, allowed: readonly AccountStatus[], 
   }
 }
 
-/**
- * Creates an active, validated, immutable trading account.
- *
- * The account starts with no cash or portfolio state here. Those concerns are
- * deliberately modeled separately so the Account aggregate does not become a
- * catch-all for financial calculations.
- */
 export function createAccount(input: AccountInput): Account {
   const account: Account = {
     id: requireNonEmpty(input.id, "id") as AccountId,
     baseCurrency: normalizeCurrency(input.baseCurrency),
     status: "active",
   };
-
   return Object.freeze(account);
 }
 
