@@ -143,14 +143,14 @@ describe("trading application service", () => {
     application.submitOrder(command());
     const second = application.submitOrder({
       ...command(),
-      orderNotional: 9_001,
-      projectedPositionNotional: 9_001,
-      projectedGrossExposure: 9_001,
-      projectedNetExposure: 9_001,
+      orderNotional: 4_500,
+      projectedPositionNotional: 4_500,
+      projectedGrossExposure: 4_500,
+      projectedNetExposure: 4_500,
     });
 
-    expect(second.admitted).toBe(false);
-    expect(second.reason).toContain("buying power");
+    expect(second.admitted).toBe(true);
+    expect(second.state.buyingPower.reservedCapacity).toBe(5_500);
   });
 
   it("preserves immutable state across command execution", () => {
