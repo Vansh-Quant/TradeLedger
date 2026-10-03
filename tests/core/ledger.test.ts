@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { createAccount } from "../../core/domain/src/account.js";
 import {
   createAccountingState,
-  createCashBalance,
   createLedgerEntry,
   depositToLedger,
   releaseReservation,
@@ -11,6 +10,7 @@ import {
   reserveCash,
   withdrawFromLedger,
 } from "../../core/domain/src/ledger.js";
+import { createCashBalance } from "../../core/domain/src/cash.js";
 import { createPortfolio } from "../../core/domain/src/portfolio.js";
 
 const account = createAccount({ id: "ACC-LEDGER", baseCurrency: "USD" });
