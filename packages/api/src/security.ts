@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import type { ApplicationPrincipal } from "@tradeledger/application";
 import { AuthorizationError } from "@tradeledger/application";
@@ -14,9 +14,9 @@ export function bearerToken(headers: IncomingHttpHeaders): string | undefined {
 }
 
 export function constantTimeTokenEquals(actual: string, expected: string): boolean {
-  const a = Buffer.from(actual);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const a = createHash("sha256").update(actual, "utf8").digest();
+  const b = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(a, b);
 }
 
 export function staticBearerAuthenticator(
