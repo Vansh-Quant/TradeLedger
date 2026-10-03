@@ -7,7 +7,7 @@
  * concerns.
  */
 
-export interface CashBalance {
+interface CashBalance {
   readonly currency: string;
   readonly amount: number;
 }
@@ -89,9 +89,6 @@ export function withdrawCash(balance: CashBalance, amount: number): CashBalance 
  * Realized P&L is intentionally not added separately because realized P&L is
  * assumed to already be reflected in the cash balance by the accounting flow.
  */
-export function calculateEquity(
-  balance: CashBalance,
-  unrealizedPnl: number,
-): number {
+export function calculateEquity(balance: CashBalance, unrealizedPnl: number): number {
   return balance.amount + requireFinite(unrealizedPnl, "unrealizedPnl");
 }

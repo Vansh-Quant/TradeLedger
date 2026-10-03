@@ -1,9 +1,9 @@
 /**
- * Basic deterministic risk boundaries.
+ * Centralized deterministic risk policy and evaluation.
  *
- * This foundation defines account/trading limits and pure checks against
- * measured values. It does not calculate broker margin, leverage, market
- * risk, VaR, strategy risk, or portfolio optimization.
+ * This module only encodes configurable limits and deterministic
+ * pass/fail comparisons. It does not calculate broker margin, leverage,
+ * market risk, VaR, strategy risk, or portfolio optimization.
  */
 
 export interface RiskLimits {
@@ -17,6 +17,7 @@ export interface RiskLimits {
 export interface RiskCheckResult {
   readonly allowed: boolean;
   readonly reason?: string;
+  readonly policyId?: string;
 }
 
 function requirePositiveFinite(value: number, field: string): number {
@@ -42,47 +43,60 @@ function checkLimit(
   value: number,
   limit: number,
   label: string,
+  policyId?: string,
 ): RiskCheckResult {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be a non-negative finite number`);
   }
 
-  return value <= limit
+  const result: RiskCheckResult = value <= limit
     ? { allowed: true }
     : { allowed: false, reason: `${label} exceeds configured limit` };
+
+  if (policyId) {
+    return { ...result, policyId };
+  }
+
+  return result;
 }
 
 export function checkOrderNotional(
   notional: number,
   limits: RiskLimits,
+  policyId?: string,
 ): RiskCheckResult {
-  return checkLimit(notional, limits.maxOrderNotional, "order notional");
+  return checkLimit(notional, limits.maxOrderNotional, "order notional", policyId);
 }
 
 export function checkPositionNotional(
   notional: number,
   limits: RiskLimits,
+  policyId?: string,
 ): RiskCheckResult {
-  return checkLimit(notional, limits.maxPositionNotional, "position notional");
+  return checkLimit(notional, limits.maxPositionNotional, "position notional", policyId);
 }
 
 export function checkGrossExposure(
-  grossExposure: number,
+  exposure: number,
   limits: RiskLimits,
+  policyId?: string,
 ): RiskCheckResult {
-  return checkLimit(grossExposure, limits.maxGrossExposure, "gross exposure");
+  return checkLimit(exposure, limits.maxGrossExposure, "gross exposure", policyId);
 }
 
 export function checkNetExposure(
-  netExposure: number,
+  exposure: number,
   limits: RiskLimits,
+  policyId?: string,
 ): RiskCheckResult {
-  return checkLimit(Math.abs(netExposure), limits.maxNetExposure, "net exposure");
+  const absolute = Math.abs(exposure);
+  return checkLimit(absolute, limits.maxNetExposure, "net exposure", policyId);
 }
 
 export function checkDailyLoss(
-  dailyLoss: number,
+  loss: number,
   limits: RiskLimits,
+  policyId?: string,
 ): RiskCheckResult {
-  return checkLimit(dailyLoss, limits.maxDailyLoss, "daily loss");
+  return checkLimit(loss, limits.maxDailyLoss, "daily loss", policyId);
 }

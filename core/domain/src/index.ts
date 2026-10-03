@@ -6,9 +6,8 @@
  */
 
 export * from "./instrument.js";
-export * from "./trading-specification.js";
 export * from "./account.js";
-export * from "./cash.js";
+export { createCashBalance, depositCash, withdrawCash, calculateEquity } from "./cash.js";
 export * from "./buying-power.js";
 export * from "./risk-boundary.js";
 export * from "./account-portfolio.js";
@@ -29,3 +28,9 @@ export * from "./portfolio.js";
 export * from "./market-data.js";
 export * from "./market-data-provider.js";
 export * from "./market-data-ingestion.js";
+
+// Accounting ledger domain
+export * from "./ledger.js";
+
+// OMS domain
+export * from "./oms-workflow.js";

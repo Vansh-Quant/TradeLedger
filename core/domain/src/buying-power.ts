@@ -72,16 +72,11 @@ export function createBuyingPower(
   });
 }
 
-export function calculateAvailableBuyingPower(
-  buyingPower: BuyingPower,
-): number {
+export function calculateAvailableBuyingPower(buyingPower: BuyingPower): number {
   return buyingPower.totalCapacity - buyingPower.reservedCapacity;
 }
 
-export function reserveBuyingPower(
-  buyingPower: BuyingPower,
-  amount: number,
-): BuyingPower {
+export function reserveBuyingPower(buyingPower: BuyingPower, amount: number): BuyingPower {
   const reservation = requirePositive(amount, "amount");
   const available = calculateAvailableBuyingPower(buyingPower);
 
@@ -95,10 +90,7 @@ export function reserveBuyingPower(
   });
 }
 
-export function releaseBuyingPower(
-  buyingPower: BuyingPower,
-  amount: number,
-): BuyingPower {
+export function releaseBuyingPower(buyingPower: BuyingPower, amount: number): BuyingPower {
   const release = requirePositive(amount, "amount");
 
   if (release > buyingPower.reservedCapacity) {
