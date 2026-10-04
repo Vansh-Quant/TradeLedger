@@ -1,5 +1,5 @@
+import type { MarketDataState } from "@tradeledger/domain";
 import type {
-  MarketDataState,
   CancelOrderResult,
   GetOrderResult,
   GetTradingContextResult,
