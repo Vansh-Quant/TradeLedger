@@ -21,14 +21,14 @@ export interface ApplicationPrincipal {
 export interface AuthorizationPort {
   authorize(
     principal: ApplicationPrincipal,
-    action: ApplicationAction,
+    operation: string,
     accountId: AccountId,
   ): void;
 }
 
 export interface MutationRecord {
   readonly key: string;
-  readonly action: ApplicationAction;
+  readonly operation: string;
   readonly accountId: AccountId;
   readonly principalId: string;
   readonly fingerprint: string;
@@ -47,6 +47,7 @@ export interface MutationIdempotencyPort {
     principal: ApplicationPrincipal,
     fingerprint: string,
     operation: () => T,
+    onReplay?: () => void,
   ): T;
 }
 
