@@ -21,7 +21,7 @@ export interface ApplicationPrincipal {
 export interface AuthorizationPort {
   authorize(
     principal: ApplicationPrincipal,
-    operation: string,
+    action: ApplicationAction,
     accountId: AccountId,
   ): void;
 }
