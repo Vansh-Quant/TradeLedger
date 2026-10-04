@@ -46,7 +46,7 @@ export interface MutationIdempotencyPort {
     accountId: AccountId,
     principal: ApplicationPrincipal,
     fingerprint: string,
-    operation: () => T,
+    run: () => T,
     onReplay?: () => void,
   ): T;
 }
