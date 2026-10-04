@@ -163,7 +163,10 @@ function bind() {
     const input = event.currentTarget.elements.namedItem("account");
     const value = input instanceof HTMLInputElement ? input.value.trim() : "";
     if (value.length > 0) {
-      const next = new URLSearchParams(window.location.search);\n      next.set("account", value);\n      window.location.search = `?${next.toString()}`;\n    }
+      const next = new URLSearchParams(window.location.search);
+      next.set("account", value);
+      window.location.search = `?${next.toString()}`;
+    }
   });
   const form = document.querySelector("#order-form");
   const type = form?.elements.namedItem("type");
