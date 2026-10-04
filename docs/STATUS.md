@@ -90,7 +90,5 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 - Production authentication provider integration
 - Transactional application persistence boundary
-- Production authentication provider integration
-- Transactional application persistence boundary
 - Broader HTTP integration coverage
 - Frontend/trading workstation transport integration
