@@ -81,10 +81,10 @@ function validateOrder(value: unknown): Order {
   const filledQuantity = nonNegativeNumber(raw.filledQuantity, "order.filledQuantity");
   if (filledQuantity > quantity) throw new PersistenceError("order.filledQuantity exceeds order.quantity");
 
-  const side = stringField(raw.side, "order.side");
+  const side = stringField(raw.side, "order.side") as Order["side"];
   if (side !== "buy" && side !== "sell") throw new PersistenceError("order.side is invalid");
 
-  const type = stringField(raw.type, "order.type");
+  const type = stringField(raw.type, "order.type") as Order["type"];
   if (type !== "market" && type !== "limit" && type !== "stop" && type !== "stop-limit") {
     throw new PersistenceError("order.type is invalid");
   }
