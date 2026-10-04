@@ -26,6 +26,7 @@ import type {
   SubmitOrderCommand,
   SubmitOrderResult,
   TradingContextPort,
+  ApplicationPrincipal,
 } from "./contracts.js";
 import { InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
@@ -65,6 +66,34 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
   ) {}
+
+  submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
+    const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
+    const context = this.context.getContext(accountId);
+    const orderPrice = command.limitPrice;
+    if (orderPrice === undefined) {
+      throw new ValidationError("market admission requires authoritative pricing; use a limit order until market pricing is available");
+    }
+
+    const existing = context.accountPortfolio.portfolio;
+    const currentGross = existing.grossExposure;
+    const currentNet = existing.netExposure;
+    const orderNotional = command.quantity * orderPrice;
+    const signedNotional = command.side === "buy" ? orderNotional : -orderNotional;
+    const currentPosition = existing.positions.get(command.instrumentId);
+    const currentPositionNotional = currentPosition === undefined
+      ? 0
+      : currentPosition.quantity * (currentPosition.averagePrice ?? orderPrice);
+
+    return this.submitOrder({
+      ...command,
+      orderNotional,
+      projectedPositionNotional: Math.abs(currentPositionNotional + signedNotional),
+      projectedGrossExposure: currentGross + orderNotional,
+      projectedNetExposure: currentNet + signedNotional,
+      dailyLoss: 0,
+    });
+  }
 
   submitOrder(command: SubmitOrderCommand): SubmitOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
