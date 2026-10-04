@@ -16,6 +16,7 @@
 - Secure HTTP API transport foundation
 - **Durable application infrastructure foundation**
 - **Mutation idempotency and audit boundary foundation**
+- **Transactional application persistence boundary foundation**
 - HTTP request/response boundary
 - Bearer authentication adapter boundary
 - Application-layer account/action authorization
@@ -80,7 +81,7 @@ The local durable JSON foundation provides:
 - no credential/principal storage
 - fail-closed corruption behavior
 
-The Windows replacement fallback can require unlinking an existing regular file before rename. This is documented as a current platform limitation; stronger transactional guarantees belong to a future database adapter.
+The Windows replacement fallback can require unlinking an existing regular file before rename. This remains a platform limitation of the local adapter; a future database adapter can provide stronger multi-record and high-concurrency guarantees.
 
 ## Production Security Gate
 
@@ -88,11 +89,10 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 ## Mutation Idempotency / Audit Boundary
 
-The current adapters are intentionally in-memory. They provide deterministic replay and conflict behavior within one running process but do not survive restart or provide cross-process transactional guarantees. Production deployment requires transactional durable persistence for business state, idempotency records, and required audit events.
+The default adapters remain in-memory for lightweight use and tests. The transactional application adapter persists order state, trading context, idempotency records, and audit events in one versioned snapshot and commits them through the existing atomic durable JSON write path. It uses an exclusive transaction lock and fails closed when another process owns the lock. A future database adapter can provide stronger multi-record concurrency and recovery guarantees.
 
 ## Next
 
 - Production authentication provider integration
-- Transactional application persistence boundary
 - Broader HTTP integration coverage
 - Frontend/trading workstation transport integration

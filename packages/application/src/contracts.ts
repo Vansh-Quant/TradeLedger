@@ -40,7 +40,7 @@ export interface MutationRecord {
 }
 
 export interface MutationIdempotencyPort {
-  execute<T>(
+  executeOnce<T>(
     key: string,
     operation: string,
     accountId: AccountId,
@@ -66,6 +66,10 @@ export interface AuditEvent {
 
 export interface AuditEventPort {
   append(event: AuditEvent): void;
+}
+
+export interface ApplicationTransactionPort {
+  execute<T>(operation: () => T): T;
 }
 
 export interface TradingContext {

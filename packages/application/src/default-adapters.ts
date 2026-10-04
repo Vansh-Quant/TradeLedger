@@ -6,6 +6,7 @@ import type {
 import type {
   AuditEvent,
   AuditEventPort,
+  ApplicationTransactionPort,
   AuthorizationPort,
   ApplicationAction,
   ApplicationPrincipal,
@@ -94,7 +95,7 @@ export class IdempotencyInProgressError extends ApplicationError {
 export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
   private readonly records = new Map<string, MutationRecord>();
 
-  execute<T>(
+  executeOnce<T>(
     key: string,
     operation: string,
     accountId: AccountId,
@@ -160,5 +161,12 @@ export class InMemoryAuditEventStore implements AuditEventPort {
 
   append(event: AuditEvent): void {
     this.events.push(Object.freeze({ ...event }));
+  }
+}
+
+
+export class InMemoryApplicationTransaction implements ApplicationTransactionPort {
+  execute<T>(operation: () => T): T {
+    return operation();
   }
 }

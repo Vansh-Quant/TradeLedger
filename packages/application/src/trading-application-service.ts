@@ -7,6 +7,7 @@ import {
   type InstrumentId,
 } from "@tradeledger/domain";
 import type {
+  ApplicationTransactionPort,
   AuditEventPort,
   AuthorizationPort,
   CancelOrderCommand,
@@ -22,7 +23,7 @@ import type {
   SubmitOrderResult,
   TradingContextPort,
 } from "./contracts.js";
-import { InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
+import { InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
   ApplicationError,
   NotFoundError,
@@ -58,6 +59,7 @@ export class TradingApplicationService {
     private readonly clock: Clock,
     private readonly idempotency: MutationIdempotencyPort = new InMemoryMutationIdempotency(),
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
+    private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
   ) {}
 
   submitOrder(command: SubmitOrderCommand): SubmitOrderResult {
@@ -207,17 +209,19 @@ export class TradingApplicationService {
     try {
       this.authorization.authorize(principal, action, accountId);
     } catch (error) {
-      this.audit.append({
-        id: crypto.randomUUID(),
-        type: "authorization.denied",
-        timestamp: this.clock.now(),
-        principalId: principal.id,
-        accountId,
-        action,
-        requestId,
-        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
-        outcome: "failure",
-        reason: "AUTHORIZATION_ERROR",
+      this.transaction.execute(() => {
+        this.audit.append({
+          id: crypto.randomUUID(),
+          type: "authorization.denied",
+          timestamp: this.clock.now(),
+          principalId: principal.id,
+          accountId,
+          action,
+          requestId,
+          ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+          outcome: "failure",
+          reason: "AUTHORIZATION_ERROR",
+        });
       });
       throw error;
     }
@@ -276,48 +280,55 @@ export class TradingApplicationService {
       }
     };
 
-    if (key === undefined) return execute();
-
-    try {
-      return this.idempotency.execute(
-        key,
-        mutationOperation,
-        accountId,
-        principal,
-        mutationFingerprint(payloadWithoutTransportMetadata(payload)),
-        execute,
-        () => this.audit.append({
-          id: crypto.randomUUID(),
-          type: `${mutationOperation}.replay`,
-          timestamp: this.clock.now(),
-          principalId: principal.id,
-          accountId,
-          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
-          requestId,
-          idempotencyKey: key,
-          outcome: "replay",
-        }),
-      );
-    } catch (error) {
-      if (
-        error instanceof ApplicationError &&
-        (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "IDEMPOTENCY_IN_PROGRESS")
-      ) {
-        this.audit.append({
-          id: crypto.randomUUID(),
-          type: error.code === "IDEMPOTENCY_CONFLICT" ? "idempotency.conflict" : "idempotency.in_progress",
-          timestamp: this.clock.now(),
-          principalId: principal.id,
-          accountId,
-          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
-          requestId,
-          idempotencyKey: key,
-          outcome: "failure",
-          reason: error.code,
-        });
+    const transactional = () => {
+      try {
+        return { ok: true as const, result: key === undefined
+          ? execute()
+          : this.idempotency.executeOnce(
+              key,
+              mutationOperation,
+              accountId,
+              principal,
+              mutationFingerprint(payloadWithoutTransportMetadata(payload)),
+              execute,
+              () => this.audit.append({
+                id: crypto.randomUUID(),
+                type: `${mutationOperation}.replay`,
+                timestamp: this.clock.now(),
+                principalId: principal.id,
+                accountId,
+                action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
+                requestId,
+                idempotencyKey: key,
+                outcome: "replay",
+              }),
+            ) };
+      } catch (error) {
+        if (!(error instanceof ApplicationError)) throw error;
+        if (
+          key !== undefined &&
+          (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "IDEMPOTENCY_IN_PROGRESS")
+        ) {
+          this.audit.append({
+            id: crypto.randomUUID(),
+            type: error.code === "IDEMPOTENCY_CONFLICT" ? "idempotency.conflict" : "idempotency.in_progress",
+            timestamp: this.clock.now(),
+            principalId: principal.id,
+            accountId,
+            action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
+            requestId,
+            idempotencyKey: key,
+            outcome: "failure",
+            reason: error.code,
+          });
+        }
+        return { ok: false as const, error };
       }
-      throw error;
-    }
+    };
+
+    const outcome = this.transaction.execute(transactional);
+    if (!outcome.ok) throw outcome.error;
+    return outcome.result;
   }
 }
 

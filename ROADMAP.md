@@ -24,6 +24,7 @@
 - Application validation and authorization
 - HTTP/API transport boundary
 - Durable application infrastructure boundary
+- Transactional application persistence boundary
 - Mutation idempotency and audit/event boundary
 - OMS
 - Position engine
