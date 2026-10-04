@@ -40,8 +40,8 @@ const context: TradingContext = {
 
 function application() {
   const marketData = new InMemoryMarketDataStateStore();
-  marketData.accept("AAPL", createQuote({
-    instrumentId: "AAPL",
+  marketData.accept("AAPL" as import("@tradeledger/domain").InstrumentId, createQuote({
+    instrumentId: "AAPL" as import("@tradeledger/domain").InstrumentId,
     bid: 100,
     bidSize: 10,
     ask: 100.25,
