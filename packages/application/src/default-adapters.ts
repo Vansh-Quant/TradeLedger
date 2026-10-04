@@ -43,7 +43,7 @@ export class AllowListedAuthorization implements AuthorizationPort {
 
   authorize(
     principal: ApplicationPrincipal,
-    action: ApplicationAction,
+    operation: string,
     accountId: AccountId,
   ): void {
     const keys = [
@@ -100,12 +100,13 @@ export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
     accountId: AccountId,
     principal: ApplicationPrincipal,
     fingerprint: string,
-    operation: () => T,
+    operationFn: () => T,
+    onReplay?: () => void,
   ): T {
     const existing = this.records.get(key);
     if (existing !== undefined) {
       if (
-        existing.action !== action ||
+        existing.operation !== operation ||
         existing.accountId !== accountId ||
         existing.principalId !== principal.id ||
         existing.fingerprint !== fingerprint
@@ -119,12 +120,13 @@ export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
           "previous mutation failed",
         );
       }
+      onReplay?.();
       return existing.result as T;
     }
 
     this.records.set(key, {
       key,
-      action,
+      operation,
       accountId,
       principalId: principal.id,
       fingerprint,
@@ -133,7 +135,7 @@ export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
     });
 
     try {
-      const result = operation();
+      const result = operationFn();
       this.records.set(key, {
         ...this.records.get(key)!,
         status: "completed",
