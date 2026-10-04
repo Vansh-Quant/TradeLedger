@@ -154,7 +154,7 @@ describe("transactional application persistence", () => {
   it("integrates with the application service across adapter recreation", () => {
     const directory = root();
     const firstPersistence = new TransactionalApplicationPersistence(directory);
-    firstPersistence.saveContext(context("ACC-TX"));
+    firstPersistence.execute(() => firstPersistence.saveContext(context("ACC-TX")));
 
     const firstService = new TradingApplicationService(
       firstPersistence,
@@ -229,7 +229,7 @@ describe("transactional application persistence", () => {
   it("persists authorization-denied audit events without credentials", () => {
     const directory = root();
     const persistence = new TransactionalApplicationPersistence(directory);
-    persistence.saveContext(context("ACC-TX"));
+    persistence.execute(() => persistence.saveContext(context("ACC-TX")));
     const service = new TradingApplicationService(
       persistence,
       persistence,
