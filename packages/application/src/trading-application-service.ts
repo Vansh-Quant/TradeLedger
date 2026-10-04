@@ -19,6 +19,7 @@ import type {
   GetTradingContextQuery,
   ListOrdersQuery,
   ListOrdersResult,
+  MarketDataStatePort,
   GetTradingContextResult,
   MutationIdempotencyPort,
   OrderIdGenerator,
@@ -65,6 +66,7 @@ export class TradingApplicationService {
     private readonly idempotency: MutationIdempotencyPort = new InMemoryMutationIdempotency(),
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
+    private readonly marketData: MarketDataStatePort | undefined = undefined,
   ) {}
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
@@ -233,6 +235,21 @@ export class TradingApplicationService {
       state,
     }));
     return Object.freeze({ orders: Object.freeze(orders) });
+  }
+
+
+  listMarketData(query: { readonly principal: ApplicationPrincipal; readonly accountId: string }): readonly import("@tradeledger/domain").MarketDataState[] {
+    const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
+    this.authorization.authorize(query.principal, "market-data.read", accountId);
+    if (this.marketData === undefined) return Object.freeze([]);
+    return this.marketData.list();
+  }
+
+  getMarketData(query: { readonly principal: ApplicationPrincipal; readonly accountId: string; readonly instrumentId: string }): import("@tradeledger/domain").MarketDataState | undefined {
+    const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
+    const instrumentId = requireNonEmpty(query.instrumentId, "instrumentId") as InstrumentId;
+    this.authorization.authorize(query.principal, "market-data.read", accountId);
+    return this.marketData?.get(instrumentId);
   }
 
   getOrder(query: GetOrderQuery): GetOrderResult {
