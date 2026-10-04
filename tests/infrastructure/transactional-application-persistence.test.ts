@@ -226,6 +226,50 @@ describe("transactional application persistence", () => {
     )).toEqual({ orderId: "ORD-TX-2" });
   });
 
+  it("commits failed mutation outcomes and audit state", () => {
+    const directory = root();
+    const persistence = new TransactionalApplicationPersistence(directory);
+    persistence.saveContext(context("ACC-TX"));
+    const service = new TradingApplicationService(
+      persistence,
+      persistence,
+      new AllowListedAuthorization(["user-1:order.cancel:ACC-TX"]),
+      fixedOrderIdGenerator("ORD-FAILED-TX"),
+      fixedClock("2026-10-04T00:00:00.000Z"),
+      persistence,
+      persistence,
+      persistence,
+    );
+
+    expect(() => service.cancelOrder({
+      principal: { id: "user-1", roles: ["trader"] },
+      accountId: "ACC-TX",
+      orderId: "DOES-NOT-EXIST",
+      requestId: "req-failed-1",
+      idempotencyKey: "failed-mutation-1",
+    })).toThrow("was not found");
+
+    const reloaded = new TransactionalApplicationPersistence(directory);
+    const replayService = new TradingApplicationService(
+      reloaded,
+      reloaded,
+      new AllowListedAuthorization(["user-1:order.cancel:ACC-TX"]),
+      fixedOrderIdGenerator("ORD-FAILED-TX"),
+      fixedClock("2026-10-04T00:00:00.000Z"),
+      reloaded,
+      reloaded,
+      reloaded,
+    );
+
+    expect(() => replayService.cancelOrder({
+      principal: { id: "user-1", roles: ["trader"] },
+      accountId: "ACC-TX",
+      orderId: "DOES-NOT-EXIST",
+      requestId: "req-failed-2",
+      idempotencyKey: "failed-mutation-1",
+    })).toThrow("previous mutation failed");
+  });
+
   it("fails closed on conflicting persisted idempotency reuse", () => {
     const directory = root();
     const store = new TransactionalApplicationPersistence(directory);
