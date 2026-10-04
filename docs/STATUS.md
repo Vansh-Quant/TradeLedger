@@ -91,7 +91,14 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 The default adapters remain in-memory for lightweight use and tests. The transactional application adapter persists order state, trading context, idempotency records, and audit events in one versioned snapshot and commits them through the existing atomic durable JSON write path. It uses an exclusive transaction lock and fails closed when another process owns the lock. A future database adapter can provide stronger multi-record concurrency and recovery guarantees.
 
+## Trading Workstation UI Integration
+
+- The first browser workstation now consumes the existing secured HTTP/application boundary.
+- Account context, order listing, positions/exposure, limit-order entry, cancellation, idempotency, and connection/loading/error states are represented.
+- Order admission inputs remain server-side; the workstation does not perform risk calculations or fabricate market data.
+- A browser framework/bundler, WebSockets, live market data, professional charts, strategy tooling, and AI/JARVIS remain deferred.
+- See `docs/architecture/ADR-024-trading-workstation-ui.md` for the accepted boundary.
+
 ## Next
 
 - Production authentication provider integration
-- Frontend/trading workstation UI integration
