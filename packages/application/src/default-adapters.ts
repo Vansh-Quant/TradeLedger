@@ -27,6 +27,14 @@ export class InMemoryOrderStateStore implements OrderStatePort {
   get(orderId: string): TradingCoreState | undefined {
     return this.states.get(orderId);
   }
+
+  list(accountId: AccountId): readonly TradingCoreState[] {
+    return Object.freeze(
+      [...this.states.values()]
+        .filter((state) => state.order.accountId === accountId)
+        .sort((a, b) => a.order.createdAt.localeCompare(b.order.createdAt)),
+    );
+  }
 }
 
 export class RandomOrderIdGenerator implements OrderIdGenerator {
