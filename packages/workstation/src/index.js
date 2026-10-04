@@ -1,4 +1,4 @@
-const baseUrl = window.location.origin;
+const baseUrl = new URLSearchParams(window.location.search).get("api") ?? window.location.origin;
 const token = () => window.localStorage.getItem("tradeledger.accessToken");
 
 async function request(path, init = {}) {
