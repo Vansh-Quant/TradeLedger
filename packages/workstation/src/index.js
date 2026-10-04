@@ -152,7 +152,7 @@ async function load(): Promise<void> {
     bind();
   } catch (error) {
     app.innerHTML = `<main class="shell"><section class="panel fatal"><h1>TRADELEDGER</h1>${renderError(error instanceof Error ? error.message : "Unable to connect")}<button id="retry" class="primary">RETRY</button></section></main>`;
-    document.querySelector<HTMLButtonElement>("#retry")?.addEventListener("click", () => void load());
+    document.querySelector("#retry")?.addEventListener("click", () => void load());
   }
 }
 
@@ -163,7 +163,7 @@ function bind(): void {
     const value = input instanceof HTMLInputElement ? input.value.trim() : "";
     if (value.length > 0) window.location.search = `?account=${encodeURIComponent(value)}`;
   });
-  const form = document.querySelector<HTMLFormElement>("#order-form");
+  const form = document.querySelector("#order-form");
   const type = form?.elements.namedItem("type") as HTMLSelectElement | null;
   const limitField = document.querySelector<HTMLElement>("#limit-price-field");
   const feedback = document.querySelector<HTMLDivElement>("#order-feedback");
@@ -182,7 +182,7 @@ function bind(): void {
 
     const data = new FormData(form);
     const instrumentId = String(data.get("instrumentId") ?? "").trim();
-    const side = String(data.get("side") ?? "buy") as "buy" | "sell";
+    const side = String(data.get("side") ?? "buy");
     const orderType = "limit";
     const quantity = Number(data.get("quantity"));
     const limitPrice = Number(data.get("limitPrice"));
@@ -209,7 +209,7 @@ function bind(): void {
     }
   });
 
-  document.querySelectorAll<HTMLButtonElement>("[data-order-id]").forEach((button) => {
+  document.querySelectorAll("[data-order-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       const orderId = button.dataset.orderId;
       if (!orderId || busy) return;
