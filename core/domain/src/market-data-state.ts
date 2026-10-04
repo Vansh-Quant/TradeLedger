@@ -1,5 +1,5 @@
 import type { InstrumentId } from "./instrument.js";
-import type { MarketDataEnvelope, MarketDataPoint, Quote, TradePrint, Bar } from "./market-data.js";
+import { createMarketDataEnvelope, type MarketDataEnvelope, type MarketDataPoint, type Quote, type TradePrint, type Bar } from "./market-data.js";
 
 export interface MarketDataState {
   readonly instrumentId: InstrumentId;
