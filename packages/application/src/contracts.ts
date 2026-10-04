@@ -150,7 +150,16 @@ export interface GetOrderQuery {
   readonly orderId: string;
 }
 
+export interface GetTradingContextQuery {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+}
+
 export interface GetOrderResult {
   readonly order: Order;
   readonly state: TradingCoreState;
+}
+
+export interface GetTradingContextResult {
+  readonly context: TradingContext;
 }
