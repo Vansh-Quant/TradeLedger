@@ -22,7 +22,7 @@ import type {
   SubmitOrderResult,
   TradingContextPort,
 } from "./contracts.js";
-import { mutationFingerprint } from "./default-adapters.js";
+import { InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
   NotFoundError,
   ValidationError,
@@ -48,8 +48,8 @@ export class TradingApplicationService {
     private readonly authorization: AuthorizationPort,
     private readonly orderIds: OrderIdGenerator,
     private readonly clock: Clock,
-    private readonly idempotency?: MutationIdempotencyPort,
-    private readonly audit?: AuditEventPort,
+    private readonly idempotency: MutationIdempotencyPort = new InMemoryMutationIdempotency(),
+    private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
   ) {}
 
   submitOrder(command: SubmitOrderCommand): SubmitOrderResult {
@@ -197,7 +197,7 @@ export class TradingApplicationService {
     operation: () => T,
   ): T {
     const execute = () => {
-      this.audit?.append({
+      this.audit.append({
         id: crypto.randomUUID(),
         type: `${action}.requested`,
         timestamp: this.clock.now(),
@@ -211,7 +211,7 @@ export class TradingApplicationService {
 
       try {
         const result = operation();
-        this.audit?.append({
+        this.audit.append({
           id: crypto.randomUUID(),
           type: `${action}.completed`,
           timestamp: this.clock.now(),
@@ -242,9 +242,7 @@ export class TradingApplicationService {
 
     if (key === undefined) return execute();
 
-    return (this.idempotency ?? {
-      execute: <R>(_key: string, _action: "order.submit" | "order.cancel", _accountId: AccountId, _principal: SubmitOrderCommand["principal"], _fingerprint: string, operation: () => R) => operation(),
-    }).execute(
+    return this.idempotency.execute(
       key,
       action,
       accountId,
