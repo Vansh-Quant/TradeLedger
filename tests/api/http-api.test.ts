@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
+  InMemoryExecutionEventStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -58,6 +59,7 @@ function application() {
       "api-user:order.read:ACC-API",
       "api-user:order.cancel:ACC-API",
       "api-user:market-data.read:ACC-API",
+      "api-user:execution.record:ACC-API",
     ]),
     fixedOrderIdGenerator("ORD-API-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
@@ -65,6 +67,7 @@ function application() {
     undefined,
     undefined,
     marketData,
+    new InMemoryExecutionEventStore(),
   );
 }
 
@@ -155,6 +158,93 @@ describe("HTTP API security boundary", () => {
       const result = await client.listMarketData("ACC-API");
       expect(result.states).toHaveLength(1);
       expect(result.states[0]?.instrumentId).toBe("AAPL");
+    });
+  });
+
+  it("records an authorized execution through the HTTP boundary", async () => {
+    await withServer(async (baseUrl) => {
+      const orderResponse = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "http-order-for-execution",
+        },
+        body: orderBody(),
+      });
+      expect(orderResponse.status).toBe(201);
+
+      const order = await orderResponse.json();
+      const executionResponse = await fetch(`${baseUrl}/api/v1/executions`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "http-execution-1",
+        },
+        body: JSON.stringify({
+          accountId: "ACC-API",
+          orderId: order.order.id,
+          executionId: "EXE-HTTP-001",
+          instrumentId: "AAPL",
+          side: "buy",
+          quantity: 4,
+          price: 100,
+          executedAt: "2026-10-04T10:01:00Z",
+          commission: 1,
+        }),
+      });
+
+      expect(executionResponse.status).toBe(201);
+      const body = await executionResponse.json();
+      expect(body.order.status).toBe("partially_filled");
+      expect(body.order.filledQuantity).toBe(4);
+      expect(body.state.reconciliation.accountPortfolio.portfolio.positions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ instrumentId: "AAPL", quantity: 4 }),
+        ]),
+      );
+    });
+  });
+
+  it("records executions through the typed workstation client", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({
+        baseUrl,
+        getToken: () => "test-token",
+      });
+
+      const submitted = await client.submitOrder({
+        ...({} as never),
+        accountId: "ACC-API",
+        instrumentId: "AAPL",
+        side: "buy",
+        type: "limit",
+        quantity: 10,
+        limitPrice: 100,
+        timeInForce: "day",
+        orderNotional: 1_000,
+        projectedPositionNotional: 1_000,
+        projectedGrossExposure: 1_000,
+        projectedNetExposure: 1_000,
+        dailyLoss: 0,
+      });
+
+      const result = await client.recordExecution({
+        accountId: "ACC-API",
+        orderId: submitted.order.id,
+        executionId: "EXE-CLIENT-001",
+        instrumentId: "AAPL",
+        side: "buy",
+        quantity: 10,
+        price: 100,
+        executedAt: "2026-10-04T10:02:00Z",
+        commission: 1,
+      });
+
+      expect(result.order.status).toBe("filled");
+      expect(result.state.buyingPower.reservedCapacity).toBe(0);
     });
   });
 
