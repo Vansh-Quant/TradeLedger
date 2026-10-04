@@ -25,12 +25,12 @@ const api = {
   ),
 };
 
-const app = document.querySelector<HTMLDivElement>("#app");
+const app = document.querySelector("#app");
 if (app === null) throw new Error("workstation root is missing");
 
 let busy = false;
 
-function escapeHtml(value: string): string {
+function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
     "<": "&lt;",
@@ -40,11 +40,11 @@ function escapeHtml(value: string): string {
   }[character] ?? character));
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
-function renderError(message: string): string {
+function renderError(message) {
   return `<div class="error" role="alert">${escapeHtml(message)}</div>`;
 }
 
@@ -164,9 +164,9 @@ function bind(): void {
     if (value.length > 0) window.location.search = `?account=${encodeURIComponent(value)}`;
   });
   const form = document.querySelector("#order-form");
-  const type = form?.elements.namedItem("type") as HTMLSelectElement | null;
-  const limitField = document.querySelector<HTMLElement>("#limit-price-field");
-  const feedback = document.querySelector<HTMLDivElement>("#order-feedback");
+  const type = form?.elements.namedItem("type");
+  const limitField = document.querySelector("#limit-price-field");
+  const feedback = document.querySelector("#order-feedback");
 
   const updatePrice = () => {
     if (limitField && type) limitField.hidden = type.value !== "limit";
