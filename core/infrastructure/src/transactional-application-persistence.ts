@@ -206,6 +206,13 @@ export class TransactionalApplicationPersistence
     return this.orders.get(orderId);
   }
 
+  list(accountId: AccountId): readonly TradingCoreState[] {
+    if (!this.inTransaction) this.reload();
+    return [...this.orders.values()]
+      .filter((state) => state.order.accountId === accountId)
+      .sort((left, right) => left.order.createdAt.localeCompare(right.order.createdAt));
+  }
+
   save(state: TradingCoreState): void {
     this.orders.set(state.order.id, state);
   }
