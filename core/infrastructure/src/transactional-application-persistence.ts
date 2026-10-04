@@ -17,8 +17,6 @@ import type {
 import {
   DurableJsonStore,
   PersistenceError,
-  getOrderStateCodec,
-  getTradingContextCodec,
   type JsonCodec,
 } from "./durable-json-store.js";
 import { getOrderStateCodec as orderCodecFactory, getTradingContextCodec as contextCodecFactory } from "./application-adapters.js";
@@ -199,7 +197,7 @@ export class TransactionalApplicationPersistence
     this.auditEvents.push(Object.freeze({ ...event }));
   }
 
-  executeMutation<T>(
+  executeOnce<T>(
     key: string,
     operation: string,
     accountId: AccountId,
@@ -211,8 +209,7 @@ export class TransactionalApplicationPersistence
     return this.execute(() => this.executeIdempotency(key, operation, accountId, principal, fingerprint, run, onReplay));
   }
 
-  executeIdempotency<T>(
-    key: string,
+  executeIdempotency<T>(    key: string,
     operation: string,
     accountId: AccountId,
     principal: { id: string },
