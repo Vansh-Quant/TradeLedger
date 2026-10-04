@@ -105,7 +105,7 @@ async function load(): Promise<void> {
                 <label><input type="radio" name="side" value="sell"> SELL</label>
               </div>
               <label>Quantity<input name="quantity" type="number" min="0.000001" step="any" value="1" required></label>
-              <label>Order type<select name="type"><option value="market">Market</option><option value="limit">Limit</option></select></label>
+              <label>Order type<select name="type"><option value="limit">Limit</option></select></label>
               <label id="limit-price-field" hidden>Limit price<input name="limitPrice" type="number" min="0.000001" step="any"></label>
               <label>Time in force<select name="timeInForce"><option value="day">DAY</option><option value="gtc">GTC</option><option value="ioc">IOC</option><option value="fok">FOK</option></select></label>
               <div class="form-note">Admission inputs are sourced from the current trading context. No frontend risk calculation is performed.</div>
@@ -177,9 +177,9 @@ function bind(): void {
     const data = new FormData(form);
     const instrumentId = String(data.get("instrumentId") ?? "").trim();
     const side = String(data.get("side") ?? "buy") as "buy" | "sell";
-    const orderType = String(data.get("type") ?? "market") as "market" | "limit";
+    const orderType = "limit";
     const quantity = Number(data.get("quantity"));
-    const limitPrice = orderType === "limit" ? Number(data.get("limitPrice")) : undefined;
+    const limitPrice = Number(data.get("limitPrice"));
 
     try {
       const result = await api.submitOrder({
@@ -188,13 +188,9 @@ function bind(): void {
         side,
         type: orderType,
         quantity,
-        ...(limitPrice === undefined ? {} : { limitPrice }),
-        timeInForce: String(data.get("timeInForce") ?? "day") as "day" | "gtc" | "ioc" | "fok",
-        orderNotional: orderType === "limit" && limitPrice !== undefined ? quantity * limitPrice : quantity,
-        projectedPositionNotional: quantity,
-        projectedGrossExposure: quantity,
-        projectedNetExposure: side === "buy" ? quantity : -quantity,
-        dailyLoss: 0,
+        limitPrice,
+        timeInForce: String(data.get("timeInForce") ?? "day"),
+        idempotencyKey: crypto.randomUUID(),
       });
       feedback.innerHTML = result.admitted
         ? '<div class="success">Order admitted.</div>'
