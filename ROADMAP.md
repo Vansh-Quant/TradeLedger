@@ -23,6 +23,7 @@
 - Command/query contracts
 - Application validation and authorization
 - HTTP/API transport boundary
+- Workstation transport integration
 - Durable application infrastructure boundary
 - Transactional application persistence boundary
 - Mutation idempotency and audit/event boundary

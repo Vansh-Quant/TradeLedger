@@ -16,6 +16,8 @@ import type {
   Clock,
   GetOrderQuery,
   GetOrderResult,
+  GetTradingContextQuery,
+  GetTradingContextResult,
   MutationIdempotencyPort,
   OrderIdGenerator,
   OrderStatePort,
@@ -184,6 +186,12 @@ export class TradingApplicationService {
         return Object.freeze({ order: cancelled.order, state: cancelled });
       },
     );
+  }
+
+  getTradingContext(query: GetTradingContextQuery): GetTradingContextResult {
+    const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
+    this.authorization.authorize(query.principal, "order.read", accountId);
+    return Object.freeze({ context: this.context.getContext(accountId) });
   }
 
   getOrder(query: GetOrderQuery): GetOrderResult {
