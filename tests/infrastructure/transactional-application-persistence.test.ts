@@ -16,6 +16,12 @@ import {
 } from "../../core/domain/src/index.js";
 import type { AccountId, TradingCoreState } from "../../core/domain/src/index.js";
 import type { TradingContext } from "../../packages/application/src/index.js";
+import {
+  AllowListedAuthorization,
+  TradingApplicationService,
+  fixedClock,
+  fixedOrderIdGenerator,
+} from "../../packages/application/src/index.js";
 
 const roots: string[] = [];
 
@@ -143,6 +149,56 @@ describe("transactional application persistence", () => {
       "a".repeat(64),
       () => ({ accepted: true }),
     )).not.toThrow();
+  });
+
+  it("integrates with the application service across adapter recreation", () => {
+    const directory = root();
+    const firstPersistence = new TransactionalApplicationPersistence(directory);
+    firstPersistence.saveContext(context("ACC-TX"));
+
+    const firstService = new TradingApplicationService(
+      firstPersistence,
+      firstPersistence,
+      new AllowListedAuthorization(["user-1:order.submit:ACC-TX"]),
+      fixedOrderIdGenerator("ORD-SERVICE-TX"),
+      fixedClock("2026-10-04T00:00:00.000Z"),
+      firstPersistence,
+      firstPersistence,
+      firstPersistence,
+    );
+
+    const command = {
+      principal: { id: "user-1", roles: ["trader"] },
+      accountId: "ACC-TX",
+      instrumentId: "AAPL",
+      side: "buy" as const,
+      type: "limit" as const,
+      quantity: 10,
+      limitPrice: 100,
+      timeInForce: "day" as const,
+      orderNotional: 1_000,
+      projectedPositionNotional: 1_000,
+      projectedGrossExposure: 1_000,
+      projectedNetExposure: 1_000,
+      dailyLoss: 0,
+      requestId: "req-service-1",
+      idempotencyKey: "service-replay-1",
+    };
+
+    const first = firstService.submitOrder(command);
+    const secondPersistence = new TransactionalApplicationPersistence(directory);
+    const secondService = new TradingApplicationService(
+      secondPersistence,
+      secondPersistence,
+      new AllowListedAuthorization(["user-1:order.submit:ACC-TX"]),
+      fixedOrderIdGenerator("ORD-SERVICE-TX"),
+      fixedClock("2026-10-04T00:00:00.000Z"),
+      secondPersistence,
+      secondPersistence,
+      secondPersistence,
+    );
+
+    expect(secondService.submitOrder({ ...command, requestId: "req-service-2" })).toEqual(first);
   });
 
   it("replays a committed idempotent mutation after adapter recreation", () => {
