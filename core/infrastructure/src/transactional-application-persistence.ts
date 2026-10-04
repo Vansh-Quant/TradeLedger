@@ -57,6 +57,7 @@ function idempotencyKey(value: unknown, field: string): string {
 function encodeJsonValue(value: unknown): unknown {
   const encoded = JSON.stringify(value, (_, item) => {
     if (item instanceof Set) return { __tradeledger_type: "Set", values: [...item] };
+    if (item instanceof Map) return { __tradeledger_type: "Map", entries: [...item.entries()] };
     return item;
   });
   if (encoded === undefined) throw new PersistenceError("mutation.result is not JSON-serializable");
@@ -68,10 +69,10 @@ function decodeJsonValue(value: unknown): unknown {
     if (
       item &&
       typeof item === "object" &&
-      item.__tradeledger_type === "Set" &&
-      Array.isArray(item.values)
+      (item.__tradeledger_type === "Set" && Array.isArray(item.values)) ||
+      (item.__tradeledger_type === "Map" && Array.isArray(item.entries))
     ) {
-      return new Set(item.values);
+      return item.__tradeledger_type === "Map" ? new Map(item.entries) : new Set(item.values);
     }
     return item;
   });
