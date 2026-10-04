@@ -193,4 +193,49 @@ describe("trading application service", () => {
     })).toThrowError("idempotency key conflicts");
   });
 
+  it("audits replay and conflicting idempotency reuse", () => {
+    const { application, audit } = service();
+    application.submitOrder({ ...command(), idempotencyKey: "audit-1", requestId: "req-1" });
+    application.submitOrder({ ...command(), idempotencyKey: "audit-1", requestId: "req-2" });
+    expect(audit.events.map((event) => event.type)).toContain("order.submit.replay");
+    expect(() => application.submitOrder({
+      ...command(),
+      quantity: 11,
+      idempotencyKey: "audit-1",
+    })).toThrowError("idempotency key conflicts");
+    expect(audit.events.map((event) => event.type)).toContain("idempotency.conflict");
+  });
+
+  it("does not allow a key to cross principals", () => {
+    const { application } = service([
+      "user-1:order.submit:ACC-APP",
+      "user-1:order.read:ACC-APP",
+      "user-1:order.cancel:ACC-APP",
+      "user-2:order.submit:ACC-APP",
+    ]);
+    application.submitOrder({ ...command(), idempotencyKey: "principal-1" });
+    expect(() => application.submitOrder({
+      ...command(),
+      principal: { id: "user-2", roles: ["trader"] },
+      idempotencyKey: "principal-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
+  it("does not allow cancel and cancellation completion to share a key", () => {
+    const { application } = service();
+    const submitted = application.submitOrder(command());
+    application.cancelOrder({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      idempotencyKey: "cancel-op-1",
+    });
+    expect(() => application.completeOrderCancellation({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      idempotencyKey: "cancel-op-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
 });
