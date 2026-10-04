@@ -36,7 +36,7 @@ function requireNonEmpty(value: string, field: string): string {
 }
 
 function requireIdempotencyKey(value: string): string {
-  if (value.length === 0 || value.length > 128 || !/^[\\x21-\\x7e]+$/.test(value)) {
+  if (value.length === 0 || value.length > 128 || !/^[\x21-\x7e]+$/.test(value)) {
     throw new ValidationError("idempotency key is invalid");
   }
   return value;
