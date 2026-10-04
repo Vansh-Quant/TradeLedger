@@ -277,7 +277,7 @@ describe("transactional application persistence", () => {
   it("commits failed mutation outcomes and audit state", () => {
     const directory = root();
     const persistence = new TransactionalApplicationPersistence(directory);
-    persistence.saveContext(context("ACC-TX"));
+    persistence.execute(() => persistence.saveContext(context("ACC-TX")));
     const service = new TradingApplicationService(
       persistence,
       persistence,
