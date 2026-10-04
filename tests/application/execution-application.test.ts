@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
   InMemoryAuditEventStore,
-  InMemoryExecutionEventStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -17,6 +16,7 @@ import {
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
+  InMemoryExecutionEventStore,
 } from "../../core/domain/src/index.js";
 
 const principal: ApplicationPrincipal = { id: "execution-user", roles: ["trader"] };
@@ -105,7 +105,7 @@ describe("execution application ingress", () => {
     expect(result.state.reconciliation.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
     expect(executions.hasExecution("EXE-001")).toBe(true);
     expect(orders.get("ORD-EXEC-001")).toBe(result.state);
-    expect(contexts.getContext("ACC-EXEC").accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
+    expect(contexts.getContext(account.id).accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
   });
 
   it("completes a full fill", () => {
