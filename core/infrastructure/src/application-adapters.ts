@@ -346,6 +346,12 @@ export class DurableTradingContextStore implements TradingContextPort {
   }
 }
 
-export function getOrderStateCodecForTests(): JsonCodec<TradingCoreState> {
+export function getOrderStateCodec(): JsonCodec<TradingCoreState> {
   return orderStateCodec;
 }
+
+export function getTradingContextCodec(): JsonCodec<TradingContext> {
+  return tradingContextCodec;
+}
+
+export const getOrderStateCodecForTests = getOrderStateCodec;
