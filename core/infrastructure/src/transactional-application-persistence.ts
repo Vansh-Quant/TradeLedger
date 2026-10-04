@@ -218,6 +218,21 @@ export class TransactionalApplicationPersistence
     run: () => T,
     onReplay?: () => void,
   ): T {
+    if (!this.inTransaction) {
+      return this.execute(() => this.executeIdempotency(key, operation, accountId, principal, fingerprint, run, onReplay));
+    }
+    return this.executeIdempotency(key, operation, accountId, principal, fingerprint, run, onReplay);
+  }
+
+  private executeIdempotency<T>(
+    key: string,
+    operation: string,
+    accountId: AccountId,
+    principal: { id: string },
+    fingerprint: string,
+    run: () => T,
+    onReplay?: () => void,
+  ): T {
     const existing = this.mutations.get(key);
     if (existing !== undefined) {
       if (existing.operation !== operation || existing.accountId !== accountId || existing.principalId !== principal.id || existing.fingerprint !== fingerprint) {
