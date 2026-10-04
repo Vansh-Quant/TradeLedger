@@ -10,22 +10,23 @@ import {
   type ApplicationPrincipal,
   type TradingContext,
 } from "../../packages/application/src/index.js";
-import { createQuote } from "../../core/domain/src/index.js";
+import {
+  createAccount,
+  createAccountPortfolio,
+  createBuyingPower,
+  createPortfolio,
+  createQuote,
+  createRiskLimits,
+} from "../../core/domain/src/index.js";
 
 const principal: ApplicationPrincipal = { id: "md-user", roles: ["trader"] };
-const account = {
-  id: "ACC-MD" as const,
-  baseCurrency: "USD" as const,
-};
+const account = createAccount({ id: "ACC-MD", baseCurrency: "USD" });
 
 const context: TradingContext = {
   accountId: account.id,
-  accountPortfolio: (await import("../../core/domain/src/index.js")).createAccountPortfolio(
-    (await import("../../core/domain/src/index.js")).createAccount(account),
-    (await import("../../core/domain/src/index.js")).createPortfolio(),
-  ),
-  buyingPower: (await import("../../core/domain/src/index.js")).createBuyingPower(10_000),
-  riskLimits: (await import("../../core/domain/src/index.js")).createRiskLimits({
+  accountPortfolio: createAccountPortfolio(account, createPortfolio()),
+  buyingPower: createBuyingPower(10_000),
+  riskLimits: createRiskLimits({
     maxOrderNotional: 5_000,
     maxPositionNotional: 10_000,
     maxGrossExposure: 20_000,
