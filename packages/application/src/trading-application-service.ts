@@ -24,7 +24,6 @@ import type {
 } from "./contracts.js";
 import { mutationFingerprint } from "./default-adapters.js";
 import {
-  AdmissionError,
   NotFoundError,
   ValidationError,
 } from "./errors.js";
