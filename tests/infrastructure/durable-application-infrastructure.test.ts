@@ -136,10 +136,10 @@ describe("durable application infrastructure", () => {
     const link = join(directory, "orders", "ORD-2.json");
     try {
       symlinkSync(target, link);
-      expect(() => store.get("ORD-2")).toThrow("symbolic link");
     } catch {
-      // Symlink creation can be unavailable on restricted Windows environments.
+      return;
     }
+    expect(() => store.get("ORD-2")).toThrow("symbolic link");
   });
 
   it("never persists an application principal or credential field", () => {
