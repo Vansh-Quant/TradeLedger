@@ -87,6 +87,7 @@ export interface TradingContextPort {
 export interface OrderStatePort {
   save(state: TradingCoreState): void;
   get(orderId: string): TradingCoreState | undefined;
+  list(accountId: AccountId): readonly TradingCoreState[];
 }
 
 export interface OrderIdGenerator {
