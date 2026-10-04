@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
+  InMemoryAuditEventStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -48,6 +49,7 @@ function service(
   ],
 ) {
   const orders = new InMemoryOrderStateStore();
+  const audit = new InMemoryAuditEventStore();
   const tradingContext = new InMemoryTradingContext([context]);
   const application = new TradingApplicationService(
     tradingContext,
@@ -55,8 +57,10 @@ function service(
     new AllowListedAuthorization(permissions),
     fixedOrderIdGenerator("ORD-APP-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
+    undefined,
+    audit,
   );
-  return { application, orders };
+  return { application, orders, audit };
 }
 
 function command() {
