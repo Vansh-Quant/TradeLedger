@@ -28,6 +28,7 @@ export * from "./portfolio.js";
 export * from "./market-data.js";
 export * from "./market-data-provider.js";
 export * from "./market-data-ingestion.js";
+export * from "./market-data-event-stream.js";
 
 // Accounting ledger domain
 export * from "./ledger.js";
