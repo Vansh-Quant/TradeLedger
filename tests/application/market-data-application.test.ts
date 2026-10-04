@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
-  InMemoryMarketDataStateStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -10,6 +9,7 @@ import {
   type ApplicationPrincipal,
   type TradingContext,
 } from "../../packages/application/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 import {
   createAccount,
   createAccountPortfolio,
@@ -38,8 +38,8 @@ const context: TradingContext = {
 describe("application market data boundary", () => {
   it("lists and reads market data through authorization", () => {
     const store = new InMemoryMarketDataStateStore();
-    store.accept("AAPL", createQuote({
-      instrumentId: "AAPL",
+    store.accept("AAPL" as import("@tradeledger/domain").InstrumentId, createQuote({
+      instrumentId: "AAPL" as import("@tradeledger/domain").InstrumentId,
       bid: 100,
       bidSize: 10,
       ask: 100.25,
