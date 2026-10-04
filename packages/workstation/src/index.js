@@ -48,7 +48,7 @@ function renderError(message) {
   return `<div class="error" role="alert">${escapeHtml(message)}</div>`;
 }
 
-async function load(): Promise<void> {
+async function load() {
   app.innerHTML = `
     <main class="shell">
       <header class="topbar">
@@ -156,12 +156,13 @@ async function load(): Promise<void> {
   }
 }
 
-function bind(): void {
+function bind() {
   document.querySelector("#account-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const input = event.currentTarget.elements.namedItem("account");
     const value = input instanceof HTMLInputElement ? input.value.trim() : "";
-    if (value.length > 0) {\n      const next = new URLSearchParams(window.location.search);\n      next.set("account", value);\n      window.location.search = `?${next.toString()}`;\n    }
+    if (value.length > 0) {
+      const next = new URLSearchParams(window.location.search);\n      next.set("account", value);\n      window.location.search = `?${next.toString()}`;\n    }
   });
   const form = document.querySelector("#order-form");
   const type = form?.elements.namedItem("type");
