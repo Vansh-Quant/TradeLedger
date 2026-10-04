@@ -6,6 +6,7 @@ import { DEFAULT_MAX_BODY_BYTES, FixedWindowRateLimiter } from "./security.js";
 import type { ApiDependencies, ApiRequest, ApiServerOptions } from "./types.js";
 
 const DEFAULT_RATE_LIMIT = Object.freeze({ windowMs: 60_000, maxRequests: 120 });
+const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
 function send(response: ServerResponse, id: string, status: number, body: unknown): void {
   response.writeHead(status, {
@@ -25,9 +26,8 @@ async function readJson(request: IncomingMessage, maxBytes: number): Promise<Rec
   const mediaType = typeof contentType === "string"
     ? contentType.split(";", 1)[0]?.trim().toLowerCase()
     : undefined;
-  if (mediaType !== "application/json") {
-    throw new ValidationError("content-type must be application/json");
-  }
+  if (mediaType !== "application/json") throw new ValidationError("content-type must be application/json");
+
   const contentLength = request.headers["content-length"];
   if (contentLength !== undefined) {
     const parsed = Number(contentLength);
@@ -92,6 +92,17 @@ function enumValue<T extends string>(body: Record<string, unknown>, field: strin
   return value;
 }
 
+function idempotencyKey(request: IncomingMessage): string {
+  const value = request.headers["idempotency-key"];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ValidationError("Idempotency-Key header is required");
+  }
+  if (value.length > MAX_IDEMPOTENCY_KEY_LENGTH || !/^[\x21-\x7e]+$/.test(value)) {
+    throw new ValidationError("Idempotency-Key header is invalid");
+  }
+  return value;
+}
+
 function principalOrThrow(principal: ApplicationPrincipal | undefined): ApplicationPrincipal {
   if (principal === undefined) throw new AuthorizationError();
   return principal;
@@ -143,6 +154,7 @@ async function route(
 
   if (method === "POST" && path === "/api/v1/orders") {
     const body = await readJson(request, maxBodyBytes);
+    const key = idempotencyKey(request);
     const limitPrice = optionalNumber(body, "limitPrice");
     const stopPrice = optionalNumber(body, "stopPrice");
     const result = deps.application.submitOrder({
@@ -160,6 +172,8 @@ async function route(
       projectedGrossExposure: requiredNumber(body, "projectedGrossExposure"),
       projectedNetExposure: requiredNumber(body, "projectedNetExposure"),
       dailyLoss: requiredNumber(body, "dailyLoss"),
+      requestId: id,
+      idempotencyKey: key,
     });
     send(response, id, result.admitted ? 201 : 422, result);
     return;
@@ -171,6 +185,8 @@ async function route(
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
       orderId: decodeOrderId(completion),
+      requestId: id,
+      idempotencyKey: idempotencyKey(request),
     });
     send(response, id, 200, result);
     return;
@@ -191,7 +207,9 @@ async function route(
     const result = deps.application.cancelOrder({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(order[1] ?? ""),
+      orderId: decodeOrderId(order),
+      requestId: id,
+      idempotencyKey: idempotencyKey(request),
     });
     send(response, id, 202, result);
     return;
