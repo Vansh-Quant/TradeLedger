@@ -175,9 +175,18 @@ Account and Cash foundations were promoted to `main`. Buying Power foundation wa
 - Provider formats, ingestion transport, subscriptions, persistence, calendars, and data-quality infrastructure remain separate concerns.
 - See `docs/architecture/ADR-018-normalized-market-data-foundation.md` for the accepted boundary.
 
+## Market Data Event Stream Decision
+
+- Market-data envelopes now flow through a strict append-only in-memory event stream.
+- Duplicate and out-of-order sequences are rejected deterministically.
+- A pure immutable reducer maintains the latest quote, trade, and bar state.
+- Bar state is separated by instrument and timeframe.
+- Durable storage, distributed event buses, buffering/backpressure, replay checkpoints, provider retry/reconnect, and data-quality scoring remain deferred.
+- See `docs/architecture/ADR-020-market-data-event-stream-and-state.md` for the accepted boundary.
+
 ## Next
 
-- Market-data ingestion and provider abstraction
+- Market-data persistence and replay boundary
 
 ## Guiding Principle
 
