@@ -270,25 +270,46 @@ export class TradingApplicationService {
 
     if (key === undefined) return execute();
 
-    return this.idempotency.execute(
-      key,
-      mutationOperation,
-      accountId,
-      principal,
-      mutationFingerprint(payloadWithoutTransportMetadata(payload)),
-      execute,
-      () => this.audit.append({
-        id: crypto.randomUUID(),
-        type: `${mutationOperation}.replay`,
-        timestamp: this.clock.now(),
-        principalId: principal.id,
+    try {
+      return this.idempotency.execute(
+        key,
+        mutationOperation,
         accountId,
-        action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
-        requestId,
-        idempotencyKey: key,
-        outcome: "replay",
-      }),
-    );
+        principal,
+        mutationFingerprint(payloadWithoutTransportMetadata(payload)),
+        execute,
+        () => this.audit.append({
+          id: crypto.randomUUID(),
+          type: `${mutationOperation}.replay`,
+          timestamp: this.clock.now(),
+          principalId: principal.id,
+          accountId,
+          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
+          requestId,
+          idempotencyKey: key,
+          outcome: "replay",
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof ApplicationError &&
+        (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "IDEMPOTENCY_IN_PROGRESS")
+      ) {
+        this.audit.append({
+          id: crypto.randomUUID(),
+          type: error.code === "IDEMPOTENCY_CONFLICT" ? "idempotency.conflict" : "idempotency.in_progress",
+          timestamp: this.clock.now(),
+          principalId: principal.id,
+          accountId,
+          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
+          requestId,
+          idempotencyKey: key,
+          outcome: "failure",
+          reason: error.code,
+        });
+      }
+      throw error;
+    }
   }
 }
 
