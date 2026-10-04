@@ -161,6 +161,15 @@ export interface GetOrderResult {
   readonly state: TradingCoreState;
 }
 
+export interface ListOrdersQuery {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+}
+
+export interface ListOrdersResult {
+  readonly orders: readonly GetOrderResult[];
+}
+
 export interface GetTradingContextResult {
   readonly context: TradingContext;
 }
