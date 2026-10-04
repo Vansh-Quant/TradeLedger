@@ -24,6 +24,7 @@ import type {
 } from "./contracts.js";
 import { InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
+  ApplicationError,
   NotFoundError,
   ValidationError,
 } from "./errors.js";
