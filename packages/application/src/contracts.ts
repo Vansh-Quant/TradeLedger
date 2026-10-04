@@ -26,6 +26,47 @@ export interface AuthorizationPort {
   ): void;
 }
 
+export interface MutationRecord {
+  readonly key: string;
+  readonly action: ApplicationAction;
+  readonly accountId: AccountId;
+  readonly principalId: string;
+  readonly fingerprint: string;
+  readonly status: "in_progress" | "completed" | "failed";
+  readonly createdAt: string;
+  readonly completedAt?: string;
+  readonly result?: unknown;
+  readonly errorCode?: string;
+}
+
+export interface MutationIdempotencyPort {
+  execute<T>(
+    key: string,
+    action: ApplicationAction,
+    accountId: AccountId,
+    principal: ApplicationPrincipal,
+    fingerprint: string,
+    operation: () => T,
+  ): T;
+}
+
+export interface AuditEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly timestamp: string;
+  readonly principalId: string;
+  readonly accountId: AccountId;
+  readonly action: ApplicationAction;
+  readonly requestId: string;
+  readonly idempotencyKey?: string;
+  readonly outcome: "success" | "failure" | "replay";
+  readonly reason?: string;
+}
+
+export interface AuditEventPort {
+  append(event: AuditEvent): void;
+}
+
 export interface TradingContext {
   readonly accountId: AccountId;
   readonly accountPortfolio: AccountPortfolio;
@@ -66,6 +107,8 @@ export interface SubmitOrderCommand {
   readonly projectedGrossExposure: number;
   readonly projectedNetExposure: number;
   readonly dailyLoss: number;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface SubmitOrderResult {
@@ -79,6 +122,8 @@ export interface CancelOrderCommand {
   readonly principal: ApplicationPrincipal;
   readonly accountId: string;
   readonly orderId: string;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface CancelOrderResult {
@@ -90,6 +135,8 @@ export interface CompleteOrderCancellationCommand {
   readonly principal: ApplicationPrincipal;
   readonly accountId: string;
   readonly orderId: string;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface GetOrderQuery {
