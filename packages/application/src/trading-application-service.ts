@@ -150,14 +150,15 @@ export class TradingApplicationService {
   completeOrderCancellation(command: CompleteOrderCancellationCommand): CancelOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
     const orderId = requireNonEmpty(command.orderId, "orderId");
-    this.authorization.authorize(command.principal, "order.cancel", accountId);
+    const requestId = command.requestId ?? crypto.randomUUID();
+    this.authorize(command.principal, "order.cancel", accountId, requestId, command.idempotencyKey);
 
     return this.mutate(
-      "order.cancel",
+      "order.cancel.complete",
       accountId,
       command.principal,
       command.idempotencyKey,
-      command.requestId ?? crypto.randomUUID(),
+      requestId,
       command,
       () => {
         const current = this.orders.get(orderId);
@@ -190,13 +191,13 @@ export class TradingApplicationService {
 
   private authorize(
     principal: SubmitOrderCommand["principal"],
-    operation: "order.submit" | "order.cancel" | "order.cancel.complete",
+    operation: "order.submit" | "order.cancel",
     accountId: AccountId,
     requestId: string,
     idempotencyKey?: string,
   ): void {
     try {
-      this.authorization.authorize(principal, action, accountId);
+      this.authorization.authorize(principal, operation === "order.cancel.complete" ? "order.cancel" : operation, accountId);
     } catch (error) {
       this.audit.append({
         id: crypto.randomUUID(),
