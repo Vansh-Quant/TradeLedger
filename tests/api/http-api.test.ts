@@ -98,6 +98,37 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("serves an authorized trading context to the workstation", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
+        headers: { authorization: "Bearer test-token" },
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json()).context.accountId).toBe("ACC-API");
+    });
+  });
+
+  it("supports explicit CORS preflight for an allowed workstation origin", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost:5173" },
+      });
+      expect(response.status).toBe(204);
+      expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+      expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+    }, { corsOrigins: ["http://localhost:5173"] });
+  });
+
+  it("rejects an unapproved CORS origin", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/health`, {
+        headers: { origin: "http://evil.example" },
+      });
+      expect(response.status).toBe(403);
+    }, { corsOrigins: ["http://localhost:5173"] });
+  });
+
   it("requires bearer authentication for trading routes", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`);
