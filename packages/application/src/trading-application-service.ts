@@ -58,8 +58,8 @@ export class TradingApplicationService {
     requirePositiveFinite(command.quantity, "quantity");
     requirePositiveFinite(command.orderNotional, "orderNotional");
 
-    this.authorization.authorize(command.principal, "order.submit", accountId);
     const requestId = command.requestId ?? crypto.randomUUID();
+    this.authorize(command.principal, "order.submit", accountId, requestId, command.idempotencyKey);
     const run = () => this.submitOrderCore(command, accountId, instrumentId);
 
     return this.mutate(
@@ -125,14 +125,15 @@ export class TradingApplicationService {
   cancelOrder(command: CancelOrderCommand): CancelOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
     const orderId = requireNonEmpty(command.orderId, "orderId");
-    this.authorization.authorize(command.principal, "order.cancel", accountId);
+    const requestId = command.requestId ?? crypto.randomUUID();
+    this.authorize(command.principal, "order.cancel", accountId, requestId, command.idempotencyKey);
 
     return this.mutate(
       "order.cancel",
       accountId,
       command.principal,
       command.idempotencyKey,
-      command.requestId ?? crypto.randomUUID(),
+      requestId,
       command,
       () => {
         const current = this.orders.get(orderId);
@@ -187,6 +188,32 @@ export class TradingApplicationService {
     return Object.freeze({ order: state.order, state });
   }
 
+  private authorize(
+    principal: SubmitOrderCommand["principal"],
+    action: "order.submit" | "order.cancel",
+    accountId: AccountId,
+    requestId: string,
+    idempotencyKey?: string,
+  ): void {
+    try {
+      this.authorization.authorize(principal, action, accountId);
+    } catch (error) {
+      this.audit.append({
+        id: crypto.randomUUID(),
+        type: "authorization.denied",
+        timestamp: this.clock.now(),
+        principalId: principal.id,
+        accountId,
+        action,
+        requestId,
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+        outcome: "failure",
+        reason: "AUTHORIZATION_ERROR",
+      });
+      throw error;
+    }
+  }
+
   private mutate<T>(
     action: "order.submit" | "order.cancel",
     accountId: AccountId,
@@ -234,7 +261,7 @@ export class TradingApplicationService {
           requestId,
           ...(key === undefined ? {} : { idempotencyKey: key }),
           outcome: "failure",
-          reason: error instanceof Error ? error.message : "unknown error",
+          reason: "APPLICATION_ERROR",
         });
         throw error;
       }
