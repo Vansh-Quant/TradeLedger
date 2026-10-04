@@ -68,7 +68,7 @@ async function load() {
     ]);
 
     const context = contextResult.context;
-    const positions = [...context.accountPortfolio.portfolio.positions.values()];
+    const positions = context.accountPortfolio.portfolio.positions;
     const orders = ordersResult.orders;
 
     app.innerHTML = `
