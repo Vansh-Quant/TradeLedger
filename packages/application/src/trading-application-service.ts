@@ -1,6 +1,8 @@
 import {
   createOrder,
+  createExecution,
   admitTradingOrder,
+  processTradingExecution,
   requestTradingOrderCancellation,
   completeTradingOrderCancellation,
   type AccountId,
@@ -21,6 +23,8 @@ import type {
   ListOrdersResult,
   MarketDataStatePort,
   GetTradingContextResult,
+  RecordExecutionCommand,
+  RecordExecutionResult,
   MutationIdempotencyPort,
   OrderIdGenerator,
   OrderStatePort,
@@ -67,6 +71,7 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
+    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new import("@tradeledger/domain").InMemoryExecutionEventStore(),
   ) {}
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
@@ -221,6 +226,82 @@ export class TradingApplicationService {
     );
   }
 
+
+  recordExecution(command: RecordExecutionCommand): RecordExecutionResult {
+    const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
+    const orderId = requireNonEmpty(command.orderId, "orderId");
+    const executionId = requireNonEmpty(command.executionId, "executionId");
+    const instrumentId = requireNonEmpty(command.instrumentId, "instrumentId") as InstrumentId;
+    requirePositiveFinite(command.quantity, "quantity");
+    requirePositiveFinite(command.price, "price");
+    if (!Number.isFinite(command.commission) || command.commission < 0) {
+      throw new ValidationError("commission must be a finite non-negative number");
+    }
+
+    const requestId = command.requestId ?? crypto.randomUUID();
+    this.authorization.authorize(
+      command.principal,
+      "execution.record",
+      accountId,
+    );
+
+    return this.mutate(
+      "execution.record",
+      accountId,
+      command.principal,
+      command.idempotencyKey,
+      requestId,
+      command,
+      () => {
+        const current = this.orders.get(orderId);
+        if (current === undefined || current.order.accountId !== accountId) {
+          throw new NotFoundError(`order ${orderId} was not found`);
+        }
+
+        if (current.order.instrumentId !== instrumentId) {
+          throw new ValidationError("execution instrument does not match order");
+        }
+
+        if (current.order.side !== command.side) {
+          throw new ValidationError("execution side does not match order");
+        }
+
+        const execution = createExecution({
+          id: executionId,
+          orderId,
+          instrumentId,
+          side: command.side,
+          quantity: command.quantity,
+          price: command.price,
+          executedAt: command.executedAt,
+          commission: command.commission,
+        });
+
+        const result = processTradingExecution({
+          state: current,
+          execution,
+          eventStore: this.executions,
+          eventId: requestId,
+          recordedAt: this.clock.now(),
+        });
+
+        this.orders.save(result.state);
+        this.context.saveContext({
+          ...this.context.getContext(accountId),
+          buyingPower: result.state.buyingPower,
+          accountPortfolio: result.state.reconciliation.accountPortfolio,
+        });
+
+        return Object.freeze({
+          applied: result.applied,
+          duplicate: result.duplicate,
+          order: result.state.order,
+          state: result.state,
+        });
+      },
+    );
+  }
+
   getTradingContext(query: GetTradingContextQuery): GetTradingContextResult {
     const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
     this.authorization.authorize(query.principal, "order.read", accountId);
@@ -294,7 +375,7 @@ export class TradingApplicationService {
   }
 
   private mutate<T>(
-    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete",
+    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete" | "execution.record",
     accountId: AccountId,
     principal: SubmitOrderCommand["principal"],
     key: string | undefined,
