@@ -157,9 +157,9 @@ async function load(): Promise<void> {
 }
 
 function bind(): void {
-  document.querySelector<HTMLFormElement>("#account-form")?.addEventListener("submit", (event) => {
+  document.querySelector("#account-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const input = (event.currentTarget as HTMLFormElement).elements.namedItem("account");
+    const input = event.currentTarget.elements.namedItem("account");
     const value = input instanceof HTMLInputElement ? input.value.trim() : "";
     if (value.length > 0) window.location.search = `?account=${encodeURIComponent(value)}`;
   });
