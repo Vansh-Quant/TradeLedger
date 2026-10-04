@@ -17,6 +17,8 @@ import type {
   GetOrderQuery,
   GetOrderResult,
   GetTradingContextQuery,
+  ListOrdersQuery,
+  ListOrdersResult,
   GetTradingContextResult,
   MutationIdempotencyPort,
   OrderIdGenerator,
@@ -192,6 +194,16 @@ export class TradingApplicationService {
     const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
     this.authorization.authorize(query.principal, "order.read", accountId);
     return Object.freeze({ context: this.context.getContext(accountId) });
+  }
+
+  listOrders(query: ListOrdersQuery): ListOrdersResult {
+    const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
+    this.authorization.authorize(query.principal, "order.read", accountId);
+    const orders = this.orders.list(accountId).map((state) => Object.freeze({
+      order: state.order,
+      state,
+    }));
+    return Object.freeze({ orders: Object.freeze(orders) });
   }
 
   getOrder(query: GetOrderQuery): GetOrderResult {
