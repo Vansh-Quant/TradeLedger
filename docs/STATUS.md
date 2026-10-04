@@ -16,6 +16,7 @@
 - Secure HTTP API transport foundation
 - **Durable application infrastructure foundation**
 - **Mutation idempotency and audit boundary foundation**
+- **Transactional application persistence boundary foundation**
 - HTTP request/response boundary
 - Bearer authentication adapter boundary
 - Application-layer account/action authorization
@@ -93,6 +94,5 @@ The current adapters are intentionally in-memory. They provide deterministic rep
 ## Next
 
 - Production authentication provider integration
-- Transactional application persistence boundary
 - Broader HTTP integration coverage
 - Frontend/trading workstation transport integration
