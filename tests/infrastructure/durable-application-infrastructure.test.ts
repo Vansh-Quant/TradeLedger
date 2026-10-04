@@ -147,6 +147,17 @@ describe("durable application infrastructure", () => {
     expect(() => store.get("ORD-2")).toThrow("symbolic link");
   });
 
+  it("rejects oversized persisted records", async () => {
+    const directory = root();
+    const store = new DurableJsonStore(directory, "orders", {
+      encode: (value: string) => value,
+      decode: (value: unknown) => String(value),
+    });
+    await store.save("ORD-1", "safe");
+    writeFileSync(join(directory, "orders", "ORD-1.json"), "x".repeat(1024 * 1024 + 1));
+    expect(() => store.get("ORD-1")).toThrow("exceeds maximum size");
+  });
+
   it("never persists an application principal or credential field", async () => {
     const directory = root();
     const store = new DurableTradingContextStore(directory);
