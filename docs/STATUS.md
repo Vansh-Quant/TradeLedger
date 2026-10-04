@@ -86,6 +86,10 @@ The Windows replacement fallback can require unlinking an existing regular file 
 
 Before exposing the API outside a trusted local network, add TLS, production identity validation, secret management, durable edge rate limiting, audit events, replay/idempotency protection, network controls, monitoring, and dependency/container scanning.
 
+## Mutation Idempotency / Audit Boundary
+
+The current adapters are intentionally in-memory. They provide deterministic replay and conflict behavior within one running process but do not survive restart or provide cross-process transactional guarantees. Production deployment requires transactional durable persistence for business state, idempotency records, and required audit events.
+
 ## Next
 
 - Production authentication provider integration
