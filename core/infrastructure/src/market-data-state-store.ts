@@ -46,3 +46,15 @@ export class InMemoryMarketDataStateStore implements MarketDataStatePort {
     return Object.freeze([...this.states.values()]);
   }
 }
+
+
+export class MarketDataStateStoreSink {
+  constructor(
+    private readonly store: MarketDataStatePort,
+    private readonly now: () => string = () => new Date().toISOString(),
+  ) {}
+
+  accept(data: MarketDataPoint): MarketDataState {
+    return this.store.accept(data.instrumentId, data, this.now());
+  }
+}
