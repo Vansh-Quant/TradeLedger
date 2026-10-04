@@ -212,6 +212,32 @@ async function route(
     return;
   }
 
+  const marketDataInstrument = /^\/api\/v1\/market-data\/([^/]+)$/.exec(path);
+  if (method === "GET" && marketDataInstrument) {
+    const result = deps.application.getMarketData({
+      principal,
+      accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
+      instrumentId: decodeOrderId(marketDataInstrument),
+    });
+    send(
+      response,
+      id,
+      result === undefined ? 404 : 200,
+      result ?? { error: { code: "NOT_FOUND", message: "market data not found" } },
+      corsOrigin,
+    );
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/market-data") {
+    const result = deps.application.listMarketData({
+      principal,
+      accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
+    });
+    send(response, id, 200, { states: result }, corsOrigin);
+    return;
+  }
+
   const accountOrders = /^\/api\/v1\/accounts\/([^/]+)\/orders$/.exec(path);
   if (method === "GET" && accountOrders) {
     const accountId = decodeOrderId(accountOrders);
