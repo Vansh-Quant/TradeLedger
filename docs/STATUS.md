@@ -94,5 +94,4 @@ The default adapters remain in-memory for lightweight use and tests. The transac
 ## Next
 
 - Production authentication provider integration
-- Broader HTTP integration coverage
-- Frontend/trading workstation transport integration
+- Frontend/trading workstation UI integration
