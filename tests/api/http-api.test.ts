@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  InMemoryMarketDataStateStore,
   AllowListedAuthorization,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
@@ -10,6 +9,7 @@ import {
   type ApplicationPrincipal,
   type TradingContext,
 } from "../../packages/application/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 import {
   createAccount,
   createAccountPortfolio,
