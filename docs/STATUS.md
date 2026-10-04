@@ -1,3 +1,13 @@
+## Market Data Engine — Application/API Boundary
+
+- Added an application-facing market-data state port.
+- Added authorized application reads for instrument snapshots and state lists.
+- Added HTTP endpoints for market-data reads and a typed API client.
+- Connected infrastructure state storage to the provider-ingestion sink boundary.
+- Development API now exposes a deterministic AAPL feed snapshot for workstation integration tests/manual development.
+- Market data remains read-only at the HTTP boundary; browser code does not manufacture authoritative prices.
+- Production provider credentials/feed adapters remain intentionally deferred.
+
 # TradeLedger Status
 
 **Last updated:** 2026-10-04
