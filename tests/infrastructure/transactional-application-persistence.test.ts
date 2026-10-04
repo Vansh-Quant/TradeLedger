@@ -107,7 +107,7 @@ describe("transactional application persistence", () => {
 
     const reloaded = new TransactionalApplicationPersistence(directory);
     expect(reloaded.get("ORD-TX-1")?.order.accountId).toBe("ACC-TX");
-    expect(reloaded.getContext("ACC-TX").accountId).toBe("ACC-TX");
+    expect(reloaded.getContext("ACC-TX" as AccountId).accountId).toBe("ACC-TX");
     expect(reloaded.executeOnce(
       "tx-commit-1",
       "order.submit",
@@ -140,7 +140,7 @@ describe("transactional application persistence", () => {
 
     const reloaded = new TransactionalApplicationPersistence(directory);
     expect(reloaded.get("ORD-TX-1")).toBeUndefined();
-    expect(() => reloaded.getContext("ACC-TX")).toThrow("not found");
+    expect(() => reloaded.getContext("ACC-TX" as AccountId)).toThrow("not found");
     expect(() => reloaded.executeOnce(
       "tx-commit-1",
       "order.submit",
