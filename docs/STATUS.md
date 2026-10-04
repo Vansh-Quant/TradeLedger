@@ -1,3 +1,14 @@
+## Execution Engine — Application/API Ingress
+
+- Connected execution reports to the existing deterministic `processTradingExecution` workflow.
+- Added authorized `execution.record` application action.
+- Execution ingress validates account/order/instrument/side before reconciliation.
+- Partial and complete fills update order lifecycle, positions, portfolio state, and buying-power reservations through the existing domain workflow.
+- Duplicate execution IDs remain idempotent through the execution event store.
+- Added HTTP `POST /api/v1/executions` and a typed workstation API client method.
+- Added application and HTTP tests for partial fills, complete fills, duplicates, authorization, and validation.
+- Broker/venue adapters remain a separate integration layer and are intentionally not fabricated by the dev server.
+
 ## Market Data Engine — Application/API Boundary
 
 - Added an application-facing market-data state port.
