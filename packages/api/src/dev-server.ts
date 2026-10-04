@@ -5,6 +5,8 @@ import {
   RandomOrderIdGenerator,
   TradingApplicationService,
 } from "@tradeledger/application";
+import { InMemoryMarketDataStateStore } from "@tradeledger/infrastructure";
+import { createQuote, type InstrumentId } from "@tradeledger/domain";
 import {
   createAccount,
   createAccountPortfolio,
@@ -29,6 +31,17 @@ const context = {
 };
 
 const principal = { id: "dev-user", roles: ["trader"] };
+const marketData = new InMemoryMarketDataStateStore();
+marketData.accept("AAPL" as InstrumentId, createQuote({
+  instrumentId: "AAPL" as InstrumentId,
+  bid: 100,
+  bidSize: 100,
+  ask: 100.25,
+  askSize: 100,
+  observedAt: "2026-10-04T09:30:00Z",
+  source: "dev-feed",
+}), "2026-10-04T09:30:00Z");
+
 const application = new TradingApplicationService(
   new InMemoryTradingContext([context]),
   new InMemoryOrderStateStore(),
@@ -36,9 +49,14 @@ const application = new TradingApplicationService(
     "dev-user:order.read:ACC-APP",
     "dev-user:order.submit:ACC-APP",
     "dev-user:order.cancel:ACC-APP",
+    "dev-user:market-data.read:ACC-APP",
   ]),
   new RandomOrderIdGenerator(),
   { now: () => new Date().toISOString() },
+  undefined,
+  undefined,
+  undefined,
+  marketData,
 );
 
 const server = createHttpApi(
