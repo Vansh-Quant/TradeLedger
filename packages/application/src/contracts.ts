@@ -42,7 +42,7 @@ export interface MutationRecord {
 export interface MutationIdempotencyPort {
   execute<T>(
     key: string,
-    action: ApplicationAction,
+    operation: string,
     accountId: AccountId,
     principal: ApplicationPrincipal,
     fingerprint: string,
