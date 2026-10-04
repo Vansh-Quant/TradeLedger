@@ -1,6 +1,6 @@
 # TradeLedger Status
 
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ## Current Milestone
 
@@ -13,7 +13,8 @@
 - Normalized market-data foundation
 - Execution persistence/recovery foundation
 - Application service foundation
-- **Secure HTTP API transport foundation**
+- Secure HTTP API transport foundation
+- **Durable application infrastructure foundation**
 - HTTP request/response boundary
 - Bearer authentication adapter boundary
 - Application-layer account/action authorization
@@ -24,41 +25,61 @@
 - Default in-memory rate limiting
 - Health/readiness endpoints
 - HTTP security integration tests
+- Durable order-state and trading-context adapters
+- Strict persisted-state validation
+- Safe storage-key/path handling
+- Atomic temporary-file write path with platform-specific replacement fallback
+- Symlink rejection for persisted state
+- Restart/reload persistence tests
 
 ## Validation
 
-The current API feature branch must pass:
+The durable infrastructure slice must pass:
 
 - `npm install`
 - `npm run check`
 - full Vitest suite
+- security verification / Freebuff where available
 
 Do not promote until the local validation passes.
 
-## HTTP/API Security Boundary
+## Application / Infrastructure Boundary
 
-The API is a thin transport over application services.
+The application layer owns use cases and depends on ports. Infrastructure implements those ports.
 
-Trading routes require authentication and are authorized by the application layer. The transport validates request shape and bounds request size but does not calculate risk, buying power, accounting, P&L, positions, or lifecycle transitions.
+```
+HTTP / Desktop / CLI
+        ↓
+Application Service
+        ↓
+Application Ports
+        ↓
+Infrastructure Adapters
+        ↓
+Durable Storage
+        ↓
+Deterministic Domain
+```
 
-Security controls in this slice include:
+The first durable adapters are intentionally small and local. They do not contain risk, accounting, lifecycle, position, or P&L logic.
 
-- Bearer authentication boundary
-- constant-time comparison in the development static-token adapter
-- 16 KiB maximum request headers
-- 32 KiB default JSON body limit
-- strict JSON content type
-- finite-number validation
-- generic authentication failures
-- generic unexpected-error responses
-- opaque request IDs
-- no-store responses
-- restrictive response headers
-- default rate limiting
-- CORS disabled by default
-- no credential logging
+## Durable Storage Security
 
-The static token adapter is for development/test use only.
+The local durable JSON foundation provides:
+
+- restricted single-segment storage keys
+- explicit storage collections
+- controlled storage roots
+- rejection of symbolic-link roots/collections/files
+- private temporary files
+- fsync before replacement
+- malformed JSON rejection
+- schema/invariant validation before hydration
+- account/context consistency checks
+- no credential/principal storage
+- fail-closed corruption behavior
+
+The Windows replacement fallback can require unlinking an existing regular file before rename. This is documented as a current platform limitation; stronger transactional guarantees belong to a future database adapter.
 
 ## Production Security Gate
 
@@ -66,9 +87,9 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 ## Next
 
-- Durable/persistent application adapters
-- API authentication provider integration
 - Mutating-request idempotency
 - Audit/event emission
+- Production authentication provider integration
+- Transactional application persistence boundary
 - Broader HTTP integration coverage
 - Frontend/trading workstation transport integration

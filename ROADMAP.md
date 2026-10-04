@@ -23,6 +23,7 @@
 - Command/query contracts
 - Application validation and authorization
 - HTTP/API transport boundary
+- Durable application infrastructure boundary
 - OMS
 - Position engine
 - Risk engine
