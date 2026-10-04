@@ -8,7 +8,7 @@ import type { ApiDependencies, ApiRequest, ApiServerOptions } from "./types.js";
 const DEFAULT_RATE_LIMIT = Object.freeze({ windowMs: 60_000, maxRequests: 120 });
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
-function send(response: ServerResponse, id: string, status: number, body: unknown): void {
+function send(response: ServerResponse, id: string, status: number, body: unknown, corsOrigin?: string): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
@@ -17,6 +17,7 @@ function send(response: ServerResponse, id: string, status: number, body: unknow
     "referrer-policy": "no-referrer",
     "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
     "x-request-id": id,
+    ...(corsOrigin === undefined ? {} : { "access-control-allow-origin": corsOrigin, "vary": "Origin" }),
   });
   response.end(JSON.stringify(body));
 }
@@ -124,6 +125,7 @@ async function route(
   deps: ApiDependencies,
   maxBodyBytes: number,
   id: string,
+  corsOrigin?: string,
 ): Promise<void> {
   const method = request.method ?? "GET";
   let parsed: URL;
@@ -142,11 +144,11 @@ async function route(
   };
 
   if (method === "GET" && path === "/health") {
-    send(response, id, 200, { status: "ok" });
+    send(response, id, 200, { status: "ok" }, corsOrigin);
     return;
   }
   if (method === "GET" && path === "/ready") {
-    send(response, id, 200, { status: "ready" });
+    send(response, id, 200, { status: "ready" }, corsOrigin);
     return;
   }
 
@@ -188,7 +190,18 @@ async function route(
       requestId: id,
       idempotencyKey: idempotencyKey(request),
     });
-    send(response, id, 200, result);
+    send(response, id, 200, result, corsOrigin);
+    return;
+  }
+
+  const context = /^\\/api\\/v1\\/accounts\\/([^/]+)\\/context$/.exec(path);
+  if (method === "GET" && context) {
+    const accountId = decodeOrderId(context);
+    const result = deps.application.getTradingContext({
+      principal,
+      accountId,
+    });
+    send(response, id, 200, result, corsOrigin);
     return;
   }
 
@@ -211,7 +224,7 @@ async function route(
       requestId: id,
       idempotencyKey: idempotencyKey(request),
     });
-    send(response, id, 202, result);
+    send(response, id, 202, result, corsOrigin);
     return;
   }
 
@@ -223,10 +236,37 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) throw new Error("invalid maxBodyBytes");
 
   const limiter = new FixedWindowRateLimiter(options.rateLimit ?? deps.rateLimit ?? DEFAULT_RATE_LIMIT);
+  const corsOrigins = new Set(options.corsOrigins ?? []);
+  for (const origin of corsOrigins) {
+    if (origin.length === 0 || origin === "*") throw new Error("cors origin must be explicit");
+  }
 
   return createServer({ maxHeaderSize: 16 * 1024 }, async (request, response) => {
     const id = crypto.randomUUID();
     const key = request.socket.remoteAddress ?? "unknown";
+    const requestOrigin = request.headers.origin;
+    const corsOrigin = typeof requestOrigin === "string" && corsOrigins.has(requestOrigin) ? requestOrigin : undefined;
+    if (requestOrigin !== undefined && corsOrigin === undefined) {
+      send(response, id, 403, { error: { code: "CORS_FORBIDDEN", message: "origin is not allowed" } });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      if (corsOrigin === undefined) {
+        send(response, id, 204, {});
+      } else {
+        response.writeHead(204, {
+          "access-control-allow-origin": corsOrigin,
+          "access-control-allow-methods": "GET,POST,OPTIONS",
+          "access-control-allow-headers": "authorization,content-type,idempotency-key",
+          "access-control-max-age": "600",
+          "vary": "Origin",
+          "cache-control": "no-store",
+          "x-request-id": id,
+        });
+        response.end();
+      }
+      return;
+    }
 
     if (!limiter.allow(key)) {
       send(response, id, 429, { error: { code: "RATE_LIMITED", message: "too many requests" } });
@@ -234,10 +274,10 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
     }
 
     try {
-      await route(request, response, deps, maxBodyBytes, id);
+      await route(request, response, deps, maxBodyBytes, id, corsOrigin);
     } catch (error) {
       const mapped = mapError(error);
-      send(response, id, mapped.status, mapped.body);
+      send(response, id, mapped.status, mapped.body, corsOrigin);
     }
   });
 }
