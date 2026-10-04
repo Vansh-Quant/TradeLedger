@@ -129,7 +129,7 @@ export class TradingApplicationService {
     this.authorize(command.principal, "order.cancel", accountId, requestId, command.idempotencyKey);
 
     return this.mutate(
-      "order.cancel.complete",
+      "order.cancel",
       accountId,
       command.principal,
       command.idempotencyKey,
@@ -191,7 +191,7 @@ export class TradingApplicationService {
 
   private authorize(
     principal: SubmitOrderCommand["principal"],
-    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete",
+    action: "order.submit" | "order.cancel",
     accountId: AccountId,
     requestId: string,
     idempotencyKey?: string,
@@ -216,7 +216,7 @@ export class TradingApplicationService {
   }
 
   private mutate<T>(
-    action: "order.submit" | "order.cancel",
+    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete",
     accountId: AccountId,
     principal: SubmitOrderCommand["principal"],
     key: string | undefined,
