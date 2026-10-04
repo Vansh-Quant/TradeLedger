@@ -178,5 +178,10 @@ export interface GetTradingContextResult {
 
 export interface MarketDataStatePort {
   get(instrumentId: InstrumentId): import("@tradeledger/domain").MarketDataState | undefined;
+  accept(
+    instrumentId: InstrumentId,
+    data: import("@tradeledger/domain").MarketDataPoint,
+    receivedAt: string,
+  ): import("@tradeledger/domain").MarketDataState;
   list(): readonly import("@tradeledger/domain").MarketDataState[];
 }
