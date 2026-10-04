@@ -205,6 +205,17 @@ async function route(
     return;
   }
 
+  const accountOrders = /^\/api\/v1\/accounts\/([^/]+)\/orders$/.exec(path);
+  if (method === "GET" && accountOrders) {
+    const accountId = decodeOrderId(accountOrders);
+    const result = deps.application.listOrders({
+      principal,
+      accountId,
+    });
+    send(response, id, 200, result, corsOrigin);
+    return;
+  }
+
   const order = /^\/api\/v1\/orders\/([^/]+)$/.exec(path);
   if (order && method === "GET") {
     const result = deps.application.getOrder({
