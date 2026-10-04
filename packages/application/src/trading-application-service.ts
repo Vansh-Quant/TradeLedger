@@ -284,7 +284,7 @@ export class TradingApplicationService {
       try {
         return { ok: true as const, result: key === undefined
           ? execute()
-          : this.idempotency.execute(
+          : this.idempotency.executeOnce(
               key,
               mutationOperation,
               accountId,
