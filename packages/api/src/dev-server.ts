@@ -50,6 +50,7 @@ const application = new TradingApplicationService(
     "dev-user:order.submit:ACC-APP",
     "dev-user:order.cancel:ACC-APP",
     "dev-user:market-data.read:ACC-APP",
+    "dev-user:execution.record:ACC-APP",
   ]),
   new RandomOrderIdGenerator(),
   { now: () => new Date().toISOString() },
