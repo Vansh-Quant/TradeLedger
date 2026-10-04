@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
-  InMemoryExecutionEventStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -18,6 +17,7 @@ import {
   createPortfolio,
   createRiskLimits,
   createQuote,
+  InMemoryExecutionEventStore,
 } from "../../core/domain/src/index.js";
 import {
   createHttpApi,
@@ -216,7 +216,6 @@ describe("HTTP API security boundary", () => {
       });
 
       const submitted = await client.submitOrder({
-        ...({} as never),
         accountId: "ACC-API",
         instrumentId: "AAPL",
         side: "buy",
