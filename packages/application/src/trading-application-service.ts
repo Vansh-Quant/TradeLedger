@@ -260,7 +260,7 @@ export class TradingApplicationService {
         });
         return result;
       } catch (error) {
-        this.audit?.append({
+        this.audit.append({
           id: crypto.randomUUID(),
           type: `${mutationOperation}.failed`,
           timestamp: this.clock.now(),
