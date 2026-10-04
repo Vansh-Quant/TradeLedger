@@ -207,17 +207,6 @@ export class TransactionalApplicationPersistence
     run: () => T,
     onReplay?: () => void,
   ): T {
-    return this.execute(() => this.executeIdempotency(key, operation, accountId, principal, fingerprint, run, onReplay));
-  }
-
-  executeIdempotency<T>(    key: string,
-    operation: string,
-    accountId: AccountId,
-    principal: { id: string },
-    fingerprint: string,
-    run: () => T,
-    onReplay?: () => void,
-  ): T {
     if (!this.inTransaction) {
       return this.execute(() => this.executeIdempotency(key, operation, accountId, principal, fingerprint, run, onReplay));
     }
@@ -268,7 +257,7 @@ export class TransactionalApplicationPersistence
         ...this.mutations.get(key)!,
         status: "failed",
         completedAt: new Date().toISOString(),
-        errorCode: "APPLICATION_ERROR",
+        errorCode: error instanceof ApplicationError ? error.code : "APPLICATION_ERROR",
       }));
       throw error;
     }
