@@ -177,7 +177,7 @@ async function route(
       requestId: id,
       idempotencyKey: key,
     });
-    send(response, id, result.admitted ? 201 : 422, result);
+    send(response, id, result.admitted ? 201 : 422, result, corsOrigin);
     return;
   }
 
@@ -194,7 +194,7 @@ async function route(
     return;
   }
 
-  const context = /^\\/api\\/v1\\/accounts\\/([^/]+)\\/context$/.exec(path);
+  const context = /^\/api\/v1\/accounts\/([^/]+)\/context$/.exec(path);
   if (method === "GET" && context) {
     const accountId = decodeOrderId(context);
     const result = deps.application.getTradingContext({
@@ -212,7 +212,7 @@ async function route(
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
       orderId: decodeOrderId(order),
     });
-    send(response, id, 200, result);
+    send(response, id, 200, result, corsOrigin);
     return;
   }
 
@@ -228,7 +228,7 @@ async function route(
     return;
   }
 
-  send(response, id, 404, { error: { code: "NOT_FOUND", message: "resource not found" } });
+  send(response, id, 404, { error: { code: "NOT_FOUND", message: "resource not found" } }, corsOrigin);
 }
 
 export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions = {}): Server {
