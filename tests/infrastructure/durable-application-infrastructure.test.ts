@@ -16,6 +16,7 @@ import {
   createPortfolio,
   createRiskLimits,
 } from "../../core/domain/src/index.js";
+import type { AccountId } from "../../core/domain/src/index.js";
 import type { TradingContext } from "../../packages/application/src/index.js";
 
 const roots: string[] = [];
@@ -29,8 +30,12 @@ function root(): string {
   return value;
 }
 
-function context(accountId: string): TradingContext {
-  const account = createAccount({ id: accountId, baseCurrency: "USD" });
+function accountId(value: string): AccountId {
+  return value as AccountId;
+}
+
+function context(id: string): TradingContext {
+  const account = createAccount({ id, baseCurrency: "USD" });
   return {
     accountId: account.id,
     accountPortfolio: createAccountPortfolio(account, createPortfolio()),
@@ -45,11 +50,11 @@ function context(accountId: string): TradingContext {
   };
 }
 
-function state(accountId: string, orderId = "ORD-1") {
-  const account = createAccount({ id: accountId, baseCurrency: "USD" });
+function state(id: string, orderId = "ORD-1") {
+  const account = createAccount({ id, baseCurrency: "USD" });
   const order = createOrder({
     id: orderId,
-    accountId,
+    accountId: account.id,
     instrumentId: "AAPL" as never,
     side: "buy",
     type: "limit",
@@ -75,20 +80,20 @@ describe("durable application infrastructure", () => {
     const directory = root();
     new DurableOrderStateStore(directory).save(state("ACC-A"));
     const reloaded = new DurableOrderStateStore(directory).get("ORD-1");
-    expect(reloaded?.order.accountId).toBe("ACC-A");
+    expect(reloaded?.order.accountId).toBe(accountId("ACC-A"));
     expect(reloaded?.buyingPower.reservedCapacity).toBe(1_000);
   });
 
   it("survives adapter recreation for trading context", () => {
     const directory = root();
     new DurableTradingContextStore(directory).saveContext(context("ACC-A"));
-    expect(new DurableTradingContextStore(directory).getContext("ACC-A").accountId).toBe("ACC-A");
+    expect(new DurableTradingContextStore(directory).getContext(accountId("ACC-A")).accountId).toBe(accountId("ACC-A"));
   });
 
   it("does not return another account's context", () => {
     const store = new DurableTradingContextStore(root());
     store.saveContext(context("ACC-A"));
-    expect(() => store.getContext("ACC-B")).toThrow("not found");
+    expect(() => store.getContext(accountId("ACC-B"))).toThrow("not found");
   });
 
   it("rejects traversal and invalid storage keys", () => {
