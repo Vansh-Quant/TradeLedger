@@ -169,11 +169,6 @@ async function route(
       ...(limitPrice === undefined ? {} : { limitPrice }),
       ...(stopPrice === undefined ? {} : { stopPrice }),
       timeInForce: enumValue(body, "timeInForce", ["day", "gtc", "ioc", "fok"] as const),
-      orderNotional: requiredNumber(body, "orderNotional"),
-      projectedPositionNotional: requiredNumber(body, "projectedPositionNotional"),
-      projectedGrossExposure: requiredNumber(body, "projectedGrossExposure"),
-      projectedNetExposure: requiredNumber(body, "projectedNetExposure"),
-      dailyLoss: requiredNumber(body, "dailyLoss"),
       requestId: id,
       idempotencyKey: key,
     });
