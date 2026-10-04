@@ -191,7 +191,7 @@ export class TradingApplicationService {
 
   private authorize(
     principal: SubmitOrderCommand["principal"],
-    action: "order.submit" | "order.cancel",
+    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete",
     accountId: AccountId,
     requestId: string,
     idempotencyKey?: string,
@@ -205,7 +205,7 @@ export class TradingApplicationService {
         timestamp: this.clock.now(),
         principalId: principal.id,
         accountId,
-        action,
+        action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
         requestId,
         ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
         outcome: "failure",
@@ -227,7 +227,7 @@ export class TradingApplicationService {
     const execute = () => {
       this.audit.append({
         id: crypto.randomUUID(),
-        type: `${operation}.requested`,
+        type: `${mutationOperation}.requested`,
         timestamp: this.clock.now(),
         principalId: principal.id,
         accountId,
@@ -241,11 +241,11 @@ export class TradingApplicationService {
         const result = operation();
         this.audit.append({
           id: crypto.randomUUID(),
-          type: `${operation}.completed`,
+          type: `${mutationOperation}.completed`,
           timestamp: this.clock.now(),
           principalId: principal.id,
           accountId,
-          action: operation === "order.cancel.complete" ? "order.cancel" : operation,
+          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
           requestId,
           ...(key === undefined ? {} : { idempotencyKey: key }),
           outcome: "success",
@@ -254,11 +254,11 @@ export class TradingApplicationService {
       } catch (error) {
         this.audit?.append({
           id: crypto.randomUUID(),
-          type: `${operation}.failed`,
+          type: `${mutationOperation}.failed`,
           timestamp: this.clock.now(),
           principalId: principal.id,
           accountId,
-          action: operation === "order.cancel.complete" ? "order.cancel" : operation,
+          action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
           requestId,
           ...(key === undefined ? {} : { idempotencyKey: key }),
           outcome: "failure",
@@ -272,18 +272,18 @@ export class TradingApplicationService {
 
     return this.idempotency.execute(
       key,
-      operation,
+      mutationOperation,
       accountId,
       principal,
       mutationFingerprint(payloadWithoutTransportMetadata(payload)),
       execute,
       () => this.audit.append({
         id: crypto.randomUUID(),
-        type: `${operation}.replay`,
+        type: `${mutationOperation}.replay`,
         timestamp: this.clock.now(),
         principalId: principal.id,
         accountId,
-        action: operation === "order.cancel.complete" ? "order.cancel" : operation,
+        action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
         requestId,
         idempotencyKey: key,
         outcome: "replay",
