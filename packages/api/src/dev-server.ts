@@ -5,7 +5,7 @@ import {
   RandomOrderIdGenerator,
   TradingApplicationService,
 } from "@tradeledger/application";
-import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../../core/infrastructure/src/index.js";
 import { createQuote, type InstrumentId } from "@tradeledger/domain";
 import {
   createAccount,
