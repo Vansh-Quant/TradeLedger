@@ -14,6 +14,7 @@ import type {
   TradingContext,
   TradingContextPort,
 } from "@tradeledger/application";
+import { ApplicationError, IdempotencyConflictError, IdempotencyInProgressError } from "@tradeledger/application";
 import {
   DurableJsonStore,
   PersistenceError,
@@ -220,10 +221,10 @@ export class TransactionalApplicationPersistence
     const existing = this.mutations.get(key);
     if (existing !== undefined) {
       if (existing.operation !== operation || existing.accountId !== accountId || existing.principalId !== principal.id || existing.fingerprint !== fingerprint) {
-        throw new PersistenceError("idempotency key conflicts with persisted mutation");
+        throw new IdempotencyConflictError();
       }
-      if (existing.status === "in_progress") throw new PersistenceError("persisted mutation is still in progress");
-      if (existing.status === "failed") throw new PersistenceError("previous mutation failed");
+      if (existing.status === "in_progress") throw new IdempotencyInProgressError();
+      if (existing.status === "failed") throw new ApplicationError(existing.errorCode ?? "MUTATION_FAILED", "previous mutation failed");
       onReplay?.();
       return existing.result as T;
     }
