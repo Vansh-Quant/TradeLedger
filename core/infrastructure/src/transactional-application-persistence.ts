@@ -1,4 +1,4 @@
-import { openSync, closeSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { openSync, closeSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   AccountId,
@@ -346,6 +346,12 @@ export class TransactionalApplicationPersistence
   }
 
   private recoverStaleLock(): void {
+    try {
+      if (lstatSync(this.lockPath).isSymbolicLink()) throw new PersistenceError("application transaction lock must not be a symbolic link");
+    } catch (error) {
+      if (error instanceof PersistenceError) throw error;
+      throw new PersistenceError("application transaction lock could not be inspected");
+    }
     let pid: number;
     try {
       pid = Number.parseInt(readFileSync(this.lockPath, "utf8"), 10);
