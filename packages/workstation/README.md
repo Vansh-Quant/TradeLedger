@@ -40,3 +40,10 @@ deferred to the production identity-provider milestone.
 
 Charts, WebSockets, live market streaming, strategy tooling, AI/JARVIS,
 client-side risk calculation, and a frontend framework/bundler.
+
+
+## Local API
+
+The workstation expects the TradeLedger API at `http://127.0.0.1:3000`. Start the development API in a separate terminal with `npx --yes tsx packages/api/src/dev-server.ts`.
+
+The development server creates the `ACC-APP` account in memory and accepts the bearer token `dev-token`. In the browser console, set `localStorage.tradeledger.accessToken = "dev-token"` once before loading the workstation. This bootstrap is development-only and is not production authentication or persistence.
