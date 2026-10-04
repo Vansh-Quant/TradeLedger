@@ -16,6 +16,7 @@ import {
   createPortfolio,
   createRiskLimits,
 } from "../../core/domain/src/index.js";
+import type { AccountId } from "../../core/domain/src/index.js";
 import type { TradingContext } from "../../packages/application/src/index.js";
 
 const roots: string[] = [];
@@ -29,8 +30,12 @@ function root(): string {
   return value;
 }
 
-function context(accountId: string): TradingContext {
-  const account = createAccount({ id: accountId, baseCurrency: "USD" });
+function accountId(value: string): AccountId {
+  return value as AccountId;
+}
+
+function context(id: string): TradingContext {
+  const account = createAccount({ id, baseCurrency: "USD" });
   return {
     accountId: account.id,
     accountPortfolio: createAccountPortfolio(account, createPortfolio()),
@@ -45,11 +50,11 @@ function context(accountId: string): TradingContext {
   };
 }
 
-function state(accountId: string, orderId = "ORD-1") {
-  const account = createAccount({ id: accountId, baseCurrency: "USD" });
+function state(id: string, orderId = "ORD-1") {
+  const account = createAccount({ id, baseCurrency: "USD" });
   const order = createOrder({
     id: orderId,
-    accountId,
+    accountId: account.id,
     instrumentId: "AAPL" as never,
     side: "buy",
     type: "limit",
@@ -71,24 +76,24 @@ function state(accountId: string, orderId = "ORD-1") {
 }
 
 describe("durable application infrastructure", () => {
-  it("survives adapter recreation for order state", () => {
+  it("survives adapter recreation for order state", async () => {
     const directory = root();
-    new DurableOrderStateStore(directory).save(state("ACC-A"));
-    const reloaded = new DurableOrderStateStore(directory).get("ORD-1");
-    expect(reloaded?.order.accountId).toBe("ACC-A");
+    await new DurableOrderStateStore(directory).saveAsync(state("ACC-A"));
+    const reloaded = await new DurableOrderStateStore(directory).getAsync("ORD-1");
+    expect(reloaded?.order.accountId).toBe(accountId("ACC-A"));
     expect(reloaded?.buyingPower.reservedCapacity).toBe(1_000);
   });
 
-  it("survives adapter recreation for trading context", () => {
+  it("survives adapter recreation for trading context", async () => {
     const directory = root();
-    new DurableTradingContextStore(directory).saveContext(context("ACC-A"));
-    expect(new DurableTradingContextStore(directory).getContext("ACC-A").accountId).toBe("ACC-A");
+    await new DurableTradingContextStore(directory).saveContextAsync(context("ACC-A"));
+    expect((await new DurableTradingContextStore(directory).getContextAsync(accountId("ACC-A"))).accountId).toBe(accountId("ACC-A"));
   });
 
-  it("does not return another account's context", () => {
+  it("does not return another account's context", async () => {
     const store = new DurableTradingContextStore(root());
-    store.saveContext(context("ACC-A"));
-    expect(() => store.getContext("ACC-B")).toThrow("not found");
+    await store.saveContextAsync(context("ACC-A"));
+    await expect(store.getContextAsync(accountId("ACC-B"))).rejects.toThrow("not found");
   });
 
   it("rejects traversal and invalid storage keys", () => {
@@ -114,15 +119,15 @@ describe("durable application infrastructure", () => {
     expect(() => store.get("ORD-1")).toThrow("invalid JSON");
   });
 
-  it("fails closed on malformed trading state", () => {
+  it("fails closed on malformed trading state", async () => {
     const directory = root();
     const store = new DurableOrderStateStore(directory);
-    store.save(state("ACC-A"));
+    await store.saveAsync(state("ACC-A"));
     const path = join(directory, "orders", "ORD-1.json");
     const raw = JSON.parse(readFileSync(path, "utf8")) as { order: { quantity: number } };
     raw.order.quantity = -1;
     writeFileSync(path, JSON.stringify(raw));
-    expect(() => store.get("ORD-1")).toThrow("order.quantity must be positive");
+    await expect(store.getAsync("ORD-1")).rejects.toThrow("order.quantity must be positive");
   });
 
   it("rejects symbolic-link persisted files", () => {
@@ -142,10 +147,21 @@ describe("durable application infrastructure", () => {
     expect(() => store.get("ORD-2")).toThrow("symbolic link");
   });
 
-  it("never persists an application principal or credential field", () => {
+  it("rejects oversized persisted records", async () => {
+    const directory = root();
+    const store = new DurableJsonStore(directory, "orders", {
+      encode: (value: string) => value,
+      decode: (value: unknown) => String(value),
+    });
+    await store.save("ORD-1", "safe");
+    writeFileSync(join(directory, "orders", "ORD-1.json"), "x".repeat(1024 * 1024 + 1));
+    expect(() => store.get("ORD-1")).toThrow("exceeds maximum size");
+  });
+
+  it("never persists an application principal or credential field", async () => {
     const directory = root();
     const store = new DurableTradingContextStore(directory);
-    store.saveContext(context("ACC-A"));
+    await store.saveContextAsync(context("ACC-A"));
     const text = readFileSync(join(directory, "contexts", "ACC-A.json"), "utf8");
     expect(text).not.toContain("password");
     expect(text).not.toContain("token");

@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -16,6 +16,8 @@ function safeSegment(value: string, field: string): string {
   }
   return normalized;
 }
+
+const MAX_JSON_BYTES = 1024 * 1024;
 
 function assertDirectory(path: string, field: string): void {
   try {
@@ -93,6 +95,10 @@ export class DurableJsonStore<T> {
     let encoded: string;
     try {
       encoded = JSON.stringify(this.codec.encode(value));
+      if (encoded === undefined) throw new PersistenceError("failed to serialize persisted state: codec returned undefined");
+      if (Buffer.byteLength(encoded, "utf8") > MAX_JSON_BYTES) {
+        throw new PersistenceError("persisted state exceeds maximum size");
+      }
     } catch (error) {
       throw new PersistenceError("failed to serialize persisted state: " + (error instanceof Error ? error.message : "unknown error"));
     }
@@ -135,6 +141,8 @@ export class DurableJsonStore<T> {
     const target = this.fileFor(key);
     try {
       this.assertRegularFile(target);
+      const size = statSync(target).size;
+      if (size > MAX_JSON_BYTES) throw new PersistenceError("persisted state exceeds maximum size");
       const text = readFileSync(target, "utf8");
       let parsed: unknown;
       try {
