@@ -148,6 +148,12 @@ The durable layer enforces:
 
 A future database adapter may provide stronger multi-record transaction guarantees without changing the deterministic domain.
 
+### Transactional Application Persistence
+
+Mutating application use cases execute through an application transaction port. The current local adapter coordinates order state, trading context, idempotency records, and audit events in one versioned snapshot. It reloads state under an exclusive lock, commits the complete snapshot on success, and restores the prior in-memory state on application failure.
+
+The transaction boundary is infrastructure-agnostic at the application layer. A future relational adapter can provide stronger isolation and concurrency without changing the application contracts or deterministic domain.
+
 ## 7. Service Boundaries
 
 Each major subsystem should define:
