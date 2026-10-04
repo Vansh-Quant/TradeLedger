@@ -3,6 +3,7 @@ import {
   createExecution,
   admitTradingOrder,
   processTradingExecution,
+  InMemoryExecutionEventStore,
   requestTradingOrderCancellation,
   completeTradingOrderCancellation,
   type AccountId,
@@ -71,7 +72,7 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
-    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new import("@tradeledger/domain").InMemoryExecutionEventStore(),
+    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
   ) {}
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
