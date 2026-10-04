@@ -132,6 +132,21 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("rejects malformed idempotency keys", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "bad key",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
   it("replays an identical mutation without executing it twice", async () => {
     await withServer(async (baseUrl) => {
       const headers = {
