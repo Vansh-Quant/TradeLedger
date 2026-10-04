@@ -54,7 +54,7 @@ async function load(): Promise<void> {
       <header class="topbar">
         <div class="brand">TRADELEDGER</div>
         <div class="connection"><span class="dot"></span> CONNECTING</div>
-        <div class="account">Account: <strong>${escapeHtml(accountId)}</strong></div>
+        <form id="account-form" class="account"><label>ACCOUNT<input name="account" value="${escapeHtml(accountId)}" aria-label="Account ID"></label><button type="submit" class="cancel">LOAD</button></form>
       </header>
       <section class="workspace loading">Loading trading context…</section>
     </main>
@@ -157,6 +157,12 @@ async function load(): Promise<void> {
 }
 
 function bind(): void {
+  document.querySelector<HTMLFormElement>("#account-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const input = (event.currentTarget as HTMLFormElement).elements.namedItem("account");
+    const value = input instanceof HTMLInputElement ? input.value.trim() : "";
+    if (value.length > 0) window.location.search = `?account=${encodeURIComponent(value)}`;
+  });
   const form = document.querySelector<HTMLFormElement>("#order-form");
   const type = form?.elements.namedItem("type") as HTMLSelectElement | null;
   const limitField = document.querySelector<HTMLElement>("#limit-price-field");
