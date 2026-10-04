@@ -226,6 +226,54 @@ describe("transactional application persistence", () => {
     )).toEqual({ orderId: "ORD-TX-2" });
   });
 
+  it("persists authorization-denied audit events without credentials", () => {
+    const directory = root();
+    const persistence = new TransactionalApplicationPersistence(directory);
+    persistence.saveContext(context("ACC-TX"));
+    const service = new TradingApplicationService(
+      persistence,
+      persistence,
+      new AllowListedAuthorization([]),
+      fixedOrderIdGenerator("ORD-DENIED-TX"),
+      fixedClock("2026-10-04T00:00:00.000Z"),
+      persistence,
+      persistence,
+      persistence,
+    );
+
+    expect(() => service.submitOrder({
+      principal: { id: "user-denied", roles: ["trader"] },
+      accountId: "ACC-TX",
+      instrumentId: "AAPL",
+      side: "buy",
+      type: "limit",
+      quantity: 1,
+      limitPrice: 100,
+      timeInForce: "day",
+      orderNotional: 100,
+      projectedPositionNotional: 100,
+      projectedGrossExposure: 100,
+      projectedNetExposure: 100,
+      dailyLoss: 0,
+      requestId: "req-denied-1",
+      idempotencyKey: "denied-1",
+    })).toThrow();
+
+    const snapshot = JSON.parse(readFileSync(join(directory, "application", "state.json"), "utf8")) as {
+      auditEvents: Array<{ type: string; idempotencyKey?: string; reason?: string }>;
+    };
+    expect(snapshot.auditEvents).toEqual([
+      expect.objectContaining({
+        type: "authorization.denied",
+        idempotencyKey: "denied-1",
+        reason: "AUTHORIZATION_ERROR",
+      }),
+    ]);
+    expect(JSON.stringify(snapshot)).not.toContain("Authorization");
+    expect(JSON.stringify(snapshot)).not.toContain("password");
+    expect(JSON.stringify(snapshot)).not.toContain("token");
+  });
+
   it("commits failed mutation outcomes and audit state", () => {
     const directory = root();
     const persistence = new TransactionalApplicationPersistence(directory);
