@@ -95,7 +95,7 @@ export class IdempotencyInProgressError extends ApplicationError {
 export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
   private readonly records = new Map<string, MutationRecord>();
 
-  execute<T>(
+  executeOnce<T>(
     key: string,
     operation: string,
     accountId: AccountId,
