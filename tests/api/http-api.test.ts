@@ -98,6 +98,18 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("uses the typed workstation client against the HTTP boundary", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({
+        baseUrl,
+        getToken: () => "test-token",
+      });
+      const result = await client.getTradingContext("ACC-API");
+      expect(result.context.accountId).toBe("ACC-API");
+    });
+  });
+
   it("serves an authorized trading context to the workstation", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
