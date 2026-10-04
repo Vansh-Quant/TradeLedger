@@ -5,6 +5,7 @@ import {
   createMarketDataEnvelope,
   createMarketDataState,
   createQuote,
+  isMarketDataStale,
   type InstrumentId,
 } from "../../core/domain/src/index.js";
 
@@ -128,8 +129,8 @@ describe("market data state", () => {
     const state = book.ingest(quote(100, "2026-10-02T10:00:00Z"));
 
     expect(state.lastReceivedAt).toBe("2026-10-02T10:00:02.000Z");
-    expect(
-      state.lastObservedAt,
-    ).toBe("2026-10-02T10:00:00.000Z");
+    expect(state.lastObservedAt).toBe("2026-10-02T10:00:00.000Z");
+    expect(isMarketDataStale(state, "2026-10-02T10:00:01Z", 1_000)).toBe(false);
+    expect(isMarketDataStale(state, "2026-10-02T10:00:01.001Z", 1_000)).toBe(true);
   });
 });
