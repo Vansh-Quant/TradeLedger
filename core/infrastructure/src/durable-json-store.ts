@@ -139,15 +139,6 @@ export class DurableJsonStore<T> {
 
   list(): readonly T[] {
     const directory = this.collectionDirectory();
-    try {
-      this.assertRegularFile(directory);
-    } catch (error) {
-      if (error instanceof PersistenceError && error.message.includes("regular file")) {
-        // The collection path is a directory, not an item file.
-      } else {
-        throw error;
-      }
-    }
 
     try {
       const entries = readdirSync(directory, { withFileTypes: true });
