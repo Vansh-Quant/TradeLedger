@@ -91,6 +91,15 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 The default adapters remain in-memory for lightweight use and tests. The transactional application adapter persists order state, trading context, idempotency records, and audit events in one versioned snapshot and commits them through the existing atomic durable JSON write path. It uses an exclusive transaction lock and fails closed when another process owns the lock. A future database adapter can provide stronger multi-record concurrency and recovery guarantees.
 
+## Market Data Engine
+
+- Canonical quote, trade, and bar models are retained as the deterministic market-data boundary.
+- Added per-instrument market-data state with independent latest quote/trade/bar snapshots.
+- Added monotonic sequence protection and observation-time ordering protection.
+- Added deterministic stale-data evaluation.
+- Added a state book that assigns per-instrument ingestion sequences without coupling the domain to a provider clock.
+- Provider ingestion remains separated from state storage through the existing sink contract.
+
 ## Trading Workstation UI Integration
 
 - The first browser workstation now consumes the existing secured HTTP/application boundary.
