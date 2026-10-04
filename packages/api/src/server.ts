@@ -8,6 +8,18 @@ import type { ApiDependencies, ApiRequest, ApiServerOptions } from "./types.js";
 const DEFAULT_RATE_LIMIT = Object.freeze({ windowMs: 60_000, maxRequests: 120 });
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
+function jsonSafe(value: unknown): unknown {
+  if (value instanceof Map) return [...value.values()].map((item) => jsonSafe(item));
+  if (value instanceof Set) return [...value].map((item) => jsonSafe(item));
+  if (Array.isArray(value)) return value.map((item) => jsonSafe(item));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, jsonSafe(item)]),
+    );
+  }
+  return value;
+}
+
 function send(response: ServerResponse, id: string, status: number, body: unknown, corsOrigin?: string): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -19,7 +31,7 @@ function send(response: ServerResponse, id: string, status: number, body: unknow
     "x-request-id": id,
     ...(corsOrigin === undefined ? {} : { "access-control-allow-origin": corsOrigin, "vary": "Origin" }),
   });
-  response.end(JSON.stringify(body));
+  response.end(JSON.stringify(jsonSafe(body)));
 }
 
 async function readJson(request: IncomingMessage, maxBytes: number): Promise<Record<string, unknown>> {
