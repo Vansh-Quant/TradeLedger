@@ -11,7 +11,8 @@ import type {
 export type ApplicationAction =
   | "order.submit"
   | "order.cancel"
-  | "order.read";
+  | "order.read"
+  | "market-data.read";
 
 export interface ApplicationPrincipal {
   readonly id: string;
@@ -172,4 +173,10 @@ export interface ListOrdersResult {
 
 export interface GetTradingContextResult {
   readonly context: TradingContext;
+}
+
+
+export interface MarketDataStatePort {
+  get(instrumentId: InstrumentId): import("@tradeledger/domain").MarketDataState | undefined;
+  list(): readonly import("@tradeledger/domain").MarketDataState[];
 }
