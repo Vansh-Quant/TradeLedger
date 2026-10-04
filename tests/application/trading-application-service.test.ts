@@ -172,4 +172,21 @@ describe("trading application service", () => {
     expect(stored).toBe(submitted.state);
     expect(stored?.order.status).toBe("acknowledged");
   });
+  it("replays an idempotent submission without creating another order", () => {
+    const { application } = service();
+    const first = application.submitOrder({ ...command(), idempotencyKey: "app-replay-1", requestId: "req-1" });
+    const second = application.submitOrder({ ...command(), idempotencyKey: "app-replay-1", requestId: "req-2" });
+    expect(second).toEqual(first);
+  });
+
+  it("rejects conflicting idempotency reuse", () => {
+    const { application } = service();
+    application.submitOrder({ ...command(), idempotencyKey: "app-conflict-1" });
+    expect(() => application.submitOrder({
+      ...command(),
+      quantity: 11,
+      idempotencyKey: "app-conflict-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
 });
