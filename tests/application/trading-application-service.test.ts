@@ -124,6 +124,15 @@ describe("trading application service", () => {
     expect(result.orders[0]?.state).toBe(submitted.state);
   });
 
+  it("derives workstation admission inputs on the application side", () => {
+    const { application } = service();
+    const result = application.submitOrderFromIntent({
+      ...command(),
+    });
+    expect(result.admitted).toBe(true);
+    expect(result.state.buyingPower.reservedCapacity).toBe(1_000);
+  });
+
   it("maps missing and cross-account orders to not found", () => {
     const { application } = service();
 
