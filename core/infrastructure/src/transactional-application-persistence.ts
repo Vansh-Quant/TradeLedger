@@ -121,8 +121,8 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
   encode(value) {
     return {
       version: 1,
-      orders: value.orders,
-      contexts: value.contexts,
+      orders: value.orders.map((state) => orderCodecFactory().encode(state)),
+      contexts: value.contexts.map((context) => contextCodecFactory().encode(context)),
       mutations: value.mutations.map((mutation) => ({
         ...mutation,
         ...(mutation.result === undefined ? {} : { result: encodeJsonValue(mutation.result) }),
