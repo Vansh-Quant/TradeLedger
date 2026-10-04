@@ -159,7 +159,7 @@ async function route(
     const key = idempotencyKey(request);
     const limitPrice = optionalNumber(body, "limitPrice");
     const stopPrice = optionalNumber(body, "stopPrice");
-    const result = deps.application.submitOrder({
+    const result = deps.application.submitOrderFromIntent({
       principal,
       accountId: requiredString(body, "accountId"),
       instrumentId: requiredString(body, "instrumentId"),
