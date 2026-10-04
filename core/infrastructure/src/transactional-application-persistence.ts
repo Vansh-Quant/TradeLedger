@@ -69,8 +69,8 @@ function decodeJsonValue(value: unknown): unknown {
     if (
       item &&
       typeof item === "object" &&
-      (item.__tradeledger_type === "Set" && Array.isArray(item.values)) ||
-      (item.__tradeledger_type === "Map" && Array.isArray(item.entries))
+      ((item.__tradeledger_type === "Set" && Array.isArray(item.values)) ||
+        (item.__tradeledger_type === "Map" && Array.isArray(item.entries)))
     ) {
       return item.__tradeledger_type === "Map" ? new Map(item.entries) : new Set(item.values);
     }
