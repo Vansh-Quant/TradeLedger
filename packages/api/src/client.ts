@@ -2,6 +2,7 @@ import type {
   CancelOrderResult,
   GetOrderResult,
   GetTradingContextResult,
+  ListOrdersResult,
   SubmitOrderCommand,
   SubmitOrderResult,
 } from "@tradeledger/application";
@@ -25,6 +26,12 @@ export class TradeLedgerApiClient {
   async getTradingContext(accountId: string): Promise<GetTradingContextResult> {
     return this.request<GetTradingContextResult>(
       `/api/v1/accounts/${encodeURIComponent(accountId)}/context`,
+    );
+  }
+
+  async listOrders(accountId: string): Promise<ListOrdersResult> {
+    return this.request<ListOrdersResult>(
+      `/api/v1/accounts/${encodeURIComponent(accountId)}/orders`,
     );
   }
 
