@@ -43,7 +43,7 @@ export class AllowListedAuthorization implements AuthorizationPort {
 
   authorize(
     principal: ApplicationPrincipal,
-    operation: string,
+    action: ApplicationAction,
     accountId: AccountId,
   ): void {
     const keys = [
@@ -96,7 +96,7 @@ export class InMemoryMutationIdempotency implements MutationIdempotencyPort {
 
   execute<T>(
     key: string,
-    action: ApplicationAction,
+    operation: string,
     accountId: AccountId,
     principal: ApplicationPrincipal,
     fingerprint: string,
