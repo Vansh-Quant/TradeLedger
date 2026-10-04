@@ -63,11 +63,6 @@ function orderBody(quantity = 10) {
     quantity,
     limitPrice: 100,
     timeInForce: "day",
-    orderNotional: quantity * 100,
-    projectedPositionNotional: quantity * 100,
-    projectedGrossExposure: quantity * 100,
-    projectedNetExposure: quantity * 100,
-    dailyLoss: 0,
   });
 }
 
