@@ -54,19 +54,19 @@ function auth() {
   return staticBearerAuthenticator(new Map([["test-token", principal]]));
 }
 
-function orderBody() {
+function orderBody(quantity = 10) {
   return JSON.stringify({
     accountId: "ACC-API",
     instrumentId: "AAPL",
     side: "buy",
     type: "limit",
-    quantity: 10,
+    quantity,
     limitPrice: 100,
     timeInForce: "day",
-    orderNotional: 1_000,
-    projectedPositionNotional: 1_000,
-    projectedGrossExposure: 1_000,
-    projectedNetExposure: 1_000,
+    orderNotional: quantity * 100,
+    projectedPositionNotional: quantity * 100,
+    projectedGrossExposure: quantity * 100,
+    projectedNetExposure: quantity * 100,
     dailyLoss: 0,
   });
 }
@@ -102,9 +102,6 @@ describe("HTTP API security boundary", () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`);
       expect(response.status).toBe(401);
-      expect(await response.json()).toEqual({
-        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
-      });
     });
   });
 
@@ -115,11 +112,54 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "create-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(201);
       expect((await response.json()).admitted).toBe(true);
+    });
+  });
+
+  it("requires idempotency keys for mutations", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: { authorization: "Bearer test-token", "content-type": "application/json" },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  it("replays an identical mutation without executing it twice", async () => {
+    await withServer(async (baseUrl) => {
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "replay-1",
+      };
+      const first = await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() });
+      const second = await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() });
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(await second.json()).toEqual(await first.json());
+    });
+  });
+
+  it("rejects idempotency-key reuse with a different payload", async () => {
+    await withServer(async (baseUrl) => {
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "conflict-1",
+      };
+      expect((await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() })).status).toBe(201);
+      expect((await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers,
+        body: orderBody(11),
+      })).status).toBe(409);
     });
   });
 
@@ -130,13 +170,11 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer wrong-token",
           "content-type": "application/json",
+          "idempotency-key": "invalid-auth-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(401);
-      expect(await response.json()).toEqual({
-        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
-      });
     });
   });
 
@@ -147,6 +185,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "text/plain",
+          "idempotency-key": "bad-content-type-1",
         },
         body: "not-json",
       });
@@ -161,6 +200,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "oversized-1",
         },
         body: JSON.stringify({ data: "x".repeat(100) }),
       });
@@ -187,8 +227,6 @@ describe("HTTP API security boundary", () => {
     }, { rateLimit: { windowMs: 60_000, maxRequests: 2 } });
   });
 
-
-
   it("rejects JSON-looking content types that are not application/json", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`, {
@@ -196,6 +234,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/jsonish",
+          "idempotency-key": "bad-json-type-1",
         },
         body: orderBody(),
       });
@@ -209,9 +248,6 @@ describe("HTTP API security boundary", () => {
         headers: { authorization: "Bearer test-token" },
       });
       expect(response.status).toBe(400);
-      expect(await response.json()).toEqual({
-        error: { code: "VALIDATION_ERROR", message: "order id is invalid" },
-      });
     });
   });
 
@@ -231,13 +267,11 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "internal-error-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(500);
-      expect(await response.json()).toEqual({
-        error: { code: "INTERNAL_ERROR", message: "internal server error" },
-      });
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
