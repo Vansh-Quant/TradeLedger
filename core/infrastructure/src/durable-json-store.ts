@@ -17,6 +17,8 @@ function safeSegment(value: string, field: string): string {
   return normalized;
 }
 
+const MAX_JSON_BYTES = 1024 * 1024;
+
 function assertDirectory(path: string, field: string): void {
   try {
     const info = lstatSync(path);
@@ -47,8 +49,6 @@ export class DurableJsonStore<T> {
   private readonly collection: string;
 
   constructor(rootDirectory: string, collection: string, private readonly codec: JsonCodec<T>) {
-    const MAX_JSON_BYTES = 1024 * 1024;
-
     const normalizedRoot = rootDirectory.trim();
     if (normalizedRoot.length === 0) throw new PersistenceError("storage root must not be empty");
     this.rootDirectory = normalizedRoot;
