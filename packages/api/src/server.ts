@@ -6,8 +6,21 @@ import { DEFAULT_MAX_BODY_BYTES, FixedWindowRateLimiter } from "./security.js";
 import type { ApiDependencies, ApiRequest, ApiServerOptions } from "./types.js";
 
 const DEFAULT_RATE_LIMIT = Object.freeze({ windowMs: 60_000, maxRequests: 120 });
+const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
-function send(response: ServerResponse, id: string, status: number, body: unknown): void {
+function jsonSafe(value: unknown): unknown {
+  if (value instanceof Map) return [...value.values()].map((item) => jsonSafe(item));
+  if (value instanceof Set) return [...value].map((item) => jsonSafe(item));
+  if (Array.isArray(value)) return value.map((item) => jsonSafe(item));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, jsonSafe(item)]),
+    );
+  }
+  return value;
+}
+
+function send(response: ServerResponse, id: string, status: number, body: unknown, corsOrigin?: string): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
@@ -16,8 +29,9 @@ function send(response: ServerResponse, id: string, status: number, body: unknow
     "referrer-policy": "no-referrer",
     "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
     "x-request-id": id,
+    ...(corsOrigin === undefined ? {} : { "access-control-allow-origin": corsOrigin, "vary": "Origin" }),
   });
-  response.end(JSON.stringify(body));
+  response.end(JSON.stringify(jsonSafe(body)));
 }
 
 async function readJson(request: IncomingMessage, maxBytes: number): Promise<Record<string, unknown>> {
@@ -25,9 +39,8 @@ async function readJson(request: IncomingMessage, maxBytes: number): Promise<Rec
   const mediaType = typeof contentType === "string"
     ? contentType.split(";", 1)[0]?.trim().toLowerCase()
     : undefined;
-  if (mediaType !== "application/json") {
-    throw new ValidationError("content-type must be application/json");
-  }
+  if (mediaType !== "application/json") throw new ValidationError("content-type must be application/json");
+
   const contentLength = request.headers["content-length"];
   if (contentLength !== undefined) {
     const parsed = Number(contentLength);
@@ -92,6 +105,17 @@ function enumValue<T extends string>(body: Record<string, unknown>, field: strin
   return value;
 }
 
+function idempotencyKey(request: IncomingMessage): string {
+  const value = request.headers["idempotency-key"];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ValidationError("Idempotency-Key header is required");
+  }
+  if (value.length > MAX_IDEMPOTENCY_KEY_LENGTH || !/^[\x21-\x7e]+$/.test(value)) {
+    throw new ValidationError("Idempotency-Key header is invalid");
+  }
+  return value;
+}
+
 function principalOrThrow(principal: ApplicationPrincipal | undefined): ApplicationPrincipal {
   if (principal === undefined) throw new AuthorizationError();
   return principal;
@@ -113,6 +137,7 @@ async function route(
   deps: ApiDependencies,
   maxBodyBytes: number,
   id: string,
+  corsOrigin?: string,
 ): Promise<void> {
   const method = request.method ?? "GET";
   let parsed: URL;
@@ -131,11 +156,11 @@ async function route(
   };
 
   if (method === "GET" && path === "/health") {
-    send(response, id, 200, { status: "ok" });
+    send(response, id, 200, { status: "ok" }, corsOrigin);
     return;
   }
   if (method === "GET" && path === "/ready") {
-    send(response, id, 200, { status: "ready" });
+    send(response, id, 200, { status: "ready" }, corsOrigin);
     return;
   }
 
@@ -143,9 +168,10 @@ async function route(
 
   if (method === "POST" && path === "/api/v1/orders") {
     const body = await readJson(request, maxBodyBytes);
+    const key = idempotencyKey(request);
     const limitPrice = optionalNumber(body, "limitPrice");
     const stopPrice = optionalNumber(body, "stopPrice");
-    const result = deps.application.submitOrder({
+    const result = deps.application.submitOrderFromIntent({
       principal,
       accountId: requiredString(body, "accountId"),
       instrumentId: requiredString(body, "instrumentId"),
@@ -155,13 +181,10 @@ async function route(
       ...(limitPrice === undefined ? {} : { limitPrice }),
       ...(stopPrice === undefined ? {} : { stopPrice }),
       timeInForce: enumValue(body, "timeInForce", ["day", "gtc", "ioc", "fok"] as const),
-      orderNotional: requiredNumber(body, "orderNotional"),
-      projectedPositionNotional: requiredNumber(body, "projectedPositionNotional"),
-      projectedGrossExposure: requiredNumber(body, "projectedGrossExposure"),
-      projectedNetExposure: requiredNumber(body, "projectedNetExposure"),
-      dailyLoss: requiredNumber(body, "dailyLoss"),
+      requestId: id,
+      idempotencyKey: key,
     });
-    send(response, id, result.admitted ? 201 : 422, result);
+    send(response, id, result.admitted ? 201 : 422, result, corsOrigin);
     return;
   }
 
@@ -171,8 +194,58 @@ async function route(
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
       orderId: decodeOrderId(completion),
+      requestId: id,
+      idempotencyKey: idempotencyKey(request),
     });
-    send(response, id, 200, result);
+    send(response, id, 200, result, corsOrigin);
+    return;
+  }
+
+  const context = /^\/api\/v1\/accounts\/([^/]+)\/context$/.exec(path);
+  if (method === "GET" && context) {
+    const accountId = decodeOrderId(context);
+    const result = deps.application.getTradingContext({
+      principal,
+      accountId,
+    });
+    send(response, id, 200, result, corsOrigin);
+    return;
+  }
+
+  const marketDataInstrument = /^\/api\/v1\/market-data\/([^/]+)$/.exec(path);
+  if (method === "GET" && marketDataInstrument) {
+    const result = deps.application.getMarketData({
+      principal,
+      accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
+      instrumentId: decodeOrderId(marketDataInstrument),
+    });
+    send(
+      response,
+      id,
+      result === undefined ? 404 : 200,
+      result ?? { error: { code: "NOT_FOUND", message: "market data not found" } },
+      corsOrigin,
+    );
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/market-data") {
+    const result = deps.application.listMarketData({
+      principal,
+      accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
+    });
+    send(response, id, 200, { states: result }, corsOrigin);
+    return;
+  }
+
+  const accountOrders = /^\/api\/v1\/accounts\/([^/]+)\/orders$/.exec(path);
+  if (method === "GET" && accountOrders) {
+    const accountId = decodeOrderId(accountOrders);
+    const result = deps.application.listOrders({
+      principal,
+      accountId,
+    });
+    send(response, id, 200, result, corsOrigin);
     return;
   }
 
@@ -183,7 +256,7 @@ async function route(
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
       orderId: decodeOrderId(order),
     });
-    send(response, id, 200, result);
+    send(response, id, 200, result, corsOrigin);
     return;
   }
 
@@ -191,13 +264,15 @@ async function route(
     const result = deps.application.cancelOrder({
       principal,
       accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
-      orderId: decodeURIComponent(order[1] ?? ""),
+      orderId: decodeOrderId(order),
+      requestId: id,
+      idempotencyKey: idempotencyKey(request),
     });
-    send(response, id, 202, result);
+    send(response, id, 202, result, corsOrigin);
     return;
   }
 
-  send(response, id, 404, { error: { code: "NOT_FOUND", message: "resource not found" } });
+  send(response, id, 404, { error: { code: "NOT_FOUND", message: "resource not found" } }, corsOrigin);
 }
 
 export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions = {}): Server {
@@ -205,10 +280,37 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) throw new Error("invalid maxBodyBytes");
 
   const limiter = new FixedWindowRateLimiter(options.rateLimit ?? deps.rateLimit ?? DEFAULT_RATE_LIMIT);
+  const corsOrigins = new Set(options.corsOrigins ?? []);
+  for (const origin of corsOrigins) {
+    if (origin.length === 0 || origin === "*") throw new Error("cors origin must be explicit");
+  }
 
   return createServer({ maxHeaderSize: 16 * 1024 }, async (request, response) => {
     const id = crypto.randomUUID();
     const key = request.socket.remoteAddress ?? "unknown";
+    const requestOrigin = request.headers.origin;
+    const corsOrigin = typeof requestOrigin === "string" && corsOrigins.has(requestOrigin) ? requestOrigin : undefined;
+    if (requestOrigin !== undefined && corsOrigin === undefined) {
+      send(response, id, 403, { error: { code: "CORS_FORBIDDEN", message: "origin is not allowed" } });
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      if (corsOrigin === undefined) {
+        send(response, id, 204, {});
+      } else {
+        response.writeHead(204, {
+          "access-control-allow-origin": corsOrigin,
+          "access-control-allow-methods": "GET,POST,OPTIONS",
+          "access-control-allow-headers": "authorization,content-type,idempotency-key",
+          "access-control-max-age": "600",
+          "vary": "Origin",
+          "cache-control": "no-store",
+          "x-request-id": id,
+        });
+        response.end();
+      }
+      return;
+    }
 
     if (!limiter.allow(key)) {
       send(response, id, 429, { error: { code: "RATE_LIMITED", message: "too many requests" } });
@@ -216,10 +318,10 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
     }
 
     try {
-      await route(request, response, deps, maxBodyBytes, id);
+      await route(request, response, deps, maxBodyBytes, id, corsOrigin);
     } catch (error) {
       const mapped = mapError(error);
-      send(response, id, mapped.status, mapped.body);
+      send(response, id, mapped.status, mapped.body, corsOrigin);
     }
   });
 }

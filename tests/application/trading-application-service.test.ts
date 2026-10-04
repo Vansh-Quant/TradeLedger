@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
+  InMemoryAuditEventStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -48,6 +49,7 @@ function service(
   ],
 ) {
   const orders = new InMemoryOrderStateStore();
+  const audit = new InMemoryAuditEventStore();
   const tradingContext = new InMemoryTradingContext([context]);
   const application = new TradingApplicationService(
     tradingContext,
@@ -55,8 +57,10 @@ function service(
     new AllowListedAuthorization(permissions),
     fixedOrderIdGenerator("ORD-APP-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
+    undefined,
+    audit,
   );
-  return { application, orders };
+  return { application, orders, audit };
 }
 
 function command() {
@@ -108,6 +112,25 @@ describe("trading application service", () => {
     expect(() =>
       application.submitOrder(command()),
     ).toThrowError("not authorized");
+  });
+
+  it("lists account orders without leaking another account", () => {
+    const { application } = service();
+    const submitted = application.submitOrder(command());
+    const result = application.listOrders({ principal, accountId: "ACC-APP" });
+
+    expect(result.orders).toHaveLength(1);
+    expect(result.orders[0]?.order.id).toBe(submitted.order.id);
+    expect(result.orders[0]?.state).toBe(submitted.state);
+  });
+
+  it("derives workstation admission inputs on the application side", () => {
+    const { application } = service();
+    const result = application.submitOrderFromIntent({
+      ...command(),
+    });
+    expect(result.admitted).toBe(true);
+    expect(result.state.buyingPower.reservedCapacity).toBe(1_000);
   });
 
   it("maps missing and cross-account orders to not found", () => {
@@ -172,4 +195,66 @@ describe("trading application service", () => {
     expect(stored).toBe(submitted.state);
     expect(stored?.order.status).toBe("acknowledged");
   });
+  it("replays an idempotent submission without creating another order", () => {
+    const { application } = service();
+    const first = application.submitOrder({ ...command(), idempotencyKey: "app-replay-1", requestId: "req-1" });
+    const second = application.submitOrder({ ...command(), idempotencyKey: "app-replay-1", requestId: "req-2" });
+    expect(second).toEqual(first);
+  });
+
+  it("rejects conflicting idempotency reuse", () => {
+    const { application } = service();
+    application.submitOrder({ ...command(), idempotencyKey: "app-conflict-1" });
+    expect(() => application.submitOrder({
+      ...command(),
+      quantity: 11,
+      idempotencyKey: "app-conflict-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
+  it("audits replay and conflicting idempotency reuse", () => {
+    const { application, audit } = service();
+    application.submitOrder({ ...command(), idempotencyKey: "audit-1", requestId: "req-1" });
+    application.submitOrder({ ...command(), idempotencyKey: "audit-1", requestId: "req-2" });
+    expect(audit.events.map((event) => event.type)).toContain("order.submit.replay");
+    expect(() => application.submitOrder({
+      ...command(),
+      quantity: 11,
+      idempotencyKey: "audit-1",
+    })).toThrowError("idempotency key conflicts");
+    expect(audit.events.map((event) => event.type)).toContain("idempotency.conflict");
+  });
+
+  it("does not allow a key to cross principals", () => {
+    const { application } = service([
+      "user-1:order.submit:ACC-APP",
+      "user-1:order.read:ACC-APP",
+      "user-1:order.cancel:ACC-APP",
+      "user-2:order.submit:ACC-APP",
+    ]);
+    application.submitOrder({ ...command(), idempotencyKey: "principal-1" });
+    expect(() => application.submitOrder({
+      ...command(),
+      principal: { id: "user-2", roles: ["trader"] },
+      idempotencyKey: "principal-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
+  it("does not allow cancel and cancellation completion to share a key", () => {
+    const { application } = service();
+    const submitted = application.submitOrder(command());
+    application.cancelOrder({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      idempotencyKey: "cancel-op-1",
+    });
+    expect(() => application.completeOrderCancellation({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      idempotencyKey: "cancel-op-1",
+    })).toThrowError("idempotency key conflicts");
+  });
+
 });

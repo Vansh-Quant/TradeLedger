@@ -1,3 +1,13 @@
+## Market Data Engine — Application/API Boundary
+
+- Added an application-facing market-data state port.
+- Added authorized application reads for instrument snapshots and state lists.
+- Added HTTP endpoints for market-data reads and a typed API client.
+- Connected infrastructure state storage to the provider-ingestion sink boundary.
+- Development API now exposes a deterministic AAPL feed snapshot for workstation integration tests/manual development.
+- Market data remains read-only at the HTTP boundary; browser code does not manufacture authoritative prices.
+- Production provider credentials/feed adapters remain intentionally deferred.
+
 # TradeLedger Status
 
 **Last updated:** 2026-10-04
@@ -15,6 +25,8 @@
 - Application service foundation
 - Secure HTTP API transport foundation
 - **Durable application infrastructure foundation**
+- **Mutation idempotency and audit boundary foundation**
+- **Transactional application persistence boundary foundation**
 - HTTP request/response boundary
 - Bearer authentication adapter boundary
 - Application-layer account/action authorization
@@ -79,17 +91,33 @@ The local durable JSON foundation provides:
 - no credential/principal storage
 - fail-closed corruption behavior
 
-The Windows replacement fallback can require unlinking an existing regular file before rename. This is documented as a current platform limitation; stronger transactional guarantees belong to a future database adapter.
+The Windows replacement fallback can require unlinking an existing regular file before rename. This remains a platform limitation of the local adapter; a future database adapter can provide stronger multi-record and high-concurrency guarantees.
 
 ## Production Security Gate
 
 Before exposing the API outside a trusted local network, add TLS, production identity validation, secret management, durable edge rate limiting, audit events, replay/idempotency protection, network controls, monitoring, and dependency/container scanning.
 
+## Mutation Idempotency / Audit Boundary
+
+The default adapters remain in-memory for lightweight use and tests. The transactional application adapter persists order state, trading context, idempotency records, and audit events in one versioned snapshot and commits them through the existing atomic durable JSON write path. It uses an exclusive transaction lock and fails closed when another process owns the lock. A future database adapter can provide stronger multi-record concurrency and recovery guarantees.
+
+## Market Data Engine
+
+- Canonical quote, trade, and bar models are retained as the deterministic market-data boundary.
+- Added per-instrument market-data state with independent latest quote/trade/bar snapshots.
+- Added monotonic sequence protection and observation-time ordering protection.
+- Added deterministic stale-data evaluation.
+- Added a state book that assigns per-instrument ingestion sequences without coupling the domain to a provider clock.
+- Provider ingestion remains separated from state storage through the existing sink contract.
+
+## Trading Workstation UI Integration
+
+- The first browser workstation now consumes the existing secured HTTP/application boundary.
+- Account context, order listing, positions/exposure, limit-order entry, cancellation, idempotency, and connection/loading/error states are represented.
+- Order admission inputs remain server-side; the workstation does not perform risk calculations or fabricate market data.
+- A browser framework/bundler, WebSockets, live market data, professional charts, strategy tooling, and AI/JARVIS remain deferred.
+- See `docs/architecture/ADR-024-trading-workstation-ui.md` for the accepted boundary.
+
 ## Next
 
-- Mutating-request idempotency
-- Audit/event emission
 - Production authentication provider integration
-- Transactional application persistence boundary
-- Broader HTTP integration coverage
-- Frontend/trading workstation transport integration

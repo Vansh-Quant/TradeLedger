@@ -11,7 +11,8 @@ import type {
 export type ApplicationAction =
   | "order.submit"
   | "order.cancel"
-  | "order.read";
+  | "order.read"
+  | "market-data.read";
 
 export interface ApplicationPrincipal {
   readonly id: string;
@@ -24,6 +25,52 @@ export interface AuthorizationPort {
     action: ApplicationAction,
     accountId: AccountId,
   ): void;
+}
+
+export interface MutationRecord {
+  readonly key: string;
+  readonly operation: string;
+  readonly accountId: AccountId;
+  readonly principalId: string;
+  readonly fingerprint: string;
+  readonly status: "in_progress" | "completed" | "failed";
+  readonly createdAt: string;
+  readonly completedAt?: string;
+  readonly result?: unknown;
+  readonly errorCode?: string;
+}
+
+export interface MutationIdempotencyPort {
+  executeOnce<T>(
+    key: string,
+    operation: string,
+    accountId: AccountId,
+    principal: ApplicationPrincipal,
+    fingerprint: string,
+    run: () => T,
+    onReplay?: () => void,
+  ): T;
+}
+
+export interface AuditEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly timestamp: string;
+  readonly principalId: string;
+  readonly accountId: AccountId;
+  readonly action: ApplicationAction;
+  readonly requestId: string;
+  readonly idempotencyKey?: string;
+  readonly outcome: "success" | "failure" | "replay";
+  readonly reason?: string;
+}
+
+export interface AuditEventPort {
+  append(event: AuditEvent): void;
+}
+
+export interface ApplicationTransactionPort {
+  execute<T>(operation: () => T): T;
 }
 
 export interface TradingContext {
@@ -41,6 +88,7 @@ export interface TradingContextPort {
 export interface OrderStatePort {
   save(state: TradingCoreState): void;
   get(orderId: string): TradingCoreState | undefined;
+  list(accountId: AccountId): readonly TradingCoreState[];
 }
 
 export interface OrderIdGenerator {
@@ -66,6 +114,8 @@ export interface SubmitOrderCommand {
   readonly projectedGrossExposure: number;
   readonly projectedNetExposure: number;
   readonly dailyLoss: number;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface SubmitOrderResult {
@@ -79,6 +129,8 @@ export interface CancelOrderCommand {
   readonly principal: ApplicationPrincipal;
   readonly accountId: string;
   readonly orderId: string;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface CancelOrderResult {
@@ -90,6 +142,8 @@ export interface CompleteOrderCancellationCommand {
   readonly principal: ApplicationPrincipal;
   readonly accountId: string;
   readonly orderId: string;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
 }
 
 export interface GetOrderQuery {
@@ -98,7 +152,36 @@ export interface GetOrderQuery {
   readonly orderId: string;
 }
 
+export interface GetTradingContextQuery {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+}
+
 export interface GetOrderResult {
   readonly order: Order;
   readonly state: TradingCoreState;
+}
+
+export interface ListOrdersQuery {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+}
+
+export interface ListOrdersResult {
+  readonly orders: readonly GetOrderResult[];
+}
+
+export interface GetTradingContextResult {
+  readonly context: TradingContext;
+}
+
+
+export interface MarketDataStatePort {
+  get(instrumentId: InstrumentId): import("@tradeledger/domain").MarketDataState | undefined;
+  accept(
+    instrumentId: InstrumentId,
+    data: import("@tradeledger/domain").MarketDataPoint,
+    receivedAt: string,
+  ): import("@tradeledger/domain").MarketDataState;
+  list(): readonly import("@tradeledger/domain").MarketDataState[];
 }

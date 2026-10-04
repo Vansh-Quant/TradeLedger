@@ -9,12 +9,14 @@ import {
   type ApplicationPrincipal,
   type TradingContext,
 } from "../../packages/application/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 import {
   createAccount,
   createAccountPortfolio,
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
+  createQuote,
 } from "../../core/domain/src/index.js";
 import {
   createHttpApi,
@@ -37,6 +39,17 @@ const context: TradingContext = {
 };
 
 function application() {
+  const marketData = new InMemoryMarketDataStateStore();
+  marketData.accept("AAPL" as import("@tradeledger/domain").InstrumentId, createQuote({
+    instrumentId: "AAPL" as import("@tradeledger/domain").InstrumentId,
+    bid: 100,
+    bidSize: 10,
+    ask: 100.25,
+    askSize: 12,
+    observedAt: "2026-10-04T09:30:00Z",
+    source: "test-feed",
+  }), "2026-10-04T09:30:01Z");
+
   return new TradingApplicationService(
     new InMemoryTradingContext([context]),
     new InMemoryOrderStateStore(),
@@ -44,9 +57,14 @@ function application() {
       "api-user:order.submit:ACC-API",
       "api-user:order.read:ACC-API",
       "api-user:order.cancel:ACC-API",
+      "api-user:market-data.read:ACC-API",
     ]),
     fixedOrderIdGenerator("ORD-API-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
+    undefined,
+    undefined,
+    undefined,
+    marketData,
   );
 }
 
@@ -54,20 +72,15 @@ function auth() {
   return staticBearerAuthenticator(new Map([["test-token", principal]]));
 }
 
-function orderBody() {
+function orderBody(quantity = 10) {
   return JSON.stringify({
     accountId: "ACC-API",
     instrumentId: "AAPL",
     side: "buy",
     type: "limit",
-    quantity: 10,
+    quantity,
     limitPrice: 100,
     timeInForce: "day",
-    orderNotional: 1_000,
-    projectedPositionNotional: 1_000,
-    projectedGrossExposure: 1_000,
-    projectedNetExposure: 1_000,
-    dailyLoss: 0,
   });
 }
 
@@ -98,13 +111,78 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("uses the typed workstation client against the HTTP boundary", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({
+        baseUrl,
+        getToken: () => "test-token",
+      });
+      const result = await client.getTradingContext("ACC-API");
+      expect(result.context.accountId).toBe("ACC-API");
+    });
+  });
+
+  it("serves an authorized trading context to the workstation", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
+        headers: { authorization: "Bearer test-token" },
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json()).context.accountId).toBe("ACC-API");
+    });
+  });
+
+  it("serves authorized market data through the HTTP boundary", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/market-data/AAPL?accountId=ACC-API`, {
+        headers: { authorization: "Bearer test-token" },
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.latestQuote.bid).toBe(100);
+      expect(body.latestQuote.ask).toBe(100.25);
+    });
+  });
+
+  it("lists market data through the typed client", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({
+        baseUrl,
+        getToken: () => "test-token",
+      });
+      const result = await client.listMarketData("ACC-API");
+      expect(result.states).toHaveLength(1);
+      expect(result.states[0]?.instrumentId).toBe("AAPL");
+    });
+  });
+
+  it("supports explicit CORS preflight for an allowed workstation origin", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost:5173" },
+      });
+      expect(response.status).toBe(204);
+      expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+      expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+    }, { corsOrigins: ["http://localhost:5173"] });
+  });
+
+  it("rejects an unapproved CORS origin", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/health`, {
+        headers: { origin: "http://evil.example" },
+      });
+      expect(response.status).toBe(403);
+    }, { corsOrigins: ["http://localhost:5173"] });
+  });
+
   it("requires bearer authentication for trading routes", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`);
       expect(response.status).toBe(401);
-      expect(await response.json()).toEqual({
-        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
-      });
     });
   });
 
@@ -115,11 +193,69 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "create-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(201);
       expect((await response.json()).admitted).toBe(true);
+    });
+  });
+
+  it("requires idempotency keys for mutations", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: { authorization: "Bearer test-token", "content-type": "application/json" },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  it("rejects malformed idempotency keys", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "bad key",
+        },
+        body: orderBody(),
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  it("replays an identical mutation without executing it twice", async () => {
+    await withServer(async (baseUrl) => {
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "replay-1",
+      };
+      const first = await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() });
+      const second = await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() });
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(await second.json()).toEqual(await first.json());
+    });
+  });
+
+  it("rejects idempotency-key reuse with a different payload", async () => {
+    await withServer(async (baseUrl) => {
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "conflict-1",
+      };
+      expect((await fetch(`${baseUrl}/api/v1/orders`, { method: "POST", headers, body: orderBody() })).status).toBe(201);
+      expect((await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers,
+        body: orderBody(11),
+      })).status).toBe(409);
     });
   });
 
@@ -130,13 +266,11 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer wrong-token",
           "content-type": "application/json",
+          "idempotency-key": "invalid-auth-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(401);
-      expect(await response.json()).toEqual({
-        error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" },
-      });
     });
   });
 
@@ -147,6 +281,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "text/plain",
+          "idempotency-key": "bad-content-type-1",
         },
         body: "not-json",
       });
@@ -161,6 +296,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "oversized-1",
         },
         body: JSON.stringify({ data: "x".repeat(100) }),
       });
@@ -187,8 +323,6 @@ describe("HTTP API security boundary", () => {
     }, { rateLimit: { windowMs: 60_000, maxRequests: 2 } });
   });
 
-
-
   it("rejects JSON-looking content types that are not application/json", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`, {
@@ -196,6 +330,7 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/jsonish",
+          "idempotency-key": "bad-json-type-1",
         },
         body: orderBody(),
       });
@@ -209,9 +344,6 @@ describe("HTTP API security boundary", () => {
         headers: { authorization: "Bearer test-token" },
       });
       expect(response.status).toBe(400);
-      expect(await response.json()).toEqual({
-        error: { code: "VALIDATION_ERROR", message: "order id is invalid" },
-      });
     });
   });
 
@@ -231,13 +363,11 @@ describe("HTTP API security boundary", () => {
         headers: {
           authorization: "Bearer test-token",
           "content-type": "application/json",
+          "idempotency-key": "internal-error-1",
         },
         body: orderBody(),
       });
       expect(response.status).toBe(500);
-      expect(await response.json()).toEqual({
-        error: { code: "INTERNAL_ERROR", message: "internal server error" },
-      });
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

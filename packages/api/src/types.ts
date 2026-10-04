@@ -24,4 +24,5 @@ export interface ApiDependencies {
 export interface ApiServerOptions {
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
+  readonly corsOrigins?: readonly string[];
 }
