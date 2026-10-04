@@ -68,6 +68,10 @@ export interface AuditEventPort {
   append(event: AuditEvent): void;
 }
 
+export interface ApplicationTransactionPort {
+  execute<T>(operation: () => T): T;
+}
+
 export interface TradingContext {
   readonly accountId: AccountId;
   readonly accountPortfolio: AccountPortfolio;
