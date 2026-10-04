@@ -54,6 +54,29 @@ function idempotencyKey(value: unknown, field: string): string {
   return result;
 }
 
+function encodeJsonValue(value: unknown): unknown {
+  const encoded = JSON.stringify(value, (_, item) => {
+    if (item instanceof Set) return { __tradeledger_type: "Set", values: [...item] };
+    return item;
+  });
+  if (encoded === undefined) throw new PersistenceError("mutation.result is not JSON-serializable");
+  return JSON.parse(encoded);
+}
+
+function decodeJsonValue(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value), (_, item) => {
+    if (
+      item &&
+      typeof item === "object" &&
+      item.__tradeledger_type === "Set" &&
+      Array.isArray(item.values)
+    ) {
+      return new Set(item.values);
+    }
+    return item;
+  });
+}
+
 function validateMutation(value: unknown): MutationRecord {
   const raw = objectRecord(value, "mutation");
   const status = nonEmpty(raw.status, "mutation.status", 32);
@@ -69,7 +92,7 @@ function validateMutation(value: unknown): MutationRecord {
     status,
     createdAt: timestamp(raw.createdAt, "mutation.createdAt"),
     ...(raw.completedAt === undefined ? {} : { completedAt: timestamp(raw.completedAt, "mutation.completedAt") }),
-    ...(raw.result === undefined ? {} : { result: raw.result }),
+    ...(raw.result === undefined ? {} : { result: decodeJsonValue(raw.result) }),
     ...(raw.errorCode === undefined ? {} : { errorCode: nonEmpty(raw.errorCode, "mutation.errorCode", 128) }),
   });
 }
@@ -100,7 +123,10 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
       version: 1,
       orders: value.orders,
       contexts: value.contexts,
-      mutations: value.mutations,
+      mutations: value.mutations.map((mutation) => ({
+        ...mutation,
+        ...(mutation.result === undefined ? {} : { result: encodeJsonValue(mutation.result) }),
+      })),
       auditEvents: value.auditEvents,
     };
   },
