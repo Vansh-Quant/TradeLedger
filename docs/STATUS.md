@@ -15,6 +15,7 @@
 - Application service foundation
 - Secure HTTP API transport foundation
 - **Durable application infrastructure foundation**
+- **Mutation idempotency and audit boundary foundation**
 - HTTP request/response boundary
 - Bearer authentication adapter boundary
 - Application-layer account/action authorization
@@ -87,8 +88,8 @@ Before exposing the API outside a trusted local network, add TLS, production ide
 
 ## Next
 
-- Mutating-request idempotency
-- Audit/event emission
+- Production authentication provider integration
+- Transactional application persistence boundary
 - Production authentication provider integration
 - Transactional application persistence boundary
 - Broader HTTP integration coverage
