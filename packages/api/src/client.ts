@@ -1,4 +1,5 @@
 import type {
+  MarketDataState,
   CancelOrderResult,
   GetOrderResult,
   GetTradingContextResult,
@@ -21,6 +22,19 @@ export class TradeLedgerApiClient {
     if (baseUrl.length === 0) throw new Error("baseUrl is required");
     this.baseUrl = baseUrl;
     this.getToken = options.getToken ?? (() => undefined);
+  }
+
+
+  async listMarketData(accountId: string): Promise<{ readonly states: readonly MarketDataState[] }> {
+    return this.request<{ readonly states: readonly MarketDataState[] }>(
+      `/api/v1/market-data?accountId=${encodeURIComponent(accountId)}`,
+    );
+  }
+
+  async getMarketData(accountId: string, instrumentId: string): Promise<MarketDataState> {
+    return this.request<MarketDataState>(
+      `/api/v1/market-data/${encodeURIComponent(instrumentId)}?accountId=${encodeURIComponent(accountId)}`,
+    );
   }
 
   async getTradingContext(accountId: string): Promise<GetTradingContextResult> {
