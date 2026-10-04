@@ -120,6 +120,29 @@ describe("execution application ingress", () => {
     expect(result.state.buyingPower.reservedCapacity).toBe(0);
   });
 
+  it("replays an idempotent execution request without reapplying it", () => {
+    const { application, executions } = makeService();
+    submit(application);
+
+    const first = application.recordExecution({
+      ...execution(),
+      requestId: "first-request",
+      idempotencyKey: "exec-idempotency-1",
+    });
+    const second = application.recordExecution({
+      ...execution(),
+      requestId: "second-request",
+      idempotencyKey: "exec-idempotency-1",
+    });
+
+    expect(first.applied).toBe(true);
+    expect(first.duplicate).toBe(false);
+    expect(second.applied).toBe(false);
+    expect(second.duplicate).toBe(true);
+    expect(second.state.order.filledQuantity).toBe(4);
+    expect(executions.listByOrderId("ORD-EXEC-001")).toHaveLength(1);
+  });
+
   it("treats duplicate execution delivery as idempotent", () => {
     const { application, executions } = makeService();
     submit(application);

@@ -229,6 +229,7 @@ export class TradingApplicationService {
 
 
   recordExecution(command: RecordExecutionCommand): RecordExecutionResult {
+    let replayed = false;
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
     const orderId = requireNonEmpty(command.orderId, "orderId");
     const executionId = requireNonEmpty(command.executionId, "executionId");
@@ -246,7 +247,7 @@ export class TradingApplicationService {
       accountId,
     );
 
-    return this.mutate(
+    const result = this.mutate(
       "execution.record",
       accountId,
       command.principal,
@@ -300,7 +301,16 @@ export class TradingApplicationService {
           state: result.state,
         });
       },
+      () => {
+        replayed = true;
+      },
     );
+
+    return Object.freeze({
+      ...result,
+      applied: replayed ? false : result.applied,
+      duplicate: replayed ? true : result.duplicate,
+    });
   }
 
   getTradingContext(query: GetTradingContextQuery): GetTradingContextResult {
@@ -383,6 +393,7 @@ export class TradingApplicationService {
     requestId: string,
     payload: unknown,
     operation: () => T,
+    onReplay?: () => void,
   ): T {
     const execute = () => {
       this.audit.append({
@@ -439,17 +450,20 @@ export class TradingApplicationService {
               principal,
               mutationFingerprint(payloadWithoutTransportMetadata(payload)),
               execute,
-              () => this.audit.append({
-                id: crypto.randomUUID(),
-                type: `${mutationOperation}.replay`,
-                timestamp: this.clock.now(),
-                principalId: principal.id,
-                accountId,
-                action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
-                requestId,
-                idempotencyKey: key,
-                outcome: "replay",
-              }),
+              () => {
+                onReplay?.();
+                this.audit.append({
+                  id: crypto.randomUUID(),
+                  type: `${mutationOperation}.replay`,
+                  timestamp: this.clock.now(),
+                  principalId: principal.id,
+                  accountId,
+                  action: mutationOperation === "order.cancel.complete" ? "order.cancel" : mutationOperation,
+                  requestId,
+                  idempotencyKey: key,
+                  outcome: "replay",
+                });
+              },
             ) };
       } catch (error) {
         if (!(error instanceof ApplicationError)) throw error;
