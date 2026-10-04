@@ -318,6 +318,12 @@ export class DurableOrderStateStore implements OrderStatePort {
   async getAsync(orderId: string): Promise<TradingCoreState | undefined> {
     return this.store.get(orderId);
   }
+
+  list(accountId: AccountId): readonly TradingCoreState[] {
+    return this.store.list()
+      .filter((state) => state.order.accountId === accountId)
+      .sort((left, right) => left.order.createdAt.localeCompare(right.order.createdAt));
+  }
 }
 
 export class DurableTradingContextStore implements TradingContextPort {
