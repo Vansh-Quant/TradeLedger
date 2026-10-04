@@ -70,3 +70,37 @@ export function isMarketDataStale(
   const observed = assertTimestamp(state.lastObservedAt, "lastObservedAt");
   return current - observed > maxAgeMs;
 }
+
+export class MarketDataStateBook {
+  private readonly states = new Map<string, MarketDataState>();
+
+  constructor(private readonly now: () => string = () => new Date().toISOString()) {}
+
+  ingest(data: MarketDataPoint, receivedAt = this.now()): MarketDataState {
+    const current = this.states.get(data.instrumentId) ?? createMarketDataState(data.instrumentId);
+    const envelope = createMarketDataEnvelope(
+      current.lastSequence + 1,
+      receivedAt,
+      data,
+    );
+    const next = applyMarketData(current, envelope);
+    this.states.set(data.instrumentId, next);
+    return next;
+  }
+
+  get(instrumentId: InstrumentId): MarketDataState | undefined {
+    return this.states.get(instrumentId);
+  }
+
+  list(): readonly MarketDataState[] {
+    return Object.freeze(
+      [...this.states.values()].sort((left, right) =>
+        left.instrumentId.localeCompare(right.instrumentId),
+      ),
+    );
+  }
+
+  clear(): void {
+    this.states.clear();
+  }
+}
