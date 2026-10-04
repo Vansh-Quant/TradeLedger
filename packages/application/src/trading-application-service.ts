@@ -282,7 +282,7 @@ export class TradingApplicationService {
 
 function payloadWithoutTransportMetadata(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const { requestId: _requestId, idempotencyKey: _idempotencyKey, ...payload } = value as Record<string, unknown>;
+  const { requestId: _requestId, idempotencyKey: _idempotencyKey, principal: _principal, ...payload } = value as Record<string, unknown>;
   return payload;
 }
 
