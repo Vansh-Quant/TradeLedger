@@ -191,13 +191,13 @@ export class TradingApplicationService {
 
   private authorize(
     principal: SubmitOrderCommand["principal"],
-    operation: "order.submit" | "order.cancel",
+    action: "order.submit" | "order.cancel",
     accountId: AccountId,
     requestId: string,
     idempotencyKey?: string,
   ): void {
     try {
-      this.authorization.authorize(principal, operation === "order.cancel.complete" ? "order.cancel" : operation, accountId);
+      this.authorization.authorize(principal, action, accountId);
     } catch (error) {
       this.audit.append({
         id: crypto.randomUUID(),
@@ -205,7 +205,7 @@ export class TradingApplicationService {
         timestamp: this.clock.now(),
         principalId: principal.id,
         accountId,
-        action: operation === "order.cancel.complete" ? "order.cancel" : operation,
+        action,
         requestId,
         ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
         outcome: "failure",
