@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  InMemoryMarketDataStateStore,
   AllowListedAuthorization,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
@@ -15,6 +16,7 @@ import {
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
+  createQuote,
 } from "../../core/domain/src/index.js";
 import {
   createHttpApi,
@@ -37,6 +39,17 @@ const context: TradingContext = {
 };
 
 function application() {
+  const marketData = new InMemoryMarketDataStateStore();
+  marketData.accept("AAPL", createQuote({
+    instrumentId: "AAPL",
+    bid: 100,
+    bidSize: 10,
+    ask: 100.25,
+    askSize: 12,
+    observedAt: "2026-10-04T09:30:00Z",
+    source: "test-feed",
+  }), "2026-10-04T09:30:01Z");
+
   return new TradingApplicationService(
     new InMemoryTradingContext([context]),
     new InMemoryOrderStateStore(),
@@ -44,9 +57,14 @@ function application() {
       "api-user:order.submit:ACC-API",
       "api-user:order.read:ACC-API",
       "api-user:order.cancel:ACC-API",
+      "api-user:market-data.read:ACC-API",
     ]),
     fixedOrderIdGenerator("ORD-API-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
+    undefined,
+    undefined,
+    undefined,
+    marketData,
   );
 }
 
@@ -112,6 +130,31 @@ describe("HTTP API security boundary", () => {
       });
       expect(response.status).toBe(200);
       expect((await response.json()).context.accountId).toBe("ACC-API");
+    });
+  });
+
+  it("serves authorized market data through the HTTP boundary", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/market-data/AAPL?accountId=ACC-API`, {
+        headers: { authorization: "Bearer test-token" },
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.latestQuote.bid).toBe(100);
+      expect(body.latestQuote.ask).toBe(100.25);
+    });
+  });
+
+  it("lists market data through the typed client", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({
+        baseUrl,
+        getToken: () => "test-token",
+      });
+      const result = await client.listMarketData("ACC-API");
+      expect(result.states).toHaveLength(1);
+      expect(result.states[0]?.instrumentId).toBe("AAPL");
     });
   });
 
