@@ -114,6 +114,16 @@ describe("trading application service", () => {
     ).toThrowError("not authorized");
   });
 
+  it("lists account orders without leaking another account", () => {
+    const { application } = service();
+    const submitted = application.submitOrder(command());
+    const result = application.listOrders({ principal, accountId: "ACC-APP" });
+
+    expect(result.orders).toHaveLength(1);
+    expect(result.orders[0]?.order.id).toBe(submitted.order.id);
+    expect(result.orders[0]?.state).toBe(submitted.state);
+  });
+
   it("maps missing and cross-account orders to not found", () => {
     const { application } = service();
 
