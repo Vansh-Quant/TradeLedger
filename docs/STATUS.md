@@ -130,6 +130,14 @@ The default adapters remain in-memory for lightweight use and tests. The transac
 - A browser framework/bundler, WebSockets, live market data, professional charts, strategy tooling, and AI/JARVIS remain deferred.
 - See `docs/architecture/ADR-024-trading-workstation-ui.md` for the accepted boundary.
 
+## OMS Hardening — In Progress
+
+- Added fail-closed order state invariants for hydrated/mutated lifecycle state.
+- Lifecycle operations now reject impossible filled quantities and inconsistent terminal state.
+- Durable application audit hydration now accepts the full application action set, including execution recording and market-data reads.
+- Added persistence regression coverage for execution audit events across adapter recreation.
+
 ## Next
 
+- Complete OMS cancellation/expiry semantics and deterministic time-in-force handling.
 - Production authentication provider integration
