@@ -395,7 +395,7 @@ export class TradingApplicationService {
       aggregateType,
       aggregateId,
       requestId,
-      sequence: this.events instanceof InMemoryApplicationEventBus ? this.events.latestSequence() + 1 : 0,
+      sequence: this.events.latestSequence() + 1,
       payload,
     });
   }
