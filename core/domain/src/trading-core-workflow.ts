@@ -158,13 +158,28 @@ export function processTradingExecution(
     reservation = nextReservation;
   }
 
+  let nextState: TradingCoreState = Object.freeze({
+    order: result.state.order,
+    buyingPower,
+    ...(reservation === undefined ? {} : { reservation }),
+    reconciliation: result.state,
+  });
+
+  // IOC semantics: any unfilled remainder is cancelled immediately after an
+  // applied partial execution. The fill remains authoritative; only the
+  // outstanding reservation is released.
+  if (
+    result.applied &&
+    nextState.order.timeInForce === "ioc" &&
+    nextState.order.status === "partially_filled"
+  ) {
+    nextState = completeTradingOrderCancellation(
+      requestTradingOrderCancellation(nextState),
+    );
+  }
+
   return Object.freeze({
-    state: Object.freeze({
-      order: result.state.order,
-      buyingPower,
-      ...(reservation === undefined ? {} : { reservation }),
-      reconciliation: result.state,
-    }),
+    state: nextState,
     applied: result.applied,
     duplicate: result.duplicate,
   });
