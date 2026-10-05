@@ -32,9 +32,9 @@ import type {
   SubmitOrderCommand,
   SubmitOrderResult,
   TradingContextPort,
-  ApplicationPrincipal,
+  ApplicationPrincipal,\n  ApplicationEventPort,
 } from "./contracts.js";
-import { InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
+import { InMemoryApplicationEventBus, InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
   ApplicationError,
   NotFoundError,
@@ -72,7 +72,7 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
-    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
+    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),\n    private readonly events: ApplicationEventPort = new InMemoryApplicationEventBus(),
   ) {}
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
@@ -165,6 +165,14 @@ export class TradingApplicationService {
       buyingPower: admission.state.buyingPower,
     });
 
+    if (admission.admitted) {
+      this.publishEvent("order.submitted", "order", admission.state.order.id, accountId, command.requestId ?? "", {
+        instrumentId,
+        side: command.side,
+        quantity: command.quantity,
+      });
+    }
+
     return Object.freeze({
       admitted: admission.admitted,
       order: admission.state.order,
@@ -193,6 +201,9 @@ export class TradingApplicationService {
         }
         const requested = requestTradingOrderCancellation(current);
         this.orders.save(requested);
+        this.publishEvent("order.cancel.requested", "order", requested.order.id, accountId, requestId, {
+          remainingQuantity: requested.order.quantity - requested.order.filledQuantity,
+        });
         return Object.freeze({ order: requested.order, state: requested });
       },
     );
@@ -221,6 +232,9 @@ export class TradingApplicationService {
         this.context.saveContext({
           ...this.context.getContext(accountId),
           buyingPower: cancelled.buyingPower,
+        });
+        this.publishEvent("order.cancelled", "order", cancelled.order.id, accountId, requestId, {
+          releasedCapacity: cancelled.buyingPower.totalCapacity - cancelled.buyingPower.reservedCapacity,
         });
         return Object.freeze({ order: cancelled.order, state: cancelled });
       },
@@ -294,6 +308,14 @@ export class TradingApplicationService {
           accountPortfolio: result.state.reconciliation.accountPortfolio,
         });
 
+        if (result.applied) {
+          this.publishEvent("execution.recorded", "execution", executionId, accountId, requestId, {
+            orderId,
+            quantity: command.quantity,
+            price: command.price,
+          });
+        }
+
         return Object.freeze({
           applied: result.applied,
           duplicate: result.duplicate,
@@ -355,6 +377,27 @@ export class TradingApplicationService {
     }
 
     return Object.freeze({ order: state.order, state });
+  }
+
+  private publishEvent(
+    type: import("./contracts.js").ApplicationEventType,
+    aggregateType: "order" | "execution",
+    aggregateId: string,
+    accountId: AccountId,
+    requestId: string,
+    payload: Readonly<Record<string, string | number>>,
+  ): void {
+    this.events.publish({
+      eventId: crypto.randomUUID(),
+      type,
+      occurredAt: this.clock.now(),
+      accountId,
+      aggregateType,
+      aggregateId,
+      requestId,
+      sequence: this.events instanceof InMemoryApplicationEventBus ? this.events.latestSequence() + 1 : 0,
+      payload,
+    });
   }
 
   private authorize(
