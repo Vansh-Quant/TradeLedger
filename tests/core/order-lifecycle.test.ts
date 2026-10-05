@@ -41,6 +41,16 @@ describe("order lifecycle", () => {
     expect(() => recordOrderFill(order, Number.NaN)).toThrow("fillQuantity must be a finite positive number");
   });
 
+  it("rejects inconsistent hydrated order state before transition", () => {
+    const inconsistent = Object.freeze({ ...acknowledgedOrder(), filledQuantity: 11 });
+    expect(() => transitionOrder(inconsistent, "cancel_requested")).toThrow("order filledQuantity cannot exceed quantity");
+  });
+
+  it("rejects a filled status without a complete fill", () => {
+    const inconsistent = Object.freeze({ ...acknowledgedOrder(), status: "filled" as const });
+    expect(() => transitionOrder(inconsistent, "cancel_requested")).toThrow("filled order must have filledQuantity equal to quantity");
+  });
+
   it("supports cancellation request and cancellation", () => {
     const requested = transitionOrder(acknowledgedOrder(), "cancel_requested");
     const cancelled = transitionOrder(requested, "cancelled");
