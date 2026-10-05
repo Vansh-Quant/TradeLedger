@@ -201,6 +201,28 @@ describe("transactional application persistence", () => {
     expect(secondService.submitOrder({ ...command, requestId: "req-service-2" })).toEqual(first);
   });
 
+  it("persists application events atomically and replays them after adapter recreation", () => {
+    const directory = root();
+    const persistence = new TransactionalApplicationPersistence(directory);
+    persistence.execute(() => {
+      persistence.publish({
+        eventId: "event-persist-1",
+        type: "order.submitted",
+        occurredAt: "2026-10-04T00:00:00.000Z",
+        accountId: "ACC-TX" as AccountId,
+        aggregateType: "order",
+        aggregateId: "ORD-TX-1",
+        requestId: "req-event-persist-1",
+        sequence: 1,
+        payload: { instrumentId: "AAPL", side: "buy", quantity: 10 },
+      });
+    });
+    const reloaded = new TransactionalApplicationPersistence(directory);
+    expect(reloaded.latestSequence()).toBe(1);
+    expect(reloaded.listAfterSequence(0)).toHaveLength(1);
+    expect(reloaded.listAfterSequence(0)[0]?.eventId).toBe("event-persist-1");
+  });
+
   it("replays a committed idempotent mutation after adapter recreation", () => {
     const directory = root();
     const first = new TransactionalApplicationPersistence(directory);
