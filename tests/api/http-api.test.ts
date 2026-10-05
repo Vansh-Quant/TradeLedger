@@ -284,11 +284,6 @@ describe("HTTP API security boundary", () => {
         quantity: 10,
         limitPrice: 100,
         timeInForce: "day",
-        orderNotional: 1_000,
-        projectedPositionNotional: 1_000,
-        projectedGrossExposure: 1_000,
-        projectedNetExposure: 1_000,
-        dailyLoss: 0,
       });
 
       const result = await client.recordExecution({
