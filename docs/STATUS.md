@@ -6,7 +6,8 @@
 - Partial and complete fills update order lifecycle, positions, portfolio state, and buying-power reservations through the existing domain workflow.
 - Duplicate execution IDs remain idempotent through the execution event store.
 - Added HTTP `POST /api/v1/executions` and a typed workstation API client method.
-- Added application and HTTP tests for partial fills, complete fills, duplicates, authorization, and validation.
+- Added application and HTTP tests for partial fills, complete fills, duplicate execution IDs, idempotency-key replay semantics, idempotency conflicts, authorization, and validation.
+- Application-level execution mutation replays now report `applied: false` and `duplicate: true` while preserving the original deterministic result.
 - Broker/venue adapters remain a separate integration layer and are intentionally not fabricated by the dev server.
 
 ## Market Data Engine — Application/API Boundary
@@ -21,7 +22,7 @@
 
 # TradeLedger Status
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-05
 
 ## Current Milestone
 
