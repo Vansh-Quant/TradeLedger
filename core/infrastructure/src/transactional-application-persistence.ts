@@ -224,6 +224,7 @@ export class TransactionalApplicationPersistence
   private mutations = new Map<string, MutationRecord>();
   private auditEvents: AuditEvent[] = [];
   private applicationEvents: ApplicationEvent[] = [];
+  private readonly subscribers = new Map<string, Set<(event: ApplicationEvent) => void>>();
   private inTransaction = false;
 
   constructor(rootDirectory: string) {
@@ -286,7 +287,27 @@ export class TransactionalApplicationPersistence
     const expected = this.applicationEvents.length + 1;
     if (event.sequence !== expected) throw new PersistenceError("application event sequence is not contiguous");
     if (this.applicationEvents.some((existing) => existing.eventId === event.eventId)) throw new PersistenceError("duplicate application event id");
-    this.applicationEvents.push(Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) }));
+    const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
+    this.applicationEvents.push(stored);
+    const accountSubscribers = this.subscribers.get(stored.accountId);
+    if (accountSubscribers !== undefined) {
+      for (const subscriber of [...accountSubscribers]) subscriber(stored);
+    }
+  }
+
+  subscribe(accountId: AccountId, subscriber: (event: ApplicationEvent) => void): () => void {
+    let accountSubscribers = this.subscribers.get(accountId);
+    if (accountSubscribers === undefined) {
+      accountSubscribers = new Set();
+      this.subscribers.set(accountId, accountSubscribers);
+    }
+    accountSubscribers.add(subscriber);
+    return () => {
+      const current = this.subscribers.get(accountId);
+      if (current === undefined) return;
+      current.delete(subscriber);
+      if (current.size === 0) this.subscribers.delete(accountId);
+    };
   }
 
   latestSequence(): number {
