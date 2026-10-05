@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
-  InMemoryAuditEventStore,
+  InMemoryAuditEventStore,\n  InMemoryApplicationEventBus,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -60,7 +60,7 @@ function service(
     undefined,
     audit,
   );
-  return { application, orders, audit };
+  const events = new InMemoryApplicationEventBus();\n  const wiredApplication = new TradingApplicationService(\n    tradingContext, orders, new AllowListedAuthorization(permissions), fixedOrderIdGenerator("ORD-APP-001"),\n    fixedClock("2026-10-03T12:00:00.000Z"), undefined, audit, undefined, undefined, undefined, events,\n  );\n  return { application: wiredApplication, orders, audit, events };
 }
 
 function command() {
@@ -184,6 +184,19 @@ describe("trading application service", () => {
 
     expect(second.admitted).toBe(true);
     expect(second.state.buyingPower.reservedCapacity).toBe(5_500);
+  });
+
+  it("publishes ordered lifecycle events without duplicating idempotent replays", () => {
+    const { application, events } = service();
+    const first = application.submitOrder({ ...command(), idempotencyKey: "event-1", requestId: "req-event-1" });
+    application.submitOrder({ ...command(), idempotencyKey: "event-1", requestId: "req-event-2" });
+    const cancelled = application.cancelOrder({ principal, accountId: "ACC-APP", orderId: first.order.id, idempotencyKey: "event-cancel-1", requestId: "req-cancel-1" });
+    application.completeOrderCancellation({ principal, accountId: "ACC-APP", orderId: cancelled.order.id, idempotencyKey: "event-cancel-complete-1", requestId: "req-cancel-complete-1" });
+
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.submitted", "order.cancel.requested", "order.cancelled",
+    ]);
+    expect(events.listAfterSequence(0).map((event) => event.sequence)).toEqual([1, 2, 3]);
   });
 
   it("preserves immutable state across command execution", () => {
