@@ -5,7 +5,9 @@ import type {
 } from "@tradeledger/domain";
 import type {
   AuditEvent,
-  AuditEventPort,\n  ApplicationEvent,\n  ApplicationEventPort,
+  AuditEventPort,
+  ApplicationEvent,
+  ApplicationEventPort,
   ApplicationTransactionPort,
   AuthorizationPort,
   ApplicationAction,
