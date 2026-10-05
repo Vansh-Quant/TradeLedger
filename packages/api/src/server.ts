@@ -166,6 +166,71 @@ async function route(
 
   const principal = principalOrThrow(await deps.authenticate(apiRequest));
 
+  const eventStream = path === "/api/v1/events";
+  if (method === "GET" && eventStream) {
+    const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
+    const afterRaw = parsed.searchParams.get("after") ?? "0";
+    const after = Number(afterRaw);
+    if (!Number.isSafeInteger(after) || after < 0) throw new ValidationError("after must be a non-negative integer");
+
+    const origin = corsOrigin;
+    if (origin === undefined && request.headers.origin !== undefined) {
+      throw new AuthorizationError("event stream origin is not allowed");
+    }
+
+    const backlog = deps.application.listEventsAfter(principal, accountId, after);
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-store, must-revalidate",
+      "connection": "keep-alive",
+      "x-accel-buffering": "no",
+      "x-content-type-options": "nosniff",
+      "x-request-id": id,
+      ...(origin === undefined ? {} : { "access-control-allow-origin": origin, "vary": "Origin" }),
+    });
+
+    let closed = false;
+    let replaying = true;
+    let queued: import("@tradeledger/application").ApplicationEvent[] = [];
+
+    const writeEvent = (event: import("@tradeledger/application").ApplicationEvent): void => {
+      if (closed || response.writableEnded || response.destroyed) return;
+      response.write(`id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(jsonSafe(event))}\n\n`);
+    };
+
+    const unsubscribe = deps.application.subscribeToEvents(principal, accountId, (event) => {
+      if (replaying) queued.push(event);
+      else writeEvent(event);
+    });
+
+    const close = (): void => {
+      if (closed) return;
+      closed = true;
+      unsubscribe();
+      clearInterval(heartbeat);
+      queued = [];
+    };
+
+    const heartbeat = setInterval(() => {
+      if (closed || response.writableEnded || response.destroyed) {
+        close();
+        return;
+      }
+      response.write(": heartbeat\n\n");
+    }, 20_000);
+
+    request.on("close", close);
+    response.on("close", close);
+
+    for (const event of backlog) writeEvent(event);
+    replaying = false;
+    for (const event of queued) writeEvent(event);
+    queued = [];
+
+    response.write(": connected\n\n");
+    return;
+  }
+
   if (method === "POST" && path === "/api/v1/executions") {
     const body = await readJson(request, maxBodyBytes);
     const key = idempotencyKey(request);
