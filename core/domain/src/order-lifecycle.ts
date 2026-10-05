@@ -14,6 +14,24 @@ const ALLOWED_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>>
   expired: [],
 };
 
+function assertOrderConsistency(order: Order): void {
+  if (!Number.isFinite(order.quantity) || order.quantity <= 0) {
+    throw new Error("order quantity must be a finite positive number");
+  }
+  if (!Number.isFinite(order.filledQuantity) || order.filledQuantity < 0) {
+    throw new Error("order filledQuantity must be finite and non-negative");
+  }
+  if (order.filledQuantity > order.quantity) {
+    throw new Error("order filledQuantity cannot exceed quantity");
+  }
+  if (order.status === "filled" && order.filledQuantity !== order.quantity) {
+    throw new Error("filled order must have filledQuantity equal to quantity");
+  }
+  if (order.status === "created" && order.filledQuantity !== 0) {
+    throw new Error("created order must have zero filledQuantity");
+  }
+}
+
 function assertTransition(from: OrderStatus, to: OrderStatus): void {
   if (!ALLOWED_TRANSITIONS[from].includes(to)) {
     throw new Error("cannot transition order from " + from + " to " + to);
@@ -21,11 +39,13 @@ function assertTransition(from: OrderStatus, to: OrderStatus): void {
 }
 
 export function transitionOrder(order: Order, nextStatus: OrderStatus): Order {
+  assertOrderConsistency(order);
   assertTransition(order.status, nextStatus);
   return Object.freeze({ ...order, status: nextStatus });
 }
 
 export function recordOrderFill(order: Order, fillQuantity: number): Order {
+  assertOrderConsistency(order);
   if (!Number.isFinite(fillQuantity) || fillQuantity <= 0) {
     throw new Error("fillQuantity must be a finite positive number");
   }
