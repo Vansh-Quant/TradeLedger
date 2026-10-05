@@ -54,7 +54,7 @@ function requireIdempotencyKey(value: string): string {
   return value;
 }
 
-function requirePositiveFinite(value: number, field: string): number {
+function isApplicationEventPort(value: unknown): value is ApplicationEventPort {\n  return typeof value === "object" && value !== null && "publish" in value && "latestSequence" in value;\n}\n\nfunction requirePositiveFinite(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new ValidationError(`${field} must be a finite positive number`);
   }
@@ -62,6 +62,8 @@ function requirePositiveFinite(value: number, field: string): number {
 }
 
 export class TradingApplicationService {
+  private readonly events: ApplicationEventPort;
+
   constructor(
     private readonly context: TradingContextPort,
     private readonly orders: OrderStatePort,
@@ -72,8 +74,11 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
-    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),\n    private readonly events: ApplicationEventPort,
-  */
+    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
+    events?: ApplicationEventPort,
+  ) {
+    this.events = events ?? (isApplicationEventPort(transaction) ? transaction : new InMemoryApplicationEventBus());
+  }
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
