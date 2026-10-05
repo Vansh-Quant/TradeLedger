@@ -140,14 +140,6 @@ export class DurableJsonStore<T> {
   list(): readonly T[] {
     const directory = this.collectionDirectory();
     try {
-      this.assertRegularFile(directory);
-    } catch (error) {
-      if (error instanceof PersistenceError && error.message === "persisted state must be a regular file") {
-        // A collection directory is expected to be a directory, not a file.
-      }
-    }
-
-    try {
       const info = lstatSync(directory);
       if (info.isSymbolicLink()) throw new PersistenceError("storage collection must not be a symbolic link");
       if (!info.isDirectory()) throw new PersistenceError("storage collection must be a directory");
