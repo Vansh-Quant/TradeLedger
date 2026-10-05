@@ -175,7 +175,11 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
     const contexts = raw.contexts.map((item) => contextCodecFactory().decode(item));
     const mutations = raw.mutations.map(validateMutation);
     const auditEvents = raw.auditEvents.map(validateAudit);
-    const applicationEvents = (raw.applicationEvents === undefined ? [] : raw.applicationEvents).map(validateApplicationEvent);
+    const rawApplicationEvents = raw.applicationEvents;
+    if (rawApplicationEvents !== undefined && !Array.isArray(rawApplicationEvents)) {
+      throw new PersistenceError("applicationEvents must be an array");
+    }
+    const applicationEvents = (rawApplicationEvents ?? []).map(validateApplicationEvent);
     const orderIds = new Set<string>();
     for (const state of orders) {
       if (orderIds.has(state.order.id)) throw new PersistenceError("duplicate persisted order id");
