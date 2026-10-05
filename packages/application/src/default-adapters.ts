@@ -197,7 +197,13 @@ export class InMemoryApplicationEventBus implements ApplicationEventStreamPort {
     this.events.push(stored);
     const accountSubscribers = this.subscribers.get(stored.accountId);
     if (accountSubscribers !== undefined) {
-      for (const subscriber of [...accountSubscribers]) subscriber(stored);
+      for (const subscriber of [...accountSubscribers]) {
+        try {
+          subscriber(stored);
+        } catch {
+          // Transport consumers must not alter the outcome of a committed mutation.
+        }
+      }
     }
   }
 
