@@ -328,12 +328,21 @@ describe("HTTP API security boundary", () => {
   });
 
   it("denies an event stream without account event permission", async () => {
-    await withServer(async (baseUrl) => {
-      const response = await fetch(baseUrl + "/api/v1/events?accountId=ACC-API&after=0", {
-        headers: { authorization: "Bearer restricted-token" },
+    const server = createHttpApi({
+      application: application(),
+      authenticate: async () => ({ id: "restricted-user", roles: ["viewer"] }),
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("server did not bind");
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/events?accountId=ACC-API&after=0`, {
+        headers: { authorization: "Bearer any-token" },
       });
       expect(response.status).toBe(403);
-    });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
   it("supports explicit CORS preflight for an allowed workstation origin", async () => {
     await withServer(async (baseUrl) => {
