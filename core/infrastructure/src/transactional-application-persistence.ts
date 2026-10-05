@@ -225,6 +225,7 @@ export class TransactionalApplicationPersistence
   private auditEvents: AuditEvent[] = [];
   private applicationEvents: ApplicationEvent[] = [];
   private readonly subscribers = new Map<string, Set<(event: ApplicationEvent) => void>>();
+  private pendingEvents: ApplicationEvent[] = [];
   private inTransaction = false;
 
   constructor(rootDirectory: string) {
@@ -241,9 +242,13 @@ export class TransactionalApplicationPersistence
       try {
         const result = operation();
         this.persist();
+        const committedEvents = this.pendingEvents;
+        this.pendingEvents = [];
+        for (const event of committedEvents) this.notifySubscribers(event);
         return result;
       } catch (error) {
         this.restore(before);
+        this.pendingEvents = [];
         throw error;
       } finally {
         this.inTransaction = false;
@@ -289,9 +294,19 @@ export class TransactionalApplicationPersistence
     if (this.applicationEvents.some((existing) => existing.eventId === event.eventId)) throw new PersistenceError("duplicate application event id");
     const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
     this.applicationEvents.push(stored);
-    const accountSubscribers = this.subscribers.get(stored.accountId);
-    if (accountSubscribers !== undefined) {
-      for (const subscriber of [...accountSubscribers]) subscriber(stored);
+    this.pendingEvents.push(stored);
+  }
+
+  private notifySubscribers(event: ApplicationEvent): void {
+    const accountSubscribers = this.subscribers.get(event.accountId);
+    if (accountSubscribers === undefined) return;
+    for (const subscriber of [...accountSubscribers]) {
+      try {
+        subscriber(event);
+      } catch {
+        // Subscribers are transport consumers; a failing consumer must never
+        // roll back a committed trading transaction.
+      }
     }
   }
 
