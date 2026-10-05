@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -134,23 +134,6 @@ export class DurableJsonStore<T> {
       try { rmSync(temporary, { force: true }); } catch { /* best effort cleanup */ }
       if (error instanceof PersistenceError) throw error;
       throw new PersistenceError("failed to persist state: " + (error instanceof Error ? error.message : "unknown error"));
-    }
-  }
-
-  list(): readonly T[] {
-    const directory = this.collectionDirectory();
-
-    try {
-      const entries = readdirSync(directory, { withFileTypes: true });
-      return entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && !entry.name.startsWith("."))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((entry) => this.get(entry.name.slice(0, -5)))
-        .filter((value): value is T => value !== undefined);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-      if (error instanceof PersistenceError) throw error;
-      throw new PersistenceError("failed to list persisted state: " + (error instanceof Error ? error.message : "unknown error"));
     }
   }
 
