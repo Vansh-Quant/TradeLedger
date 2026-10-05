@@ -244,6 +244,42 @@ describe("transactional application persistence", () => {
     expect(persistence.listAfterSequence(0)).toHaveLength(0);
   });
 
+  it("notifies subscribers only after a durable event commit", () => {
+    const directory = root();
+    const persistence = new TransactionalApplicationPersistence(directory);
+    const received: string[] = [];
+    persistence.subscribe("ACC-TX" as AccountId, (event) => received.push(event.eventId));
+
+    expect(() => persistence.execute(() => {
+      persistence.publish({
+        eventId: "event-no-phantom",
+        type: "order.submitted",
+        occurredAt: "2026-10-04T00:00:00.000Z",
+        accountId: "ACC-TX" as AccountId,
+        aggregateType: "order",
+        aggregateId: "ORD-TX-1",
+        requestId: "req-no-phantom",
+        sequence: 1,
+        payload: { instrumentId: "AAPL", side: "buy", quantity: 10 },
+      });
+      throw new Error("abort subscriber test");
+    })).toThrow("abort subscriber test");
+    expect(received).toEqual([]);
+
+    persistence.execute(() => persistence.publish({
+      eventId: "event-committed",
+      type: "order.submitted",
+      occurredAt: "2026-10-04T00:00:01.000Z",
+      accountId: "ACC-TX" as AccountId,
+      aggregateType: "order",
+      aggregateId: "ORD-TX-1",
+      requestId: "req-committed",
+      sequence: 1,
+      payload: { instrumentId: "AAPL", side: "buy", quantity: 10 },
+    }));
+    expect(received).toEqual(["event-committed"]);
+  });
+
   it("rejects non-contiguous application event sequences", () => {
     const directory = root();
     const persistence = new TransactionalApplicationPersistence(directory);
