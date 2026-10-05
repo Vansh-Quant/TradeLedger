@@ -107,7 +107,7 @@ function validateApplicationEvent(value: unknown): ApplicationEvent {
   if (!["order.submitted", "order.cancel.requested", "order.cancelled", "execution.recorded"].includes(type)) throw new PersistenceError("applicationEvent.type is invalid");
   const aggregateType = nonEmpty(raw.aggregateType, "applicationEvent.aggregateType", 32);
   if (aggregateType !== "order" && aggregateType !== "execution") throw new PersistenceError("applicationEvent.aggregateType is invalid");
-  if (!Number.isSafeInteger(raw.sequence) || (raw.sequence as number) <= 0) throw new PersistenceError("applicationEvent.sequence is invalid");
+  if (typeof raw.sequence !== "number" || !Number.isSafeInteger(raw.sequence) || raw.sequence <= 0) throw new PersistenceError("applicationEvent.sequence is invalid");
   const payload = objectRecord(raw.payload, "applicationEvent.payload");
   for (const [key, item] of Object.entries(payload)) {
     if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key) || (typeof item !== "string" && typeof item !== "number") || (typeof item === "number" && !Number.isFinite(item))) throw new PersistenceError("applicationEvent.payload is invalid");
