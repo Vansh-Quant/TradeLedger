@@ -13,7 +13,8 @@ export type ApplicationAction =
   | "order.cancel"
   | "order.read"
   | "market-data.read"
-  | "execution.record";
+  | "execution.record"
+  | "event-stream.read";
 
 export interface ApplicationPrincipal {
   readonly id: string;
@@ -91,6 +92,14 @@ export interface ApplicationEvent {
 export interface ApplicationEventPort {
   publish(event: ApplicationEvent): void;
   latestSequence(): number;
+}
+
+export interface ApplicationEventStreamPort extends ApplicationEventPort {
+  subscribe(
+    accountId: AccountId,
+    subscriber: (event: ApplicationEvent) => void,
+  ): () => void;
+  listAfterSequence(sequence: number): readonly ApplicationEvent[];
 }
 
 

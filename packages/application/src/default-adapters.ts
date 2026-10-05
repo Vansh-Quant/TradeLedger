@@ -8,6 +8,7 @@ import type {
   AuditEventPort,
   ApplicationEvent,
   ApplicationEventPort,
+  ApplicationEventStreamPort,
   ApplicationTransactionPort,
   AuthorizationPort,
   ApplicationAction,
@@ -182,9 +183,9 @@ export class InMemoryApplicationTransaction implements ApplicationTransactionPor
 }
 
 
-export class InMemoryApplicationEventBus implements ApplicationEventPort {
+export class InMemoryApplicationEventBus implements ApplicationEventStreamPort {
   private readonly events: ApplicationEvent[] = [];
-  private readonly subscribers = new Set<(event: ApplicationEvent) => void>();
+  private readonly subscribers = new Map<string, Set<(event: ApplicationEvent) => void>>();
 
   publish(event: ApplicationEvent): void {
     const expected = this.latestSequence() + 1;
@@ -194,12 +195,31 @@ export class InMemoryApplicationEventBus implements ApplicationEventPort {
     }
     const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
     this.events.push(stored);
-    for (const subscriber of this.subscribers) subscriber(stored);
+    const accountSubscribers = this.subscribers.get(stored.accountId);
+    if (accountSubscribers !== undefined) {
+      for (const subscriber of [...accountSubscribers]) {
+        try {
+          subscriber(stored);
+        } catch {
+          // Transport consumers must not alter the outcome of a committed mutation.
+        }
+      }
+    }
   }
 
-  subscribe(subscriber: (event: ApplicationEvent) => void): () => void {
-    this.subscribers.add(subscriber);
-    return () => this.subscribers.delete(subscriber);
+  subscribe(accountId: AccountId, subscriber: (event: ApplicationEvent) => void): () => void {
+    let accountSubscribers = this.subscribers.get(accountId);
+    if (accountSubscribers === undefined) {
+      accountSubscribers = new Set();
+      this.subscribers.set(accountId, accountSubscribers);
+    }
+    accountSubscribers.add(subscriber);
+    return () => {
+      const current = this.subscribers.get(accountId);
+      if (current === undefined) return;
+      current.delete(subscriber);
+      if (current.size === 0) this.subscribers.delete(accountId);
+    };
   }
 
   listAfterSequence(sequence: number): readonly ApplicationEvent[] {

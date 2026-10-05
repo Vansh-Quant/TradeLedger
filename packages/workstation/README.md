@@ -11,6 +11,7 @@ Dependency-free browser client for the existing TradeLedger application/API boun
 - Position/exposure display
 - Limit-order submission
 - Order cancellation
+- Authenticated account-scoped live event stream with reconnect/replay
 - Server-owned idempotency
 - Connection, loading, success, and error states
 - Responsive workstation layout
@@ -47,3 +48,13 @@ client-side risk calculation, and a frontend framework/bundler.
 The workstation expects the TradeLedger API at `http://127.0.0.1:3000`. Start the development API in a separate terminal with `npx --yes tsx packages/api/src/dev-server.ts`.
 
 The development server creates the `ACC-APP` account in memory and accepts the bearer token `dev-token`. In the browser console, set `localStorage.tradeledger.accessToken = "dev-token"` once before loading the workstation. This bootstrap is development-only and is not production authentication or persistence.
+
+## Live event stream
+
+The API exposes an authenticated Server-Sent Events stream at:
+
+```
+GET /api/v1/events?accountId=ACC-APP&after=0
+```
+
+The stream is account-authorized, sequence-numbered, replayable, and reconnect-safe. The workstation uses the last received sequence to recover missed events. The browser never supplies risk or portfolio truth; live events only trigger a fresh authoritative REST state read.

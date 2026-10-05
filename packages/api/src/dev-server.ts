@@ -51,6 +51,7 @@ const application = new TradingApplicationService(
     "dev-user:order.cancel:ACC-APP",
     "dev-user:market-data.read:ACC-APP",
     "dev-user:execution.record:ACC-APP",
+    "dev-user:event-stream.read:ACC-APP",
   ]),
   new RandomOrderIdGenerator(),
   { now: () => new Date().toISOString() },

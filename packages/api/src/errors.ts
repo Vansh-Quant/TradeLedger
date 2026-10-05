@@ -1,13 +1,17 @@
 import {
   ApplicationError,
+  AuthenticationError,
   AuthorizationError,
   NotFoundError,
   ValidationError,
 } from "@tradeledger/application";
 
 export function mapError(error: unknown): { status: number; body: unknown } {
+  if (error instanceof AuthenticationError) {
+    return { status: 401, body: { error: { code: "UNAUTHORIZED", message: "authentication required" } } };
+  }
   if (error instanceof AuthorizationError) {
-    return { status: 401, body: { error: { code: "UNAUTHORIZED", message: "authentication or authorization failed" } } };
+    return { status: 403, body: { error: { code: "FORBIDDEN", message: "action is not authorized" } } };
   }
   if (error instanceof NotFoundError) {
     return { status: 404, body: { error: { code: "NOT_FOUND", message: "resource not found" } } };

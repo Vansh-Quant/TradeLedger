@@ -158,3 +158,15 @@ The default adapters remain in-memory for lightweight use and tests. The transac
 
 - Validate the completed event architecture locally, then extend it to real-time workstation transport.
 - Production authentication provider integration
+
+
+## Real-Time Event Transport — In Progress
+
+- Added an authenticated, account-scoped Server-Sent Events API at `GET /api/v1/events`.
+- Added sequence-based replay and reconnect semantics.
+- Added account-scoped subscriptions with authorization at the application boundary.
+- Durable subscribers are notified only after the surrounding transaction is durably committed; rollback never leaks phantom events.
+- Transport subscriber failures cannot alter committed trading mutations.
+- Added typed API-client SSE consumption and workstation live refresh/reconnect behavior.
+- Added bounded SSE buffering to fail closed under excessive downstream backpressure.
+- Added application/API regression coverage for subscription authorization, delivery, replay sequence, and cleanup.

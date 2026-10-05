@@ -224,6 +224,8 @@ export class TransactionalApplicationPersistence
   private mutations = new Map<string, MutationRecord>();
   private auditEvents: AuditEvent[] = [];
   private applicationEvents: ApplicationEvent[] = [];
+  private readonly subscribers = new Map<string, Set<(event: ApplicationEvent) => void>>();
+  private pendingEvents: ApplicationEvent[] = [];
   private inTransaction = false;
 
   constructor(rootDirectory: string) {
@@ -240,9 +242,13 @@ export class TransactionalApplicationPersistence
       try {
         const result = operation();
         this.persist();
+        const committedEvents = this.pendingEvents;
+        this.pendingEvents = [];
+        for (const event of committedEvents) this.notifySubscribers(event);
         return result;
       } catch (error) {
         this.restore(before);
+        this.pendingEvents = [];
         throw error;
       } finally {
         this.inTransaction = false;
@@ -286,7 +292,37 @@ export class TransactionalApplicationPersistence
     const expected = this.applicationEvents.length + 1;
     if (event.sequence !== expected) throw new PersistenceError("application event sequence is not contiguous");
     if (this.applicationEvents.some((existing) => existing.eventId === event.eventId)) throw new PersistenceError("duplicate application event id");
-    this.applicationEvents.push(Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) }));
+    const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
+    this.applicationEvents.push(stored);
+    this.pendingEvents.push(stored);
+  }
+
+  private notifySubscribers(event: ApplicationEvent): void {
+    const accountSubscribers = this.subscribers.get(event.accountId);
+    if (accountSubscribers === undefined) return;
+    for (const subscriber of [...accountSubscribers]) {
+      try {
+        subscriber(event);
+      } catch {
+        // Subscribers are transport consumers; a failing consumer must never
+        // roll back a committed trading transaction.
+      }
+    }
+  }
+
+  subscribe(accountId: AccountId, subscriber: (event: ApplicationEvent) => void): () => void {
+    let accountSubscribers = this.subscribers.get(accountId);
+    if (accountSubscribers === undefined) {
+      accountSubscribers = new Set();
+      this.subscribers.set(accountId, accountSubscribers);
+    }
+    accountSubscribers.add(subscriber);
+    return () => {
+      const current = this.subscribers.get(accountId);
+      if (current === undefined) return;
+      current.delete(subscriber);
+      if (current.size === 0) this.subscribers.delete(accountId);
+    };
   }
 
   latestSequence(): number {

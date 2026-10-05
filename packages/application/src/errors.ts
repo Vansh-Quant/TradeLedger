@@ -15,6 +15,13 @@ export class ValidationError extends ApplicationError {
   }
 }
 
+export class AuthenticationError extends ApplicationError {
+  constructor(message = "authentication is required") {
+    super("AUTHENTICATION_ERROR", message);
+    this.name = "AuthenticationError";
+  }
+}
+
 export class AuthorizationError extends ApplicationError {
   constructor(message = "action is not authorized") {
     super("AUTHORIZATION_ERROR", message);

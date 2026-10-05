@@ -34,6 +34,7 @@ import type {
   TradingContextPort,
   ApplicationPrincipal,
   ApplicationEventPort,
+  ApplicationEventStreamPort,
 } from "./contracts.js";
 import { InMemoryApplicationEventBus, InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
@@ -83,6 +84,37 @@ export class TradingApplicationService {
     events?: ApplicationEventPort,
   ) {
     this.events = events ?? (isApplicationEventPort(transaction) ? transaction : new InMemoryApplicationEventBus());
+  }
+
+  subscribeToEvents(
+    principal: ApplicationPrincipal,
+    accountIdInput: string,
+    subscriber: (event: import("./contracts.js").ApplicationEvent) => void,
+  ): () => void {
+    const accountId = requireNonEmpty(accountIdInput, "accountId") as AccountId;
+    this.authorization.authorize(principal, "event-stream.read", accountId);
+    const stream = this.events as ApplicationEventStreamPort;
+    if (typeof stream.subscribe !== "function" || typeof stream.listAfterSequence !== "function") {
+      throw new ValidationError("application event stream is not available");
+    }
+    return stream.subscribe(accountId, subscriber);
+  }
+
+  listEventsAfter(
+    principal: ApplicationPrincipal,
+    accountIdInput: string,
+    sequence: number,
+  ): readonly import("./contracts.js").ApplicationEvent[] {
+    const accountId = requireNonEmpty(accountIdInput, "accountId") as AccountId;
+    this.authorization.authorize(principal, "event-stream.read", accountId);
+    if (!Number.isSafeInteger(sequence) || sequence < 0) {
+      throw new ValidationError("sequence must be a non-negative integer");
+    }
+    const stream = this.events as import("./contracts.js").ApplicationEventStreamPort;
+    if (typeof stream.listAfterSequence !== "function") {
+      throw new ValidationError("application event stream is not available");
+    }
+    return stream.listAfterSequence(sequence).filter((event) => event.accountId === accountId);
   }
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {

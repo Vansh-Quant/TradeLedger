@@ -30,6 +30,91 @@ const app = document.querySelector("#app");
 if (app === null) throw new Error("workstation root is missing");
 
 let busy = false;
+let eventStreamAbort = null;
+let lastEventSequence = 0;
+let refreshTimer = null;
+
+
+function stopEventStream() {
+  if (eventStreamAbort !== null) {
+    eventStreamAbort();
+    eventStreamAbort = null;
+  }
+}
+
+function scheduleLiveRefresh() {
+  if (refreshTimer !== null) return;
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    void load();
+  }, 100);
+}
+
+async function startEventStream() {
+  stopEventStream();
+  const controller = new AbortController();
+  eventStreamAbort = () => controller.abort();
+
+  try {
+    const accessToken = token();
+    const headers = new Headers({ accept: "text/event-stream" });
+    if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+    const response = await fetch(
+      `${baseUrl}/api/v1/events?accountId=${encodeURIComponent(accountId)}&after=${lastEventSequence}`,
+      { headers, signal: controller.signal },
+    );
+    if (!response.ok || response.body === null) throw new Error("live event stream unavailable");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let eventId = "";
+    let eventType = "";
+    let data = "";
+
+    const dispatch = () => {
+      if (data.length === 0) return;
+      const event = JSON.parse(data);
+      if (eventId.length > 0 && Number(eventId) !== event.sequence) throw new Error("live event sequence mismatch");
+      if (eventType.length > 0 && eventType !== event.type) throw new Error("live event type mismatch");
+      if (Number.isSafeInteger(event.sequence) && event.sequence > lastEventSequence) {
+        lastEventSequence = event.sequence;
+        scheduleLiveRefresh();
+      }
+      eventId = "";
+      eventType = "";
+      data = "";
+    };
+
+    while (!controller.signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const rawLine of lines) {
+        const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+        if (line.length === 0) {
+          dispatch();
+          continue;
+        }
+        if (line.startsWith(":")) continue;
+        const separator = line.indexOf(":");
+        const field = separator < 0 ? line : line.slice(0, separator);
+        const valuePart = separator < 0 ? "" : line.slice(separator + 1).replace(/^ /, "");
+        if (field === "id") eventId = valuePart;
+        else if (field === "event") eventType = valuePart;
+        else if (field === "data") data += (data.length === 0 ? "" : "\n") + valuePart;
+      }
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      window.setTimeout(() => {
+        if (eventStreamAbort !== null) void startEventStream();
+      }, 1500);
+    }
+  }
+}
 
 function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -50,6 +135,7 @@ function renderError(message) {
 }
 
 async function load() {
+  stopEventStream();
   app.innerHTML = `
     <main class="shell">
       <header class="topbar">
@@ -151,6 +237,7 @@ async function load() {
     `;
 
     bind();
+    void startEventStream();
   } catch (error) {
     app.innerHTML = `<main class="shell"><section class="panel fatal"><h1>TRADELEDGER</h1>${renderError(error instanceof Error ? error.message : "Unable to connect")}<button id="retry" class="primary">RETRY</button></section></main>`;
     document.querySelector("#retry")?.addEventListener("click", () => void load());
