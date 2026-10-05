@@ -70,6 +70,29 @@ export interface AuditEventPort {
   append(event: AuditEvent): void;
 }
 
+export type ApplicationEventType =
+  | "order.submitted"
+  | "order.cancel.requested"
+  | "order.cancelled"
+  | "execution.recorded";
+
+export interface ApplicationEvent {
+  readonly eventId: string;
+  readonly type: ApplicationEventType;
+  readonly occurredAt: string;
+  readonly accountId: AccountId;
+  readonly aggregateType: "order" | "execution";
+  readonly aggregateId: string;
+  readonly requestId: string;
+  readonly sequence: number;
+  readonly payload: Readonly<Record<string, string | number>>;
+}
+
+export interface ApplicationEventPort {
+  publish(event: ApplicationEvent): void;
+}
+
+
 export interface ApplicationTransactionPort {
   execute<T>(operation: () => T): T;
 }
