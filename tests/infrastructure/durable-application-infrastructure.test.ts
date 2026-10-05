@@ -84,6 +84,16 @@ describe("durable application infrastructure", () => {
     expect(reloaded?.buyingPower.reservedCapacity).toBe(1_000);
   });
 
+  it("lists durable order state by account", async () => {
+    const directory = root();
+    const store = new DurableOrderStateStore(directory);
+    await store.saveAsync(state("ACC-A", "ORD-A"));
+    await store.saveAsync(state("ACC-B", "ORD-B"));
+    await store.saveAsync(state("ACC-A", "ORD-C"));
+    const result = store.list(accountId("ACC-A"));
+    expect(result.map((item) => item.order.id)).toEqual(["ORD-A", "ORD-C"]);
+  });
+
   it("survives adapter recreation for trading context", async () => {
     const directory = root();
     await new DurableTradingContextStore(directory).saveContextAsync(context("ACC-A"));
