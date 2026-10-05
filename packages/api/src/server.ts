@@ -166,6 +166,27 @@ async function route(
 
   const principal = principalOrThrow(await deps.authenticate(apiRequest));
 
+  if (method === "POST" && path === "/api/v1/executions") {
+    const body = await readJson(request, maxBodyBytes);
+    const key = idempotencyKey(request);
+    const result = deps.application.recordExecution({
+      principal,
+      accountId: requiredString(body, "accountId"),
+      orderId: requiredString(body, "orderId"),
+      executionId: requiredString(body, "executionId"),
+      instrumentId: requiredString(body, "instrumentId"),
+      side: enumValue(body, "side", ["buy", "sell"] as const),
+      quantity: requiredNumber(body, "quantity"),
+      price: requiredNumber(body, "price"),
+      executedAt: requiredString(body, "executedAt"),
+      commission: requiredNumber(body, "commission"),
+      requestId: id,
+      idempotencyKey: key,
+    });
+    send(response, id, result.applied ? 201 : 200, result, corsOrigin);
+    return;
+  }
+
   if (method === "POST" && path === "/api/v1/orders") {
     const body = await readJson(request, maxBodyBytes);
     const key = idempotencyKey(request);

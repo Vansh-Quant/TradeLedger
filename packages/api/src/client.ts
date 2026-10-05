@@ -6,6 +6,8 @@ import type {
   ListOrdersResult,
   SubmitOrderCommand,
   SubmitOrderResult,
+  RecordExecutionCommand,
+  RecordExecutionResult,
 } from "@tradeledger/application";
 
 export interface TradeLedgerApiClientOptions {
@@ -64,6 +66,30 @@ export class TradeLedgerApiClient {
       body: JSON.stringify({
         accountId, instrumentId, side, type, quantity, limitPrice, stopPrice, timeInForce,
         orderNotional, projectedPositionNotional, projectedGrossExposure, projectedNetExposure, dailyLoss,
+      }),
+    });
+  }
+
+
+  async recordExecution(
+    command: Omit<RecordExecutionCommand, "principal" | "requestId">,
+  ): Promise<RecordExecutionResult> {
+    return this.request<RecordExecutionResult>("/api/v1/executions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": command.idempotencyKey ?? crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        accountId: command.accountId,
+        orderId: command.orderId,
+        executionId: command.executionId,
+        instrumentId: command.instrumentId,
+        side: command.side,
+        quantity: command.quantity,
+        price: command.price,
+        executedAt: command.executedAt,
+        commission: command.commission,
       }),
     });
   }

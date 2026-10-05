@@ -12,7 +12,8 @@ export type ApplicationAction =
   | "order.submit"
   | "order.cancel"
   | "order.read"
-  | "market-data.read";
+  | "market-data.read"
+  | "execution.record";
 
 export interface ApplicationPrincipal {
   readonly id: string;
@@ -184,4 +185,27 @@ export interface MarketDataStatePort {
     receivedAt: string,
   ): import("@tradeledger/domain").MarketDataState;
   list(): readonly import("@tradeledger/domain").MarketDataState[];
+}
+
+
+export interface RecordExecutionCommand {
+  readonly principal: ApplicationPrincipal;
+  readonly accountId: string;
+  readonly orderId: string;
+  readonly executionId: string;
+  readonly instrumentId: string;
+  readonly side: "buy" | "sell";
+  readonly quantity: number;
+  readonly price: number;
+  readonly executedAt: string;
+  readonly commission: number;
+  readonly requestId?: string;
+  readonly idempotencyKey?: string;
+}
+
+export interface RecordExecutionResult {
+  readonly applied: boolean;
+  readonly duplicate: boolean;
+  readonly order: Order;
+  readonly state: TradingCoreState;
 }

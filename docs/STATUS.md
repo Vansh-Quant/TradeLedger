@@ -1,3 +1,15 @@
+## Execution Engine — Application/API Ingress
+
+- Connected execution reports to the existing deterministic `processTradingExecution` workflow.
+- Added authorized `execution.record` application action.
+- Execution ingress validates account/order/instrument/side before reconciliation.
+- Partial and complete fills update order lifecycle, positions, portfolio state, and buying-power reservations through the existing domain workflow.
+- Duplicate execution IDs remain idempotent through the execution event store.
+- Added HTTP `POST /api/v1/executions` and a typed workstation API client method.
+- Added application and HTTP tests for partial fills, complete fills, duplicate execution IDs, idempotency-key replay semantics, idempotency conflicts, authorization, and validation.
+- Application-level execution mutation replays now report `applied: false` and `duplicate: true` while preserving the original deterministic result.
+- Broker/venue adapters remain a separate integration layer and are intentionally not fabricated by the dev server.
+
 ## Market Data Engine — Application/API Boundary
 
 - Added an application-facing market-data state port.
@@ -10,7 +22,7 @@
 
 # TradeLedger Status
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-05
 
 ## Current Milestone
 
