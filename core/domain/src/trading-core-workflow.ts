@@ -171,6 +171,42 @@ export function processTradingExecution(
 }
 
 
+export function expireTradingOrder(
+  state: TradingCoreState,
+): TradingCoreState {
+  const order = transitionOrder(state.order, "expired");
+  const reservation = state.reservation;
+
+  if (reservation === undefined) {
+    return Object.freeze({
+      ...state,
+      order,
+      reconciliation: createExecutionReconciliation(
+        order,
+        state.reconciliation.accountPortfolio,
+      ),
+    });
+  }
+
+  const releasedReservation = releaseRemainingOrderReservation(reservation);
+  const buyingPower = applyReservationRelease(
+    state.buyingPower,
+    reservation,
+    releasedReservation,
+  );
+
+  return Object.freeze({
+    ...state,
+    order,
+    buyingPower,
+    reservation: releasedReservation,
+    reconciliation: createExecutionReconciliation(
+      order,
+      state.reconciliation.accountPortfolio,
+    ),
+  });
+}
+
 export function requestTradingOrderCancellation(
   state: TradingCoreState,
 ): TradingCoreState {
