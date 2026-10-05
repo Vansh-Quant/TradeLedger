@@ -57,15 +57,19 @@ export class TradeLedgerApiClient {
     );
   }
 
-  async submitOrder(command: Omit<SubmitOrderCommand, "principal" | "requestId">): Promise<SubmitOrderResult> {
-    const { accountId, instrumentId, side, type, quantity, limitPrice, stopPrice, timeInForce,
-      orderNotional, projectedPositionNotional, projectedGrossExposure, projectedNetExposure, dailyLoss } = command;
+  async submitOrder(
+    command: Omit<
+      SubmitOrderCommand,
+      "principal" | "requestId" | "orderNotional" | "projectedPositionNotional" |
+      "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss"
+    >,
+  ): Promise<SubmitOrderResult> {
+    const { accountId, instrumentId, side, type, quantity, limitPrice, stopPrice, timeInForce } = command;
     return this.request<SubmitOrderResult>("/api/v1/orders", {
       method: "POST",
       headers: { "content-type": "application/json", "idempotency-key": command.idempotencyKey ?? crypto.randomUUID() },
       body: JSON.stringify({
         accountId, instrumentId, side, type, quantity, limitPrice, stopPrice, timeInForce,
-        orderNotional, projectedPositionNotional, projectedGrossExposure, projectedNetExposure, dailyLoss,
       }),
     });
   }
