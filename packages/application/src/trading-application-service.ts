@@ -32,7 +32,8 @@ import type {
   SubmitOrderCommand,
   SubmitOrderResult,
   TradingContextPort,
-  ApplicationPrincipal,\n  ApplicationEventPort,
+  ApplicationPrincipal,
+  ApplicationEventPort,
 } from "./contracts.js";
 import { InMemoryApplicationEventBus, InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
@@ -54,7 +55,11 @@ function requireIdempotencyKey(value: string): string {
   return value;
 }
 
-function isApplicationEventPort(value: unknown): value is ApplicationEventPort {\n  return typeof value === "object" && value !== null && "publish" in value && "latestSequence" in value;\n}\n\nfunction requirePositiveFinite(value: number, field: string): number {
+function isApplicationEventPort(value: unknown): value is ApplicationEventPort {
+  return typeof value === "object" && value !== null && "publish" in value && "latestSequence" in value;
+}
+
+function requirePositiveFinite(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new ValidationError(`${field} must be a finite positive number`);
   }
