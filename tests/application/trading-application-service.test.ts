@@ -205,6 +205,47 @@ describe("trading application service", () => {
     expect(events.listAfterSequence(0).map((event) => event.sequence)).toEqual([1, 2, 3]);
   });
 
+  it("publishes an execution event only for a newly applied execution", () => {
+    const { application, events } = service([
+      "user-1:order.submit:ACC-APP",
+      "user-1:order.read:ACC-APP",
+      "user-1:order.cancel:ACC-APP",
+      "user-1:execution.record:ACC-APP",
+    ]);
+    const submitted = application.submitOrder(command());
+    application.recordExecution({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      executionId: "EXE-EVENT-1",
+      instrumentId: "AAPL",
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z",
+      commission: 1,
+      requestId: "req-execution-event-1",
+      idempotencyKey: "execution-event-1",
+    });
+    application.recordExecution({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      executionId: "EXE-EVENT-1",
+      instrumentId: "AAPL",
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z",
+      commission: 1,
+      requestId: "req-execution-event-2",
+      idempotencyKey: "execution-event-1",
+    });
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.submitted", "execution.recorded",
+    ]);
+  });
+
   it("preserves immutable state across command execution", () => {
     const { application, orders } = service();
 
