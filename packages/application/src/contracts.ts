@@ -90,6 +90,7 @@ export interface ApplicationEvent {
 
 export interface ApplicationEventPort {
   publish(event: ApplicationEvent): void;
+  latestSequence(): number;
 }
 
 
