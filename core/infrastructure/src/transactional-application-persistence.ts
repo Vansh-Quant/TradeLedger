@@ -290,6 +290,7 @@ export class TransactionalApplicationPersistence
   }
 
   listAfterSequence(sequence: number): readonly ApplicationEvent[] {
+    if (!this.inTransaction) this.reload();
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new PersistenceError("sequence must be a non-negative integer");
     return Object.freeze(this.applicationEvents.filter((event) => event.sequence > sequence).slice());
   }
@@ -385,6 +386,7 @@ export class TransactionalApplicationPersistence
       contexts: new Map(this.contexts),
       mutations: new Map(this.mutations),
       auditEvents: [...this.auditEvents],
+      applicationEvents: [...this.applicationEvents],
     };
   }
 
@@ -393,6 +395,7 @@ export class TransactionalApplicationPersistence
     this.contexts = before.contexts;
     this.mutations = before.mutations;
     this.auditEvents = before.auditEvents;
+    this.applicationEvents = before.applicationEvents;
   }
 
   private withLock<T>(operation: () => T): T {
