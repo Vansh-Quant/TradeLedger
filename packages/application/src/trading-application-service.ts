@@ -116,7 +116,7 @@ export class TradingApplicationService {
 
     const requestId = command.requestId ?? crypto.randomUUID();
     this.authorize(command.principal, "order.submit", accountId, requestId, command.idempotencyKey);
-    const run = () => this.submitOrderCore(command, accountId, instrumentId);
+    const run = () => this.submitOrderCore(command, accountId, instrumentId, requestId);
 
     return this.mutate(
       "order.submit",
@@ -133,6 +133,7 @@ export class TradingApplicationService {
     command: SubmitOrderCommand,
     accountId: AccountId,
     instrumentId: InstrumentId,
+    requestId: string,
   ): SubmitOrderResult {
     const tradingContext = this.context.getContext(accountId);
     if (tradingContext.accountId !== accountId) {
@@ -171,7 +172,7 @@ export class TradingApplicationService {
     });
 
     if (admission.admitted) {
-      this.publishEvent("order.submitted", "order", admission.state.order.id, accountId, command.requestId ?? "", {
+      this.publishEvent("order.submitted", "order", admission.state.order.id, accountId, requestId, {
         instrumentId,
         side: command.side,
         quantity: command.quantity,
