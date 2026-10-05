@@ -33,8 +33,9 @@ import type {
   SubmitOrderResult,
   TradingContextPort,
   ApplicationPrincipal,
+  ApplicationEventPort,
 } from "./contracts.js";
-import { InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
+import { InMemoryApplicationEventBus, InMemoryApplicationTransaction, InMemoryAuditEventStore, InMemoryMutationIdempotency, mutationFingerprint } from "./default-adapters.js";
 import {
   ApplicationError,
   NotFoundError,
@@ -54,6 +55,10 @@ function requireIdempotencyKey(value: string): string {
   return value;
 }
 
+function isApplicationEventPort(value: unknown): value is ApplicationEventPort {
+  return typeof value === "object" && value !== null && "publish" in value && "latestSequence" in value;
+}
+
 function requirePositiveFinite(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new ValidationError(`${field} must be a finite positive number`);
@@ -62,6 +67,8 @@ function requirePositiveFinite(value: number, field: string): number {
 }
 
 export class TradingApplicationService {
+  private readonly events: ApplicationEventPort;
+
   constructor(
     private readonly context: TradingContextPort,
     private readonly orders: OrderStatePort,
@@ -73,7 +80,10 @@ export class TradingApplicationService {
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
     private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
-  ) {}
+    events?: ApplicationEventPort,
+  ) {
+    this.events = events ?? (isApplicationEventPort(transaction) ? transaction : new InMemoryApplicationEventBus());
+  }
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
@@ -111,7 +121,7 @@ export class TradingApplicationService {
 
     const requestId = command.requestId ?? crypto.randomUUID();
     this.authorize(command.principal, "order.submit", accountId, requestId, command.idempotencyKey);
-    const run = () => this.submitOrderCore(command, accountId, instrumentId);
+    const run = () => this.submitOrderCore(command, accountId, instrumentId, requestId);
 
     return this.mutate(
       "order.submit",
@@ -128,6 +138,7 @@ export class TradingApplicationService {
     command: SubmitOrderCommand,
     accountId: AccountId,
     instrumentId: InstrumentId,
+    requestId: string,
   ): SubmitOrderResult {
     const tradingContext = this.context.getContext(accountId);
     if (tradingContext.accountId !== accountId) {
@@ -165,6 +176,14 @@ export class TradingApplicationService {
       buyingPower: admission.state.buyingPower,
     });
 
+    if (admission.admitted) {
+      this.publishEvent("order.submitted", "order", admission.state.order.id, accountId, requestId, {
+        instrumentId,
+        side: command.side,
+        quantity: command.quantity,
+      });
+    }
+
     return Object.freeze({
       admitted: admission.admitted,
       order: admission.state.order,
@@ -193,6 +212,9 @@ export class TradingApplicationService {
         }
         const requested = requestTradingOrderCancellation(current);
         this.orders.save(requested);
+        this.publishEvent("order.cancel.requested", "order", requested.order.id, accountId, requestId, {
+          remainingQuantity: requested.order.quantity - requested.order.filledQuantity,
+        });
         return Object.freeze({ order: requested.order, state: requested });
       },
     );
@@ -221,6 +243,9 @@ export class TradingApplicationService {
         this.context.saveContext({
           ...this.context.getContext(accountId),
           buyingPower: cancelled.buyingPower,
+        });
+        this.publishEvent("order.cancelled", "order", cancelled.order.id, accountId, requestId, {
+          releasedCapacity: cancelled.buyingPower.totalCapacity - cancelled.buyingPower.reservedCapacity,
         });
         return Object.freeze({ order: cancelled.order, state: cancelled });
       },
@@ -294,6 +319,14 @@ export class TradingApplicationService {
           accountPortfolio: result.state.reconciliation.accountPortfolio,
         });
 
+        if (result.applied) {
+          this.publishEvent("execution.recorded", "execution", executionId, accountId, requestId, {
+            orderId,
+            quantity: command.quantity,
+            price: command.price,
+          });
+        }
+
         return Object.freeze({
           applied: result.applied,
           duplicate: result.duplicate,
@@ -355,6 +388,27 @@ export class TradingApplicationService {
     }
 
     return Object.freeze({ order: state.order, state });
+  }
+
+  private publishEvent(
+    type: import("./contracts.js").ApplicationEventType,
+    aggregateType: "order" | "execution",
+    aggregateId: string,
+    accountId: AccountId,
+    requestId: string,
+    payload: Readonly<Record<string, string | number>>,
+  ): void {
+    this.events.publish({
+      eventId: crypto.randomUUID(),
+      type,
+      occurredAt: this.clock.now(),
+      accountId,
+      aggregateType,
+      aggregateId,
+      requestId,
+      sequence: this.events.latestSequence() + 1,
+      payload,
+    });
   }
 
   private authorize(

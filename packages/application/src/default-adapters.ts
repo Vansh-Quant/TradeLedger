@@ -6,6 +6,8 @@ import type {
 import type {
   AuditEvent,
   AuditEventPort,
+  ApplicationEvent,
+  ApplicationEventPort,
   ApplicationTransactionPort,
   AuthorizationPort,
   ApplicationAction,
@@ -176,5 +178,36 @@ export class InMemoryAuditEventStore implements AuditEventPort {
 export class InMemoryApplicationTransaction implements ApplicationTransactionPort {
   execute<T>(operation: () => T): T {
     return operation();
+  }
+}
+
+
+export class InMemoryApplicationEventBus implements ApplicationEventPort {
+  private readonly events: ApplicationEvent[] = [];
+  private readonly subscribers = new Set<(event: ApplicationEvent) => void>();
+
+  publish(event: ApplicationEvent): void {
+    const expected = this.latestSequence() + 1;
+    if (event.sequence !== expected) throw new ValidationError("application event sequence is not contiguous");
+    if (this.events.some((existing) => existing.eventId === event.eventId)) {
+      throw new ValidationError("duplicate application event id");
+    }
+    const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
+    this.events.push(stored);
+    for (const subscriber of this.subscribers) subscriber(stored);
+  }
+
+  subscribe(subscriber: (event: ApplicationEvent) => void): () => void {
+    this.subscribers.add(subscriber);
+    return () => this.subscribers.delete(subscriber);
+  }
+
+  listAfterSequence(sequence: number): readonly ApplicationEvent[] {
+    if (!Number.isInteger(sequence) || sequence < 0) throw new ValidationError("sequence must be a non-negative integer");
+    return Object.freeze(this.events.filter((event) => event.sequence > sequence).slice());
+  }
+
+  latestSequence(): number {
+    return this.events.length === 0 ? 0 : this.events[this.events.length - 1]!.sequence;
   }
 }

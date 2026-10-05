@@ -142,7 +142,19 @@ The default adapters remain in-memory for lightweight use and tests. The transac
 - Lifecycle transitions now permit partially filled orders to expire while preserving applied fills.
 - The typed API client now accepts trading intent only; authoritative admission/risk fields cannot be supplied by the workstation client.
 
+## Application Event Architecture — Completed
+
+- Added a typed application event boundary for order and execution lifecycle events.
+- Added a deterministic in-memory event bus with monotonic sequence cursors and replay-oriented reads.
+- Application mutations now publish lifecycle events only after the underlying domain state mutation is applied.
+- Idempotent mutation replays do not create duplicate lifecycle events.
+- Event consumers remain outside deterministic risk, accounting, execution, and persistence calculations.
+- Durable transactional persistence now stores the event stream atomically with application state and idempotency records.
+- Durable event cursors can replay events after restart without losing sequence continuity.
+- Corrupt, duplicated, skipped, or out-of-transaction event writes fail closed.
+- Transaction rollback restores application events together with orders, contexts, mutations, and audit state.
+
 ## Next
 
-- Run the complete local validation suite on the hardening branch, then integrate the finished OMS chunk.
+- Validate the completed event architecture locally, then extend it to real-time workstation transport.
 - Production authentication provider integration

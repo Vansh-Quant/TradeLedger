@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
   InMemoryAuditEventStore,
+  InMemoryApplicationEventBus,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -50,6 +51,7 @@ function service(
 ) {
   const orders = new InMemoryOrderStateStore();
   const audit = new InMemoryAuditEventStore();
+  const events = new InMemoryApplicationEventBus();
   const tradingContext = new InMemoryTradingContext([context]);
   const application = new TradingApplicationService(
     tradingContext,
@@ -59,8 +61,12 @@ function service(
     fixedClock("2026-10-03T12:00:00.000Z"),
     undefined,
     audit,
+    undefined,
+    undefined,
+    undefined,
+    events,
   );
-  return { application, orders, audit };
+  return { application, orders, audit, events };
 }
 
 function command() {
@@ -184,6 +190,60 @@ describe("trading application service", () => {
 
     expect(second.admitted).toBe(true);
     expect(second.state.buyingPower.reservedCapacity).toBe(5_500);
+  });
+
+  it("publishes ordered lifecycle events without duplicating idempotent replays", () => {
+    const { application, events } = service();
+    const first = application.submitOrder({ ...command(), idempotencyKey: "event-1", requestId: "req-event-1" });
+    application.submitOrder({ ...command(), idempotencyKey: "event-1", requestId: "req-event-2" });
+    const cancelled = application.cancelOrder({ principal, accountId: "ACC-APP", orderId: first.order.id, idempotencyKey: "event-cancel-1", requestId: "req-cancel-1" });
+    application.completeOrderCancellation({ principal, accountId: "ACC-APP", orderId: cancelled.order.id, idempotencyKey: "event-cancel-complete-1", requestId: "req-cancel-complete-1" });
+
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.submitted", "order.cancel.requested", "order.cancelled",
+    ]);
+    expect(events.listAfterSequence(0).map((event) => event.sequence)).toEqual([1, 2, 3]);
+  });
+
+  it("publishes an execution event only for a newly applied execution", () => {
+    const { application, events } = service([
+      "user-1:order.submit:ACC-APP",
+      "user-1:order.read:ACC-APP",
+      "user-1:order.cancel:ACC-APP",
+      "user-1:execution.record:ACC-APP",
+    ]);
+    const submitted = application.submitOrder(command());
+    application.recordExecution({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      executionId: "EXE-EVENT-1",
+      instrumentId: "AAPL",
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z",
+      commission: 1,
+      requestId: "req-execution-event-1",
+      idempotencyKey: "execution-event-1",
+    });
+    application.recordExecution({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      executionId: "EXE-EVENT-1",
+      instrumentId: "AAPL",
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z",
+      commission: 1,
+      requestId: "req-execution-event-2",
+      idempotencyKey: "execution-event-1",
+    });
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.submitted", "execution.recorded",
+    ]);
   });
 
   it("preserves immutable state across command execution", () => {
