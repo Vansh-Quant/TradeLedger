@@ -8,6 +8,7 @@ import {
   admitOmsOrder,
   completeOmsCancellation,
   processOmsExecution,
+  expireOmsOrder,
   requestOmsCancellation,
 } from "../../core/domain/src/oms-workflow.js";
 import { createOrder } from "../../core/domain/src/order.js";
@@ -156,6 +157,74 @@ describe("OMS workflow", () => {
     expect(second.state.order.filledQuantity).toBe(10);
     expect(second.state.buyingPower.reservedCapacity).toBe(0);
     expect(second.state.reconciliation.accountPortfolio.portfolio.positions.get(instrumentId)?.quantity).toBe(10);
+  });
+
+  it("expires an admitted order and releases its reservation", () => {
+    const admitted = admit();
+    const expired = expireOmsOrder(admitted.state);
+
+    expect(expired.order.status).toBe("expired");
+    expect(expired.reservation?.remainingAmount).toBe(0);
+    expect(expired.buyingPower.reservedCapacity).toBe(0);
+    expect(expired.reconciliation.order.status).toBe("expired");
+  });
+
+  it("allows a partially filled order to expire and releases only the remainder", () => {
+    const admitted = admit();
+    const store = new InMemoryExecutionEventStore();
+    const execution = createExecution({
+      id: "EX-OMS-EXPIRY",
+      orderId: admitted.state.order.id,
+      instrumentId,
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z",
+      commission: 0,
+    });
+    const partial = processOmsExecution({
+      state: admitted.state,
+      execution,
+      eventStore: store,
+      eventId: "EV-OMS-EXPIRY",
+      recordedAt: "2026-10-03T12:01:01.000Z",
+    });
+    const expired = expireOmsOrder(partial.state);
+
+    expect(expired.order.status).toBe("expired");
+    expect(expired.order.filledQuantity).toBe(4);
+    expect(expired.buyingPower.reservedCapacity).toBe(0);
+    expect(expired.reservation?.remainingAmount).toBe(0);
+    expect(expired.reconciliation.accountPortfolio.portfolio.positions.get(instrumentId)?.quantity).toBe(4);
+  });
+
+  it("rejects a partial fill for FOK orders", () => {
+    const fokOrder = createOrder({
+      id: "ORD-OMS-FOK", accountId: account.id, instrumentId,
+      side: "buy", type: "limit", quantity: 10, limitPrice: 100,
+      timeInForce: "fok", createdAt: "2026-10-03T12:00:00.000Z",
+    });
+    const admitted = admitOmsOrder({
+      order: fokOrder,
+      accountPortfolio: createAccountPortfolio(account, createPortfolio()),
+      buyingPower: createBuyingPower(10_000),
+      riskLimits: createRiskLimits({
+        maxOrderNotional: 5_000, maxPositionNotional: 10_000,
+        maxGrossExposure: 20_000, maxNetExposure: 15_000, maxDailyLoss: 1_000,
+      }),
+      orderNotional: 1_000, projectedPositionNotional: 1_000,
+      projectedGrossExposure: 1_000, projectedNetExposure: 1_000, dailyLoss: 0,
+    });
+    const execution = createExecution({
+      id: "EX-OMS-FOK", orderId: fokOrder.id, instrumentId,
+      side: "buy", quantity: 4, price: 100,
+      executedAt: "2026-10-03T12:01:00.000Z", commission: 0,
+    });
+    expect(() => processOmsExecution({
+      state: admitted.state, execution,
+      eventStore: new InMemoryExecutionEventStore(),
+      eventId: "EV-OMS-FOK", recordedAt: "2026-10-03T12:01:01.000Z",
+    })).toThrow("fok order requires a complete fill");
   });
 
   it("cancels and releases the remaining reservation", () => {
