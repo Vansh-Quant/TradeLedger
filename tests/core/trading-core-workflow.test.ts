@@ -131,6 +131,41 @@ describe("trading core workflow", () => {
     expect(eventStore.hasExecution("EXE-001")).toBe(true);
   });
 
+  it("automatically cancels an IOC remainder after a partial fill", () => {
+    const order = createOrder({
+      id: "ORD-IOC", accountId: account.id, instrumentId,
+      side: "buy", type: "limit", quantity: 10, limitPrice: 100,
+      timeInForce: "ioc", createdAt: "2026-10-01T10:00:00Z",
+    });
+    const admitted = admitTradingOrder({
+      order,
+      accountPortfolio: createAccountPortfolio(account, createPortfolio()),
+      buyingPower: { totalCapacity: 5_000, reservedCapacity: 0 },
+      riskLimits,
+      orderNotional: 1_000,
+      projectedPositionNotional: 1_000,
+      projectedGrossExposure: 1_000,
+      projectedNetExposure: 1_000,
+      dailyLoss: 0,
+    });
+    const result = processTradingExecution({
+      state: admitted.state,
+      execution: createExecution({
+        id: "EXE-IOC", orderId: order.id, instrumentId,
+        side: "buy", quantity: 4, price: 100,
+        executedAt: "2026-10-01T10:01:00Z", commission: 1,
+      }),
+      eventStore: new InMemoryExecutionEventStore(),
+      eventId: "EVT-IOC", recordedAt: "2026-10-01T10:02:00Z",
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.state.order.status).toBe("cancelled");
+    expect(result.state.order.filledQuantity).toBe(4);
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+    expect(result.state.reservation?.remainingAmount).toBe(0);
+  });
+
   it("keeps duplicate execution idempotent at the trading-core boundary", () => {
     const admitted = makeAdmission();
     const eventStore = new InMemoryExecutionEventStore();
