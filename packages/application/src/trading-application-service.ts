@@ -72,8 +72,8 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
-    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),\n    private readonly events: ApplicationEventPort = new InMemoryApplicationEventBus(),
-  ) {}
+    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),\n    private readonly events: ApplicationEventPort,
+  */
 
   submitOrderFromIntent(command: Omit<SubmitOrderCommand, "orderNotional" | "projectedPositionNotional" | "projectedGrossExposure" | "projectedNetExposure" | "dailyLoss">): SubmitOrderResult {
     const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
