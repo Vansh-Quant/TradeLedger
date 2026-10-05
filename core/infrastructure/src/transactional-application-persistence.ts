@@ -168,14 +168,14 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
   decode(value) {
     const raw = objectRecord(value, "applicationSnapshot");
     if (raw.version !== 1) throw new PersistenceError("application snapshot version is unsupported");
-    if (!Array.isArray(raw.orders) || !Array.isArray(raw.contexts) || !Array.isArray(raw.mutations) || !Array.isArray(raw.auditEvents) || !Array.isArray(raw.applicationEvents)) {
+    if (!Array.isArray(raw.orders) || !Array.isArray(raw.contexts) || !Array.isArray(raw.mutations) || !Array.isArray(raw.auditEvents)) {
       throw new PersistenceError("application snapshot collections are invalid");
     }
     const orders = raw.orders.map((item) => orderCodecFactory().decode(item));
     const contexts = raw.contexts.map((item) => contextCodecFactory().decode(item));
     const mutations = raw.mutations.map(validateMutation);
     const auditEvents = raw.auditEvents.map(validateAudit);
-    const applicationEvents = raw.applicationEvents.map(validateApplicationEvent);
+    const applicationEvents = (raw.applicationEvents === undefined ? [] : raw.applicationEvents).map(validateApplicationEvent);
     const orderIds = new Set<string>();
     for (const state of orders) {
       if (orderIds.has(state.order.id)) throw new PersistenceError("duplicate persisted order id");
