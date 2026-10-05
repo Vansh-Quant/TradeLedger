@@ -130,6 +130,19 @@ The default adapters remain in-memory for lightweight use and tests. The transac
 - A browser framework/bundler, WebSockets, live market data, professional charts, strategy tooling, and AI/JARVIS remain deferred.
 - See `docs/architecture/ADR-024-trading-workstation-ui.md` for the accepted boundary.
 
+## OMS Hardening — In Progress
+
+- Added fail-closed order state invariants for hydrated/mutated lifecycle state.
+- Lifecycle operations now reject impossible filled quantities and inconsistent terminal state.
+- Durable application audit hydration now accepts the full application action set, including execution recording and market-data reads.
+- Added persistence regression coverage for execution audit events across adapter recreation.
+- Expiry now releases outstanding buying-power reservations, including partially filled remainders.
+- IOC executions automatically cancel any unfilled remainder after an applied partial fill.
+- FOK executions reject partial fills and require the complete remaining quantity.
+- Lifecycle transitions now permit partially filled orders to expire while preserving applied fills.
+- The typed API client now accepts trading intent only; authoritative admission/risk fields cannot be supplied by the workstation client.
+
 ## Next
 
+- Run the complete local validation suite on the hardening branch, then integrate the finished OMS chunk.
 - Production authentication provider integration

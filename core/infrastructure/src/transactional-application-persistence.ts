@@ -103,7 +103,13 @@ function validateAudit(value: unknown): AuditEvent {
   const outcome = nonEmpty(raw.outcome, "auditEvent.outcome", 16);
   if (outcome !== "success" && outcome !== "failure" && outcome !== "replay") throw new PersistenceError("auditEvent.outcome is invalid");
   const action = nonEmpty(raw.action, "auditEvent.action", 64);
-  if (action !== "order.submit" && action !== "order.cancel" && action !== "order.read") throw new PersistenceError("auditEvent.action is invalid");
+  if (
+    action !== "order.submit" &&
+    action !== "order.cancel" &&
+    action !== "order.read" &&
+    action !== "market-data.read" &&
+    action !== "execution.record"
+  ) throw new PersistenceError("auditEvent.action is invalid");
   return Object.freeze({
     id: nonEmpty(raw.id, "auditEvent.id", 128),
     type: nonEmpty(raw.type, "auditEvent.type", 128),

@@ -6,6 +6,7 @@ import {
   admitTradingOrder,
   completeTradingOrderCancellation,
   processTradingExecution,
+  expireTradingOrder,
   requestTradingOrderCancellation,
   type TradingCoreAdmissionInput,
   type TradingCoreState,
@@ -113,7 +114,7 @@ export function rejectOmsOrder(input: OmsRejectState): OmsRejectState {
 }
 
 export function expireOmsOrder(input: OmsOrderState): OmsOrderState {
-  return mapOrderState(input, "expired");
+  return expireTradingOrder(input);
 }
 
 export function processOmsExecution(

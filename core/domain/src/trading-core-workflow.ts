@@ -158,18 +158,69 @@ export function processTradingExecution(
     reservation = nextReservation;
   }
 
+  let nextState: TradingCoreState = Object.freeze({
+    order: result.state.order,
+    buyingPower,
+    ...(reservation === undefined ? {} : { reservation }),
+    reconciliation: result.state,
+  });
+
+  // IOC semantics: any unfilled remainder is cancelled immediately after an
+  // applied partial execution. The fill remains authoritative; only the
+  // outstanding reservation is released.
+  if (
+    result.applied &&
+    nextState.order.timeInForce === "ioc" &&
+    nextState.order.status === "partially_filled"
+  ) {
+    nextState = completeTradingOrderCancellation(
+      requestTradingOrderCancellation(nextState),
+    );
+  }
+
   return Object.freeze({
-    state: Object.freeze({
-      order: result.state.order,
-      buyingPower,
-      ...(reservation === undefined ? {} : { reservation }),
-      reconciliation: result.state,
-    }),
+    state: nextState,
     applied: result.applied,
     duplicate: result.duplicate,
   });
 }
 
+
+export function expireTradingOrder(
+  state: TradingCoreState,
+): TradingCoreState {
+  const order = transitionOrder(state.order, "expired");
+  const reservation = state.reservation;
+
+  if (reservation === undefined) {
+    return Object.freeze({
+      ...state,
+      order,
+      reconciliation: createExecutionReconciliation(
+        order,
+        state.reconciliation.accountPortfolio,
+      ),
+    });
+  }
+
+  const releasedReservation = releaseRemainingOrderReservation(reservation);
+  const buyingPower = applyReservationRelease(
+    state.buyingPower,
+    reservation,
+    releasedReservation,
+  );
+
+  return Object.freeze({
+    ...state,
+    order,
+    buyingPower,
+    reservation: releasedReservation,
+    reconciliation: createExecutionReconciliation(
+      order,
+      state.reconciliation.accountPortfolio,
+    ),
+  });
+}
 
 export function requestTradingOrderCancellation(
   state: TradingCoreState,

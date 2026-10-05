@@ -226,6 +226,24 @@ describe("transactional application persistence", () => {
     )).toEqual({ orderId: "ORD-TX-2" });
   });
 
+  it("persists execution audit events across adapter recreation", () => {
+    const directory = root();
+    const persistence = new TransactionalApplicationPersistence(directory);
+    persistence.execute(() => persistence.append({
+      id: "evt-execution-1",
+      type: "execution.record.completed",
+      timestamp: "2026-10-04T00:00:00.000Z",
+      principalId: "user-1",
+      accountId: "ACC-TX" as AccountId,
+      action: "execution.record",
+      requestId: "req-execution-1",
+      idempotencyKey: "execution-audit-1",
+      outcome: "success",
+    }));
+
+    expect(() => new TransactionalApplicationPersistence(directory)).not.toThrow();
+  });
+
   it("persists authorization-denied audit events without credentials", () => {
     const directory = root();
     const persistence = new TransactionalApplicationPersistence(directory);
