@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -135,6 +135,41 @@ export class DurableJsonStore<T> {
       if (error instanceof PersistenceError) throw error;
       throw new PersistenceError("failed to persist state: " + (error instanceof Error ? error.message : "unknown error"));
     }
+  }
+
+  list(): readonly T[] {
+    const directory = this.collectionDirectory();
+    try {
+      this.assertRegularFile(directory);
+    } catch (error) {
+      if (error instanceof PersistenceError && error.message === "persisted state must be a regular file") {
+        // A collection directory is expected to be a directory, not a file.
+      }
+    }
+
+    try {
+      const info = lstatSync(directory);
+      if (info.isSymbolicLink()) throw new PersistenceError("storage collection must not be a symbolic link");
+      if (!info.isDirectory()) throw new PersistenceError("storage collection must be a directory");
+    } catch (error) {
+      if (error instanceof PersistenceError) throw error;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw new PersistenceError("storage collection could not be inspected");
+    }
+
+    const entries = readdirSync(directory, { withFileTypes: true });
+    const values: T[] = [];
+    for (const entry of entries) {
+      if (!entry.name.endsWith(".json")) continue;
+      const key = entry.name.slice(0, -5);
+      safeSegment(key, "storage key");
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new PersistenceError("persisted state must not be a symbolic link");
+      if (!entry.isFile()) throw new PersistenceError("persisted state must be a regular file");
+      const value = this.get(key);
+      if (value !== undefined) values.push(value);
+    }
+    return Object.freeze(values);
   }
 
   get(key: string): T | undefined {
