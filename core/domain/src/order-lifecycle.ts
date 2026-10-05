@@ -6,7 +6,7 @@ const ALLOWED_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>>
   created: ["submitted", "cancelled", "rejected", "expired"],
   submitted: ["acknowledged", "cancel_requested", "rejected", "expired"],
   acknowledged: ["partially_filled", "filled", "cancel_requested", "rejected", "expired"],
-  partially_filled: ["filled", "cancel_requested"],
+  partially_filled: ["filled", "cancel_requested", "expired"],
   filled: [],
   cancel_requested: ["cancelled", "filled"],
   cancelled: [],
@@ -55,6 +55,9 @@ export function recordOrderFill(order: Order, fillQuantity: number): Order {
   const remainingQuantity = order.quantity - order.filledQuantity;
   if (fillQuantity > remainingQuantity) {
     throw new Error("fillQuantity cannot exceed remaining order quantity");
+  }
+  if (order.timeInForce === "fok" && fillQuantity !== remainingQuantity) {
+    throw new Error("fok order requires a complete fill");
   }
   if (order.status !== "acknowledged" && order.status !== "partially_filled" && order.status !== "cancel_requested") {
     throw new Error("cannot record fill for order from status " + order.status);
