@@ -196,6 +196,7 @@ async function route(
     const writeEvent = (event: import("@tradeledger/application").ApplicationEvent): void => {
       if (closed || response.writableEnded || response.destroyed) return;
       response.write(`id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(jsonSafe(event))}\n\n`);
+      if (response.writableLength > 1024 * 1024) response.destroy();
     };
 
     const unsubscribe = deps.application.subscribeToEvents(principal, accountId, (event) => {
