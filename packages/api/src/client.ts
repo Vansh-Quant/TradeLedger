@@ -1,4 +1,5 @@
 import type { MarketDataState } from "@tradeledger/domain";
+import type { ApplicationEvent } from "@tradeledger/application";
 import type {
   CancelOrderResult,
   GetOrderResult,
@@ -26,6 +27,76 @@ export class TradeLedgerApiClient {
     this.getToken = options.getToken ?? (() => undefined);
   }
 
+
+  openEventStream(
+    accountId: string,
+    afterSequence: number,
+    onEvent: (event: ApplicationEvent) => void,
+  ): { readonly close: () => void; readonly completion: Promise<void> } {
+    const controller = new AbortController();
+    const completion = (async () => {
+      const token = this.getToken();
+      const headers = new Headers({ accept: "text/event-stream" });
+      if (token !== undefined) headers.set("authorization", `Bearer ${token}`);
+      const response = await fetch(
+        this.baseUrl + `/api/v1/events?accountId=${encodeURIComponent(accountId)}&after=${afterSequence}`,
+        { headers, signal: controller.signal },
+      );
+      if (!response.ok || response.body === null) {
+        throw new Error(`event stream failed with HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let eventId = "";
+      let eventType = "";
+      let data = "";
+
+      const dispatch = (): void => {
+        if (data.length === 0) return;
+        const parsed = JSON.parse(data) as ApplicationEvent;
+        if (eventId.length > 0 && parsed.sequence !== Number(eventId)) {
+          throw new Error("event stream sequence mismatch");
+        }
+        if (eventType.length > 0 && parsed.type !== eventType) {
+          throw new Error("event stream type mismatch");
+        }
+        onEvent(parsed);
+        eventId = "";
+        eventType = "";
+        data = "";
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const rawLine of lines) {
+          const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+          if (line.length === 0) {
+            dispatch();
+            continue;
+          }
+          if (line.startsWith(":")) continue;
+          const separator = line.indexOf(":");
+          const field = separator < 0 ? line : line.slice(0, separator);
+          const valuePart = separator < 0 ? "" : line.slice(separator + 1).replace(/^ /, "");
+          if (field === "id") eventId = valuePart;
+          else if (field === "event") eventType = valuePart;
+          else if (field === "data") data += (data.length === 0 ? "" : "\n") + valuePart;
+        }
+      }
+      dispatch();
+    })();
+
+    return {
+      close: () => controller.abort(),
+      completion,
+    };
+  }
 
   async listMarketData(accountId: string): Promise<{ readonly states: readonly MarketDataState[] }> {
     return this.request<{ readonly states: readonly MarketDataState[] }>(
