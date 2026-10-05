@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import type { ApplicationPrincipal } from "@tradeledger/application";
-import { AuthorizationError } from "@tradeledger/application";
+import { AuthenticationError } from "@tradeledger/application";
 import type { ApiRequest, RateLimitPolicy } from "./types.js";
 
 export const DEFAULT_MAX_BODY_BYTES = 32 * 1024;
@@ -24,11 +24,11 @@ export function staticBearerAuthenticator(
 ): (request: ApiRequest) => Promise<ApplicationPrincipal> {
   return async (request) => {
     const token = bearerToken(request.headers);
-    if (token === undefined) throw new AuthorizationError();
+    if (token === undefined) throw new AuthenticationError();
     for (const [expected, principal] of tokens) {
       if (constantTimeTokenEquals(token, expected)) return principal;
     }
-    throw new AuthorizationError();
+    throw new AuthenticationError();
   };
 }
 
