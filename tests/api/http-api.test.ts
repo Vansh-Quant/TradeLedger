@@ -207,6 +207,67 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("replays an execution mutation with the correct HTTP semantics", async () => {
+    await withServer(async (baseUrl) => {
+      const orderResponse = await fetch(baseUrl + "/api/v1/orders", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "http-execution-replay-order",
+        },
+        body: orderBody(),
+      });
+      const order = await orderResponse.json();
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "http-execution-replay-1",
+      };
+      const body = JSON.stringify({
+        accountId: "ACC-API", orderId: order.order.id, executionId: "EXE-HTTP-REPLAY-001",
+        instrumentId: "AAPL", side: "buy", quantity: 4, price: 100,
+        executedAt: "2026-10-04T10:03:00Z", commission: 1,
+      });
+      const first = await fetch(baseUrl + "/api/v1/executions", { method: "POST", headers, body });
+      const second = await fetch(baseUrl + "/api/v1/executions", { method: "POST", headers, body });
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(200);
+      const firstBody = await first.json();
+      const secondBody = await second.json();
+      expect(firstBody.applied).toBe(true);
+      expect(firstBody.duplicate).toBe(false);
+      expect(secondBody.applied).toBe(false);
+      expect(secondBody.duplicate).toBe(true);
+      expect(secondBody.order.filledQuantity).toBe(4);
+    });
+  });
+
+  it("rejects execution idempotency-key reuse with a different payload", async () => {
+    await withServer(async (baseUrl) => {
+      const orderResponse = await fetch(baseUrl + "/api/v1/orders", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "http-execution-conflict-order",
+        },
+        body: orderBody(),
+      });
+      const order = await orderResponse.json();
+      const headers = {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "http-execution-conflict-1",
+      };
+      const base = { accountId: "ACC-API", orderId: order.order.id, instrumentId: "AAPL", side: "buy", price: 100, executedAt: "2026-10-04T10:04:00Z", commission: 1 };
+      const firstBody = JSON.stringify({ ...base, executionId: "EXE-HTTP-CONFLICT-001", quantity: 4 });
+      const conflictingBody = JSON.stringify({ ...base, executionId: "EXE-HTTP-CONFLICT-001", quantity: 5 });
+      expect((await fetch(baseUrl + "/api/v1/executions", { method: "POST", headers, body: firstBody })).status).toBe(201);
+      const conflict = await fetch(baseUrl + "/api/v1/executions", { method: "POST", headers, body: conflictingBody });
+      expect(conflict.status).toBe(409);
+    });
+  });
   it("records executions through the typed workstation client", async () => {
     const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
     await withServer(async (baseUrl) => {
