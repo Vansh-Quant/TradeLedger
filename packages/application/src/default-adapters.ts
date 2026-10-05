@@ -187,8 +187,14 @@ export class InMemoryApplicationEventBus implements ApplicationEventPort {
   private readonly subscribers = new Set<(event: ApplicationEvent) => void>();
 
   publish(event: ApplicationEvent): void {
-    this.events.push(Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) }));
-    for (const subscriber of this.subscribers) subscriber(event);
+    const expected = this.latestSequence() + 1;
+    if (event.sequence !== expected) throw new ValidationError("application event sequence is not contiguous");
+    if (this.events.some((existing) => existing.eventId === event.eventId)) {
+      throw new ValidationError("duplicate application event id");
+    }
+    const stored = Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) });
+    this.events.push(stored);
+    for (const subscriber of this.subscribers) subscriber(stored);
   }
 
   subscribe(subscriber: (event: ApplicationEvent) => void): () => void {
