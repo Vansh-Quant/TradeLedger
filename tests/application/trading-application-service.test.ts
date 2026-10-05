@@ -246,6 +246,29 @@ describe("trading application service", () => {
     ]);
   });
 
+  it("streams only authorized account events and unsubscribes cleanly", () => {
+    const { application, events } = service([
+      "user-1:order.submit:ACC-APP",
+      "user-1:order.read:ACC-APP",
+      "user-1:event-stream.read:ACC-APP",
+    ]);
+    const received: string[] = [];
+    const unsubscribe = application.subscribeToEvents(principal, "ACC-APP", (event) => received.push(event.eventId));
+    application.submitOrder({ ...command(), requestId: "req-stream-1" });
+    expect(received).toHaveLength(1);
+    unsubscribe();
+    application.submitOrder({ ...command(), requestId: "req-stream-2" });
+    expect(received).toHaveLength(1);
+    expect(application.listEventsAfter(principal, "ACC-APP", 0)).toHaveLength(2);
+    expect(events.latestSequence()).toBe(2);
+  });
+
+  it("denies event subscriptions without the event-stream permission", () => {
+    const { application } = service();
+    expect(() => application.subscribeToEvents(principal, "ACC-APP", () => undefined)).toThrowError("not authorized");
+    expect(() => application.listEventsAfter(principal, "ACC-APP", 0)).toThrowError("not authorized");
+  });
+
   it("preserves immutable state across command execution", () => {
     const { application, orders } = service();
 
