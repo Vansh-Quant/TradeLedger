@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
-  InMemoryAuditEventStore,\n  InMemoryApplicationEventBus,
+  InMemoryAuditEventStore,
+  InMemoryApplicationEventBus,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   TradingApplicationService,
@@ -50,6 +51,7 @@ function service(
 ) {
   const orders = new InMemoryOrderStateStore();
   const audit = new InMemoryAuditEventStore();
+  const events = new InMemoryApplicationEventBus();
   const tradingContext = new InMemoryTradingContext([context]);
   const application = new TradingApplicationService(
     tradingContext,
@@ -59,8 +61,12 @@ function service(
     fixedClock("2026-10-03T12:00:00.000Z"),
     undefined,
     audit,
+    undefined,
+    undefined,
+    undefined,
+    events,
   );
-  const events = new InMemoryApplicationEventBus();\n  const wiredApplication = new TradingApplicationService(\n    tradingContext, orders, new AllowListedAuthorization(permissions), fixedOrderIdGenerator("ORD-APP-001"),\n    fixedClock("2026-10-03T12:00:00.000Z"), undefined, audit, undefined, undefined, undefined, events,\n  );\n  return { application: wiredApplication, orders, audit, events };
+  return { application, orders, audit, events };
 }
 
 function command() {
