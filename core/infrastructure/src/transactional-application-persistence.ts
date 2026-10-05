@@ -6,6 +6,8 @@ import type {
 } from "@tradeledger/domain";
 import type {
   ApplicationTransactionPort,
+  ApplicationEvent,
+  ApplicationEventPort,
   AuditEvent,
   AuditEventPort,
   MutationIdempotencyPort,
@@ -28,6 +30,7 @@ interface ApplicationSnapshot {
   readonly contexts: TradingContext[];
   readonly mutations: MutationRecord[];
   readonly auditEvents: AuditEvent[];
+  readonly applicationEvents: ApplicationEvent[];
 }
 
 function objectRecord(value: unknown, field: string): Record<string, unknown> {
@@ -98,6 +101,30 @@ function validateMutation(value: unknown): MutationRecord {
   });
 }
 
+function validateApplicationEvent(value: unknown): ApplicationEvent {
+  const raw = objectRecord(value, "applicationEvent");
+  const type = nonEmpty(raw.type, "applicationEvent.type", 64);
+  if (!["order.submitted", "order.cancel.requested", "order.cancelled", "execution.recorded"].includes(type)) throw new PersistenceError("applicationEvent.type is invalid");
+  const aggregateType = nonEmpty(raw.aggregateType, "applicationEvent.aggregateType", 32);
+  if (aggregateType !== "order" && aggregateType !== "execution") throw new PersistenceError("applicationEvent.aggregateType is invalid");
+  if (!Number.isSafeInteger(raw.sequence) || (raw.sequence as number) <= 0) throw new PersistenceError("applicationEvent.sequence is invalid");
+  const payload = objectRecord(raw.payload, "applicationEvent.payload");
+  for (const [key, item] of Object.entries(payload)) {
+    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key) || (typeof item !== "string" && typeof item !== "number") || (typeof item === "number" && !Number.isFinite(item))) throw new PersistenceError("applicationEvent.payload is invalid");
+  }
+  return Object.freeze({
+    eventId: nonEmpty(raw.eventId, "applicationEvent.eventId", 128),
+    type: type as ApplicationEvent["type"],
+    occurredAt: timestamp(raw.occurredAt, "applicationEvent.occurredAt"),
+    accountId: nonEmpty(raw.accountId, "applicationEvent.accountId") as AccountId,
+    aggregateType: aggregateType as ApplicationEvent["aggregateType"],
+    aggregateId: nonEmpty(raw.aggregateId, "applicationEvent.aggregateId", 128),
+    requestId: nonEmpty(raw.requestId, "applicationEvent.requestId", 128),
+    sequence: raw.sequence as number,
+    payload: Object.freeze({ ...payload } as Readonly<Record<string, string | number>>),
+  });
+}
+
 function validateAudit(value: unknown): AuditEvent {
   const raw = objectRecord(value, "auditEvent");
   const outcome = nonEmpty(raw.outcome, "auditEvent.outcome", 16);
@@ -135,18 +162,20 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
         ...(mutation.result === undefined ? {} : { result: encodeJsonValue(mutation.result) }),
       })),
       auditEvents: value.auditEvents,
+      applicationEvents: value.applicationEvents,
     };
   },
   decode(value) {
     const raw = objectRecord(value, "applicationSnapshot");
     if (raw.version !== 1) throw new PersistenceError("application snapshot version is unsupported");
-    if (!Array.isArray(raw.orders) || !Array.isArray(raw.contexts) || !Array.isArray(raw.mutations) || !Array.isArray(raw.auditEvents)) {
+    if (!Array.isArray(raw.orders) || !Array.isArray(raw.contexts) || !Array.isArray(raw.mutations) || !Array.isArray(raw.auditEvents) || !Array.isArray(raw.applicationEvents)) {
       throw new PersistenceError("application snapshot collections are invalid");
     }
     const orders = raw.orders.map((item) => orderCodecFactory().decode(item));
     const contexts = raw.contexts.map((item) => contextCodecFactory().decode(item));
     const mutations = raw.mutations.map(validateMutation);
     const auditEvents = raw.auditEvents.map(validateAudit);
+    const applicationEvents = raw.applicationEvents.map(validateApplicationEvent);
     const orderIds = new Set<string>();
     for (const state of orders) {
       if (orderIds.has(state.order.id)) throw new PersistenceError("duplicate persisted order id");
@@ -157,12 +186,20 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
       if (contextIds.has(context.accountId)) throw new PersistenceError("duplicate persisted account context");
       contextIds.add(context.accountId);
     }
+    const eventIds = new Set<string>();
+    let previousSequence = 0;
+    for (const event of applicationEvents) {
+      if (eventIds.has(event.eventId)) throw new PersistenceError("duplicate persisted application event id");
+      if (event.sequence !== previousSequence + 1) throw new PersistenceError("application event sequence is not contiguous");
+      eventIds.add(event.eventId);
+      previousSequence = event.sequence;
+    }
     const mutationKeys = new Set<string>();
     for (const mutation of mutations) {
       if (mutationKeys.has(mutation.key)) throw new PersistenceError("duplicate persisted idempotency key");
       mutationKeys.add(mutation.key);
     }
-    return Object.freeze({ version: 1, orders, contexts, mutations, auditEvents });
+    return Object.freeze({ version: 1, orders, contexts, mutations, auditEvents, applicationEvents });
   },
 };
 
@@ -171,16 +208,18 @@ interface StateCopy {
   contexts: Map<string, TradingContext>;
   mutations: Map<string, MutationRecord>;
   auditEvents: AuditEvent[];
+  applicationEvents: ApplicationEvent[];
 }
 
 export class TransactionalApplicationPersistence
-  implements ApplicationTransactionPort, OrderStatePort, TradingContextPort, MutationIdempotencyPort, AuditEventPort {
+  implements ApplicationTransactionPort, OrderStatePort, TradingContextPort, MutationIdempotencyPort, AuditEventPort, ApplicationEventPort {
   private readonly store: DurableJsonStore<ApplicationSnapshot>;
   private readonly lockPath: string;
   private orders = new Map<string, TradingCoreState>();
   private contexts = new Map<string, TradingContext>();
   private mutations = new Map<string, MutationRecord>();
   private auditEvents: AuditEvent[] = [];
+  private applicationEvents: ApplicationEvent[] = [];
   private inTransaction = false;
 
   constructor(rootDirectory: string) {
@@ -236,6 +275,23 @@ export class TransactionalApplicationPersistence
 
   append(event: AuditEvent): void {
     this.auditEvents.push(Object.freeze({ ...event }));
+  }
+
+  publish(event: ApplicationEvent): void {
+    if (!this.inTransaction) throw new PersistenceError("application events must be published inside a transaction");
+    const expected = this.applicationEvents.length + 1;
+    if (event.sequence !== expected) throw new PersistenceError("application event sequence is not contiguous");
+    if (this.applicationEvents.some((existing) => existing.eventId === event.eventId)) throw new PersistenceError("duplicate application event id");
+    this.applicationEvents.push(Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) }));
+  }
+
+  latestSequence(): number {
+    return this.applicationEvents.length;
+  }
+
+  listAfterSequence(sequence: number): readonly ApplicationEvent[] {
+    if (!Number.isSafeInteger(sequence) || sequence < 0) throw new PersistenceError("sequence must be a non-negative integer");
+    return Object.freeze(this.applicationEvents.filter((event) => event.sequence > sequence).slice());
   }
 
   executeOnce<T>(
@@ -309,6 +365,7 @@ export class TransactionalApplicationPersistence
     this.contexts = new Map(snapshot?.contexts.map((context) => [context.accountId, context]) ?? []);
     this.mutations = new Map(snapshot?.mutations.map((mutation) => [mutation.key, mutation]) ?? []);
     this.auditEvents = [...(snapshot?.auditEvents ?? [])];
+    this.applicationEvents = [...(snapshot?.applicationEvents ?? [])];
   }
 
   private persist(): void {
@@ -318,6 +375,7 @@ export class TransactionalApplicationPersistence
       contexts: [...this.contexts.values()],
       mutations: [...this.mutations.values()],
       auditEvents: this.auditEvents,
+      applicationEvents: this.applicationEvents,
     });
   }
 
