@@ -5,7 +5,7 @@ import type {
 } from "@tradeledger/domain";
 import type {
   AuditEvent,
-  AuditEventPort,
+  AuditEventPort,\n  ApplicationEvent,\n  ApplicationEventPort,
   ApplicationTransactionPort,
   AuthorizationPort,
   ApplicationAction,
@@ -176,5 +176,30 @@ export class InMemoryAuditEventStore implements AuditEventPort {
 export class InMemoryApplicationTransaction implements ApplicationTransactionPort {
   execute<T>(operation: () => T): T {
     return operation();
+  }
+}
+
+
+export class InMemoryApplicationEventBus implements ApplicationEventPort {
+  private readonly events: ApplicationEvent[] = [];
+  private readonly subscribers = new Set<(event: ApplicationEvent) => void>();
+
+  publish(event: ApplicationEvent): void {
+    this.events.push(Object.freeze({ ...event, payload: Object.freeze({ ...event.payload }) }));
+    for (const subscriber of this.subscribers) subscriber(event);
+  }
+
+  subscribe(subscriber: (event: ApplicationEvent) => void): () => void {
+    this.subscribers.add(subscriber);
+    return () => this.subscribers.delete(subscriber);
+  }
+
+  listAfterSequence(sequence: number): readonly ApplicationEvent[] {
+    if (!Number.isInteger(sequence) || sequence < 0) throw new ValidationError("sequence must be a non-negative integer");
+    return Object.freeze(this.events.filter((event) => event.sequence > sequence).slice());
+  }
+
+  latestSequence(): number {
+    return this.events.length === 0 ? 0 : this.events[this.events.length - 1]!.sequence;
   }
 }
