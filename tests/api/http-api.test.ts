@@ -60,6 +60,7 @@ function application() {
       "api-user:order.cancel:ACC-API",
       "api-user:market-data.read:ACC-API",
       "api-user:execution.record:ACC-API",
+      "api-user:event-stream.read:ACC-API",
     ]),
     fixedOrderIdGenerator("ORD-API-001"),
     fixedClock("2026-10-03T12:00:00.000Z"),
@@ -72,7 +73,7 @@ function application() {
 }
 
 function auth() {
-  return staticBearerAuthenticator(new Map([["test-token", principal]]));
+  return staticBearerAuthenticator(new Map([["test-token", principal], ["restricted-token", { id: "restricted-user", roles: ["viewer"] }]]));
 }
 
 function orderBody(quantity = 10) {
@@ -303,6 +304,37 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("streams account events through the authenticated SSE boundary", async () => {
+    const { TradeLedgerApiClient } = await import("../../packages/api/src/client.js");
+    await withServer(async (baseUrl) => {
+      const client = new TradeLedgerApiClient({ baseUrl, getToken: () => "test-token" });
+      let closeStream: (() => void) | undefined;
+      const received = new Promise<import("@tradeledger/application").ApplicationEvent>((resolve) => {
+        const stream = client.openEventStream("ACC-API", 0, (event) => { resolve(event); closeStream?.(); });
+        closeStream = stream.close;
+        void stream.completion.catch(() => undefined);
+      });
+      const orderResponse = await fetch(baseUrl + "/api/v1/orders", {
+        method: "POST",
+        headers: { authorization: "Bearer test-token", "content-type": "application/json", "idempotency-key": "sse-order-1" },
+        body: orderBody(),
+      });
+      expect(orderResponse.status).toBe(201);
+      const event = await received;
+      expect(event.type).toBe("order.submitted");
+      expect(event.accountId).toBe("ACC-API");
+      expect(event.sequence).toBe(1);
+    });
+  });
+
+  it("denies an event stream without account event permission", async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(baseUrl + "/api/v1/events?accountId=ACC-API&after=0", {
+        headers: { authorization: "Bearer restricted-token" },
+      });
+      expect(response.status).toBe(403);
+    });
+  });
   it("supports explicit CORS preflight for an allowed workstation origin", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/accounts/ACC-API/context`, {
