@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:node": "vite build",
+    "start:node": "node .output/server/index.mjs",
+    "preview:nitro": "nitro preview"
   },
   "overrides": {
     "rolldown": "1.2.1"
