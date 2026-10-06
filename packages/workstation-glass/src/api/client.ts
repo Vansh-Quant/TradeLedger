@@ -1,7 +1,7 @@
 import { getApiConfig } from "./config";
 import {
   ApiError, type AccountContext, type Execution, type Order, type Position,
-  type SubmitOrderIntent,
+  type SubmitOrderIntent, type WorkstationDemoData,
 } from "./types";
 
 // Single entry point for all TradeLedger HTTP communication.
@@ -134,6 +134,7 @@ function normContext(raw: unknown, accountId: string): AccountContext {
 export const api = {
   health: () => request<unknown>("/health"),
   ready: () => request<unknown>("/ready"),
+  workstationDemo: (accountId: string) => request<WorkstationDemoData>(`/api/v1/workstation/demo?accountId=${encodeURIComponent(accountId)}`),
   accountContext: async (accountId: string) =>
     normContext(await request<unknown>(`/api/v1/accounts/${encodeURIComponent(accountId)}/context`), accountId),
   orders: async (accountId: string) => {
