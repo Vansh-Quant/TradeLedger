@@ -1,0 +1,142 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-magenta: var(--magenta);
+  --color-cyan: var(--cyan);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+}
+
+:root {
+  --radius: 0.375rem;
+  --background: oklch(0.13 0.025 295);
+  --foreground: oklch(0.94 0.01 300);
+  --card: oklch(0.17 0.035 295);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.18 0.04 295);
+  --popover-foreground: var(--foreground);
+  --panel: oklch(0.165 0.035 295 / 0.82);
+  --panel-2: oklch(0.2 0.045 295);
+  --primary: oklch(0.6 0.25 295);
+  --primary-foreground: oklch(0.98 0.01 300);
+  --secondary: oklch(0.22 0.045 295);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.21 0.035 295);
+  --muted-foreground: oklch(0.68 0.04 295);
+  --accent: oklch(0.26 0.07 295);
+  --accent-foreground: var(--foreground);
+  --magenta: oklch(0.65 0.27 335);
+  --cyan: oklch(0.78 0.14 210);
+  --positive: oklch(0.8 0.17 160);
+  --negative: oklch(0.66 0.23 15);
+  --warning: oklch(0.8 0.16 75);
+  --destructive: var(--negative);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.32 0.05 295 / 0.6);
+  --input: oklch(0.3 0.05 295);
+  --ring: var(--primary);
+  --gradient-primary: linear-gradient(90deg, var(--primary), oklch(0.7 0.16 250));
+  --glow-primary: 0 0 24px -8px color-mix(in oklab, var(--primary) 55%, transparent);
+  --surface-edge: linear-gradient(180deg, oklch(1 0 0 / 0.09), oklch(1 0 0 / 0.015) 40%, transparent);
+  --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 0.04) inset, 0 12px 32px -16px oklch(0.05 0.03 295 / 0.9), 0 2px 6px -2px oklch(0.05 0.03 295 / 0.6);
+  --shadow-panel-hover: 0 1px 0 0 oklch(1 0 0 / 0.06) inset, 0 20px 44px -18px oklch(0.05 0.03 295 / 0.95), 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 80% -15%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, color-mix(in oklab, var(--cyan) 5%, transparent), transparent 60%),
+      radial-gradient(600px 400px at 40% 50%, color-mix(in oklab, var(--primary) 4%, transparent), transparent 70%),
+      var(--background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(oklch(1 0 0 / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 60% 20%, black, transparent 75%);
+  }
+  #root, body > div { position: relative; z-index: 1; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+}
+
+@utility panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, oklch(0.2 0.04 295 / 0.55), oklch(0.15 0.03 295 / 0.75));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  backdrop-filter: blur(14px) saturate(130%);
+  box-shadow: var(--shadow-panel);
+  transition: box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease;
+  &::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: var(--surface-edge);
+    mask: linear-gradient(black, black) content-box, linear-gradient(black, black);
+    padding: 1px; mask-composite: exclude;
+  }
+}
+@utility panel-hover {
+  &:hover { box-shadow: var(--shadow-panel-hover); border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); }
+}
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+@utility label-caps { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 500; }
+@utility bg-gradient-primary { background-image: var(--gradient-primary); }
+@utility glow-primary { box-shadow: var(--glow-primary); }
+
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes wave { 0%,100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 currentColor; } 100% { box-shadow: 0 0 0 5px transparent; } }
+@utility animate-orb { animation: orb-spin 8s linear infinite; }
+@utility animate-wave { animation: wave 1.2s ease-in-out infinite; transform-origin: bottom; }
+@utility animate-page { animation: fade-up 220ms ease-out; }
+@utility animate-pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
