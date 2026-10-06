@@ -64,6 +64,7 @@ export function TradingChart({ symbol }: { symbol: string }) {
 /** Watchlist built from symbols the account actually holds. */
 export function Watchlist({ selected, onSelect }: { selected: string; onSelect: (s: string) => void }) {
   const q = useAccountContext();
+  const demo = useWorkstationDemo();
   const [add, setAdd] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
   return (
@@ -77,10 +78,13 @@ export function Watchlist({ selected, onSelect }: { selected: string; onSelect: 
       </div>
       <div className="flex-1 overflow-auto">
         {extra.map((s) => <WatchRow key={s} symbol={s} active={selected === s} onClick={() => onSelect(s)} />)}
-        {q.data?.positions.map((p) => (
+        {demo.data?.marketData.map((m) => (
+          <WatchRow key={m.symbol} symbol={m.symbol} last={m.last} active={selected === m.symbol} onClick={() => onSelect(m.symbol)} />
+        ))}
+        {q.data?.positions.filter((p) => !demo.data?.marketData.some((m) => m.symbol === p.symbol)).map((p) => (
           <WatchRow key={p.symbol} symbol={p.symbol} last={p.marketPrice} active={selected === p.symbol} onClick={() => onSelect(p.symbol)} />
         ))}
-        {!q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Held instruments appear here when connected.</p>}
+        {!demo.data && !q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load instruments.</p>}
       </div>
       <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Change, volume and market status require a market-data feed.</p>
     </div>
