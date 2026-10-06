@@ -1,21 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState, PageHeader, Panel } from "@/components/terminal/primitives";
+import { useWorkstationDemo } from "@/hooks/use-tradeledger";
+import { money, price, pct } from "@/lib/format";
+import { PageHeader, Panel, QueryView, DataTable, type Column } from "@/components/terminal/primitives";
 
-export const Route = createFileRoute("/market-data")({
-  head: () => ({ meta: [
-    { title: "Market Data — TradeLedger" },
-    { name: "description", content: "Market data feeds and instruments." },
-    { property: "og:title", content: "Market Data — TradeLedger" },
-    { property: "og:description", content: "Market data feeds and instruments." },
-  ] }),
-  component: MarketDataPage,
-});
+export const Route = createFileRoute("/market-data")({ component: MarketDataPage });
 
 function MarketDataPage() {
-  return (
-    <div>
-      <PageHeader title="Market Data" subtitle="Market data feeds and instruments." />
-      <Panel className="h-72"><EmptyState title="No API endpoint yet" detail="The TradeLedger API does not expose market data data yet. This workspace activates once the endpoint is available." /></Panel>
-    </div>
-  );
+  const q = useWorkstationDemo();
+  const cols: Column<(typeof q.data)["marketData"][number]>[] = [
+    { key: "s", header: "Symbol", cell: (r) => <span className="font-semibold">{r.symbol}</span> },
+    { key: "b", header: "Bid", align: "right", cell: (r) => price(r.bid) },
+    { key: "a", header: "Ask", align: "right", cell: (r) => price(r.ask) },
+    { key: "l", header: "Last", align: "right", cell: (r) => price(r.last) },
+    { key: "c", header: "Change", align: "right", cell: (r) => <span className={r.change >= 0 ? "text-positive" : "text-negative"}>{money(r.change, true)}</span> },
+    { key: "cp", header: "Change %", align: "right", cell: (r) => <span className={r.changePct >= 0 ? "text-positive" : "text-negative"}>{pct(r.changePct)}</span> },
+    { key: "v", header: "Volume", align: "right", cell: (r) => r.volume.toLocaleString() },
+    { key: "st", header: "Status", cell: (r) => <span className="text-positive">{r.status}</span> },
+  ];
+  return <div><PageHeader title="Market Data" subtitle="Development feed with deterministic quote snapshots for UI validation." /><Panel title="Live Instruments" className="h-[calc(100vh-9rem)]"><QueryView q={q} empty={(d) => d.marketData.length === 0}>{(d) => <DataTable rows={d.marketData} columns={cols} rowKey={(r) => r.symbol} />}</QueryView></Panel></div>;
 }
