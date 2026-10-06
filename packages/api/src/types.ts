@@ -25,4 +25,6 @@ export interface ApiServerOptions {
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
   readonly corsOrigins?: readonly string[];
+  /** Optional development-only workstation fixture provider. */
+  readonly workstationDemoData?: (accountId: string) => unknown;
 }
