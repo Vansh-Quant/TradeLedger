@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useWorkstationDemo } from "@/hooks/use-tradeledger";
+import type { WorkstationDemoData } from "@/api/types";
 import { money, price, pct } from "@/lib/format";
 import { PageHeader, Panel, QueryView, DataTable, type Column } from "@/components/terminal/primitives";
 
@@ -7,7 +8,7 @@ export const Route = createFileRoute("/market-data")({ component: MarketDataPage
 
 function MarketDataPage() {
   const q = useWorkstationDemo();
-  const cols: Column<(typeof q.data)["marketData"][number]>[] = [
+  const cols: Column<WorkstationDemoData["marketData"][number]>[] = [
     { key: "s", header: "Symbol", cell: (r) => <span className="font-semibold">{r.symbol}</span> },
     { key: "b", header: "Bid", align: "right", cell: (r) => price(r.bid) },
     { key: "a", header: "Ask", align: "right", cell: (r) => price(r.ask) },
