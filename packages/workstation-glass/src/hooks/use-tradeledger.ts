@@ -30,6 +30,18 @@ export function useAccountContext() {
   });
 }
 
+export function useWorkstationDemo() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["workstation-demo", cfg.baseUrl, cfg.accountId, cfg.token],
+    queryFn: () => api.workstationDemo(cfg.accountId),
+    enabled: isConfigured(cfg),
+    staleTime: 1000,
+    refetchInterval: REFRESH,
+    retry: 1,
+  });
+}
+
 export function useOrders() {
   const cfg = useApiConfig();
   return useQuery({
