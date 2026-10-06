@@ -1,0 +1,3 @@
+export function renderErrorPage(): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TradeLedger Error</title><style>body{margin:0;background:#080611;color:#f5f3ff;font-family:system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}main{max-width:620px;padding:32px;text-align:center}h1{font-size:22px}p{color:#aaa4bf}</style></head><body><main><h1>TradeLedger could not render this page.</h1><p>The application server encountered an error. Check the development terminal for the underlying stack trace.</p></main></body></html>`;
+}
