@@ -9,10 +9,11 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "check": "npm run typecheck && npm test"
+    "typecheck": "tsc --noEmit && tsc -p packages/workstation-glass/tsconfig.json --noEmit",
+    "test": "vitest run tests",
+    "test:watch": "vitest tests",
+    "check": "npm run typecheck && npm test && npm run test:glass",
+    "test:glass": "npm run test --workspace packages/workstation-glass"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

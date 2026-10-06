@@ -19,10 +19,14 @@ export interface ApiDependencies {
   readonly authenticate: (request: ApiRequest) => Promise<ApplicationPrincipal>;
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
+  /** Development-only fixture data for exercising the complete workstation UI. */
+  readonly workstationDemoData?: (accountId: string) => unknown;
 }
 
 export interface ApiServerOptions {
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
   readonly corsOrigins?: readonly string[];
+  /** Optional development-only workstation fixture provider. */
+  readonly workstationDemoData?: (accountId: string) => unknown;
 }

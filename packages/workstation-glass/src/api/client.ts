@@ -1,7 +1,7 @@
 import { getApiConfig } from "./config";
 import {
   ApiError, type AccountContext, type Execution, type Order, type Position,
-  type SubmitOrderIntent,
+  type SubmitOrderIntent, type WorkstationDemoData,
 } from "./types";
 
 // Single entry point for all TradeLedger HTTP communication.
@@ -110,15 +110,15 @@ function normContext(raw: unknown, accountId: string): AccountContext {
     accountId: (isObj(r) && str(r, "accountId")) || accountId,
     totalEquity: num(r, "totalEquity", "equity", "account.equity", "portfolio.equity"),
     cash: num(r, "cash", "account.cash", "portfolio.cash"),
-    buyingPower: num(r, "buyingPower", "account.buyingPower"),
+    buyingPower: num(r, "buyingPower", "account.buyingPower", "context.buyingPower.totalCapacity", "buyingPower.totalCapacity"),
     dailyPnl: num(r, "dailyPnl", "dailyPnL", "pnl.daily", "portfolio.dailyPnl"),
     unrealizedPnl: num(r, "unrealizedPnl", "pnl.unrealized", "portfolio.unrealizedPnl"),
-    realizedPnl: num(r, "realizedPnl", "pnl.realized"),
-    grossExposure: num(r, "grossExposure", "exposure.gross", "risk.grossExposure"),
-    netExposure: num(r, "netExposure", "exposure.net", "risk.netExposure"),
+    realizedPnl: num(r, "realizedPnl", "pnl.realized", "context.accountPortfolio.portfolio.realizedPnl", "accountPortfolio.portfolio.realizedPnl"),
+    grossExposure: num(r, "grossExposure", "exposure.gross", "risk.grossExposure", "context.accountPortfolio.portfolio.grossExposure", "accountPortfolio.portfolio.grossExposure"),
+    netExposure: num(r, "netExposure", "exposure.net", "risk.netExposure", "context.accountPortfolio.portfolio.netExposure", "accountPortfolio.portfolio.netExposure"),
     dailyLoss: num(r, "dailyLoss", "risk.dailyLoss"),
-    marketValue: num(r, "marketValue", "portfolio.marketValue"),
-    positions: arr(r, "positions", "portfolio.positions").map(normPosition),
+    marketValue: num(r, "marketValue", "portfolio.marketValue", "context.accountPortfolio.portfolio.marketValue", "accountPortfolio.portfolio.marketValue"),
+    positions: arr(r, "positions", "portfolio.positions", "context.accountPortfolio.portfolio.positions", "accountPortfolio.portfolio.positions").map(normPosition),
     executions: arr(r, "executions", "fills", "recentExecutions").map(normExecution),
     limits: {
       maxOrderNotional: num(r, "limits.maxOrderNotional", "riskLimits.maxOrderNotional", "risk.limits.maxOrderNotional"),
@@ -134,6 +134,18 @@ function normContext(raw: unknown, accountId: string): AccountContext {
 export const api = {
   health: () => request<unknown>("/health"),
   ready: () => request<unknown>("/ready"),
+  workstationDemo: async (accountId: string) => {
+    const raw = await request<unknown>(
+      `/api/v1/workstation/demo?accountId=${encodeURIComponent(accountId)}`,
+    );
+    const value = isObj(raw) && isObj(raw["data"]) ? raw["data"] : raw;
+    const demo = value as WorkstationDemoData;
+
+    return {
+      ...demo,
+      context: normContext(demo.context, accountId),
+    };
+  },
   accountContext: async (accountId: string) =>
     normContext(await request<unknown>(`/api/v1/accounts/${encodeURIComponent(accountId)}/context`), accountId),
   orders: async (accountId: string) => {

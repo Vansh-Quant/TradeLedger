@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { CandlestickChart, Search } from "lucide-react";
 import type { AccountContext, OrderType, Side, TimeInForce } from "@/api/types";
 import { isConfigured, useApiConfig } from "@/api/config";
-import { useAccountContext, useSubmitOrder } from "@/hooks/use-tradeledger";
+import { useAccountContext, useSubmitOrder, useWorkstationDemo } from "@/hooks/use-tradeledger";
 import { money, UNAVAILABLE, tone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { QueryView } from "./primitives";
@@ -41,26 +41,21 @@ export function Sparkline({ data, className }: { data?: number[]; className?: st
 /** Chart surface awaiting a market-data provider. Never renders synthetic prices. */
 export function TradingChart({ symbol }: { symbol: string }) {
   const tfs = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
+  const demo = useWorkstationDemo();
+  const series = demo.data?.chart.candles ?? [];
+  const last = series[series.length - 1];
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-10 items-center gap-3 border-b px-3">
-        <span className="text-base font-semibold">{symbol || "—"}</span>
-        <span className="text-xs text-muted-foreground">No quote</span>
-        <div className="ml-auto flex gap-0.5">
-          {tfs.map((t) => (
-            <span key={t} className={cn("rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground", t === "15m" && "bg-primary/20 text-primary")}>{t}</span>
-          ))}
-        </div>
+        <span className="text-base font-semibold">{symbol || demo.data?.chart.symbol || "—"}</span>
+        <span className="text-xs text-positive">{last == null ? "No quote" : last.toFixed(2)}</span>
+        <div className="ml-auto flex gap-0.5">{tfs.map((t) => <span key={t} className={cn("rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground", t === "15m" && "bg-primary/20 text-primary")}>{t}</span>)}</div>
       </div>
-      <div className="relative flex-1"
-        style={{ backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "60px 40px", opacity: 1 }}>
-        <div className="absolute inset-0 grid place-items-center bg-background/40">
-          <div className="text-center">
-            <CandlestickChart className="mx-auto size-8 text-primary/70" />
-            <p className="mt-2 text-sm font-medium">No market data provider connected</p>
-            <p className="text-xs text-muted-foreground">The chart renders once a real-time feed is attached.</p>
-          </div>
-        </div>
+      <div className="relative flex-1 overflow-hidden" style={{ backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "60px 40px" }}>
+        {series.length > 1 ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full p-8">
+          <polyline points={series.map((v,i)=>`${(i/(series.length-1))*100},${90-((v-Math.min(...series))/((Math.max(...series)-Math.min(...series))||1))*75}`).join(" ")} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
+        </svg> : <div className="absolute inset-0 grid place-items-center"><CandlestickChart className="size-8 text-primary/70" /></div>}
+        <div className="absolute bottom-2 left-3 text-[10px] text-muted-foreground">DEMO FEED · deterministic validation data</div>
       </div>
     </div>
   );
@@ -69,6 +64,7 @@ export function TradingChart({ symbol }: { symbol: string }) {
 /** Watchlist built from symbols the account actually holds. */
 export function Watchlist({ selected, onSelect }: { selected: string; onSelect: (s: string) => void }) {
   const q = useAccountContext();
+  const demo = useWorkstationDemo();
   const [add, setAdd] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
   return (
@@ -82,10 +78,13 @@ export function Watchlist({ selected, onSelect }: { selected: string; onSelect: 
       </div>
       <div className="flex-1 overflow-auto">
         {extra.map((s) => <WatchRow key={s} symbol={s} active={selected === s} onClick={() => onSelect(s)} />)}
-        {q.data?.positions.map((p) => (
+        {demo.data?.marketData.map((m) => (
+          <WatchRow key={m.symbol} symbol={m.symbol} last={m.last} active={selected === m.symbol} onClick={() => onSelect(m.symbol)} />
+        ))}
+        {q.data?.positions.filter((p) => !demo.data?.marketData.some((m) => m.symbol === p.symbol)).map((p) => (
           <WatchRow key={p.symbol} symbol={p.symbol} last={p.marketPrice} active={selected === p.symbol} onClick={() => onSelect(p.symbol)} />
         ))}
-        {!q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Held instruments appear here when connected.</p>}
+        {!demo.data && !q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load instruments.</p>}
       </div>
       <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Change, volume and market status require a market-data feed.</p>
     </div>

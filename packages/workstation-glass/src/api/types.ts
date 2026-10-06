@@ -92,3 +92,23 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+
+export interface WorkstationDemoData {
+  accountId: string;
+  asOf: string;
+  context: AccountContext;
+  orders: Order[];
+  executions: Execution[];
+  marketData: Array<{ symbol: string; bid: number; ask: number; last: number; change: number; changePct: number; volume: number; status: string }>;
+  analytics: {
+    equityCurve: number[];
+    dailyReturns: number[];
+    metrics: { totalReturnPct: number; sharpe: number; sortino: number; maxDrawdownPct: number; winRatePct: number; profitFactor: number; trades: number };
+    attribution: Array<{ strategy: string; pnl: number }>;
+  };
+  research: Array<{ id: string; title: string; status: string; updatedAt: string; score: number; samples: number }>;
+  strategies: Array<{ id: string; name: string; state: string; version: string; returnPct: number; sharpe: number; allocationPct: number }>;
+  journal: Array<{ id: string; date: string; symbol: string; setup: string; bias: string; rating: number; pnl: number; note: string }>;
+  chart: { symbol: string; candles: number[]; volume: number[] };
+}

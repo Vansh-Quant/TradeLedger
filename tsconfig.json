@@ -20,5 +20,8 @@
     "core/**/*.ts",
     "packages/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "exclude": [
+    "packages/workstation-glass/**/*"
   ]
 }

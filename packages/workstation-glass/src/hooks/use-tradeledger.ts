@@ -13,7 +13,7 @@ export function useHealth() {
       const [h, r] = await Promise.allSettled([api.health(), api.ready()]);
       return { health: h.status === "fulfilled", ready: r.status === "fulfilled" };
     },
-    enabled: !!cfg.baseUrl,
+    enabled: !!cfg.baseUrl && typeof window !== "undefined",
     refetchInterval: 10000,
     retry: false,
   });
@@ -23,8 +23,24 @@ export function useAccountContext() {
   const cfg = useApiConfig();
   return useQuery({
     queryKey: ["context", cfg.baseUrl, cfg.accountId, cfg.token],
-    queryFn: () => api.accountContext(cfg.accountId),
+    queryFn: async () => {
+      const live = await api.accountContext(cfg.accountId);
+      if (live.totalEquity != null || live.positions.length > 0) return live;
+      return (await api.workstationDemo(cfg.accountId)).context;
+    },
+    enabled: isConfigured(cfg) && typeof window !== "undefined",
+    refetchInterval: REFRESH,
+    retry: 1,
+  });
+}
+
+export function useWorkstationDemo() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["workstation-demo", cfg.baseUrl, cfg.accountId, cfg.token],
+    queryFn: () => api.workstationDemo(cfg.accountId),
     enabled: isConfigured(cfg),
+    staleTime: 1000,
     refetchInterval: REFRESH,
     retry: 1,
   });
@@ -34,7 +50,10 @@ export function useOrders() {
   const cfg = useApiConfig();
   return useQuery({
     queryKey: ["orders", cfg.baseUrl, cfg.accountId, cfg.token],
-    queryFn: () => api.orders(cfg.accountId),
+    queryFn: async () => {
+      const live = await api.orders(cfg.accountId);
+      return live.length > 0 ? live : (await api.workstationDemo(cfg.accountId)).orders;
+    },
     enabled: isConfigured(cfg),
     refetchInterval: REFRESH,
     retry: 1,

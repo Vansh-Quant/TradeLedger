@@ -9,10 +9,11 @@ export interface ApiConfig {
 }
 
 const KEY = "tradeledger.api-config";
+const DEV = Boolean(import.meta.env.DEV);
 const DEFAULT: ApiConfig = {
-  baseUrl: (import.meta.env['VITE_TRADELEDGER_API_URL'] as string | undefined) ?? "",
-  token: "",
-  accountId: (import.meta.env['VITE_TRADELEDGER_ACCOUNT_ID'] as string | undefined) ?? "",
+  baseUrl: (import.meta.env['VITE_TRADELEDGER_API_URL'] as string | undefined) ?? (DEV ? "http://127.0.0.1:3000" : ""),
+  token: (import.meta.env['VITE_TRADELEDGER_API_TOKEN'] as string | undefined) ?? (DEV ? "dev-token" : ""),
+  accountId: (import.meta.env['VITE_TRADELEDGER_ACCOUNT_ID'] as string | undefined) ?? (DEV ? "ACC-APP" : ""),
 };
 
 let current: ApiConfig = DEFAULT;
