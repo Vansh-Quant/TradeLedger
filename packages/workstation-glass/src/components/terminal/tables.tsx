@@ -19,8 +19,8 @@ export function PositionTable({ compact }: { compact?: boolean }) {
     ...(compact ? [] : [{ key: "e", header: "Exposure", align: "right" as const, cell: (p: Position) => (p.exposure == null ? "—" : money(p.exposure)) }]),
   ];
   return (
-    <QueryView q={q} empty={(d) => d.positions.length === 0}>
-      {(d) => <DataTable rows={d.positions} columns={cols} rowKey={(p) => p.symbol} />}
+    <QueryView q={q} empty={(d) => (d.positions ?? []).length === 0}>
+      {(d) => <DataTable rows={d.positions ?? []} columns={cols} rowKey={(p) => p.symbol} />}
     </QueryView>
   );
 }
@@ -56,8 +56,8 @@ export function OrderTable({ compact, activeOnly }: { compact?: boolean; activeO
     ]),
   ];
   return (
-    <QueryView q={q} empty={(d) => (activeOnly ? d.filter((o) => CANCELLABLE.has(String(o.status))) : d).length === 0}>
-      {(d) => <DataTable rows={activeOnly ? d.filter((o) => CANCELLABLE.has(String(o.status))) : d} columns={cols} rowKey={(o) => o.orderId} />}
+    <QueryView q={q} empty={(d) => (activeOnly ? (d ?? []).filter((o) => CANCELLABLE.has(String(o.status))) : (d ?? [])).length === 0}>
+      {(d) => <DataTable rows={activeOnly ? (d ?? []).filter((o) => CANCELLABLE.has(String(o.status))) : (d ?? [])} columns={cols} rowKey={(o) => o.orderId} />}
     </QueryView>
   );
 }
@@ -78,8 +78,8 @@ export function ExecutionTable({ compact }: { compact?: boolean }) {
     ]),
   ];
   return (
-    <QueryView q={q} empty={(d) => d.executions.length === 0}>
-      {(d) => <DataTable rows={d.executions} columns={cols} rowKey={(e) => e.executionId} />}
+    <QueryView q={q} empty={(d) => (d.executions ?? []).length === 0}>
+      {(d) => <DataTable rows={d.executions ?? []} columns={cols} rowKey={(e) => e.executionId} />}
     </QueryView>
   );
 }
