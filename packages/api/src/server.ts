@@ -166,6 +166,14 @@ async function route(
 
   const principal = principalOrThrow(await deps.authenticate(apiRequest));
 
+  if (method === "GET" && path === "/api/v1/workstation/demo") {
+    const provider = (deps as ApiDependencies & { workstationDemoData?: (accountId: string) => unknown }).workstationDemoData;
+    if (provider === undefined) throw new ValidationError("workstation demo data is not enabled");
+    const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
+    send(response, id, 200, provider(accountId), corsOrigin);
+    return;
+  }
+
   const eventStream = path === "/api/v1/events";
   if (method === "GET" && eventStream) {
     const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
