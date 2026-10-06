@@ -13,7 +13,7 @@ export function useHealth() {
       const [h, r] = await Promise.allSettled([api.health(), api.ready()]);
       return { health: h.status === "fulfilled", ready: r.status === "fulfilled" };
     },
-    enabled: !!cfg.baseUrl,
+    enabled: !!cfg.baseUrl && typeof window !== "undefined",
     refetchInterval: 10000,
     retry: false,
   });
@@ -28,7 +28,7 @@ export function useAccountContext() {
       if (live.totalEquity != null || live.positions.length > 0) return live;
       return (await api.workstationDemo(cfg.accountId)).context;
     },
-    enabled: isConfigured(cfg),
+    enabled: isConfigured(cfg) && typeof window !== "undefined",
     refetchInterval: REFRESH,
     retry: 1,
   });
