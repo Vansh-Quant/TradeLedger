@@ -135,9 +135,16 @@ export const api = {
   health: () => request<unknown>("/health"),
   ready: () => request<unknown>("/ready"),
   workstationDemo: async (accountId: string) => {
-    const raw = await request<unknown>(`/api/v1/workstation/demo?accountId=${encodeURIComponent(accountId)}`);
+    const raw = await request<unknown>(
+      `/api/v1/workstation/demo?accountId=${encodeURIComponent(accountId)}`,
+    );
     const value = isObj(raw) && isObj(raw["data"]) ? raw["data"] : raw;
-    return value as WorkstationDemoData;
+    const demo = value as WorkstationDemoData;
+
+    return {
+      ...demo,
+      context: normContext(demo.context, accountId),
+    };
   },
   accountContext: async (accountId: string) =>
     normContext(await request<unknown>(`/api/v1/accounts/${encodeURIComponent(accountId)}/context`), accountId),
