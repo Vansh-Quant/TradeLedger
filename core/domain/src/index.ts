@@ -99,3 +99,8 @@ export * from "./portfolio-attribution.js";
 export * from "./covariance.js";
 export * from "./portfolio-optimization-advanced.js";
 export * from "./risk-budget.js";
+
+export * from "./competition.js";
+export * from "./competition-authority.js";
+export * from "./competition-leaderboard.js";
+export * from "./competition-engine.js";
