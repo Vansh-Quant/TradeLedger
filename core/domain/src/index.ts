@@ -79,3 +79,9 @@ export * from "./benchmark.js";
 export * from "./research-dataset.js";
 export * from "./robustness.js";
 export * from "./strategy-promotion.js";
+
+export * from "./parameter-grid.js";
+export * from "./monte-carlo.js";
+export * from "./strategy-engine.js";
+export * from "./portfolio-allocation.js";
+export * from "./research-cache.js";
