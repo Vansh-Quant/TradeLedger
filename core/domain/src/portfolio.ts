@@ -74,3 +74,17 @@ export function calculatePortfolioUnrealizedPnl(
   }
   return unrealizedPnl;
 }
+
+export function markPortfolio(
+  portfolio: Portfolio,
+  markPrices: ReadonlyMap<string, number>,
+): Portfolio {
+  const valuation = calculateActiveMetrics(portfolio.positions);
+  const unrealizedPnl = calculatePortfolioUnrealizedPnl(portfolio, markPrices);
+
+  return Object.freeze({
+    ...portfolio,
+    ...valuation,
+    unrealizedPnl,
+  });
+}
