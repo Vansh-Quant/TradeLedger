@@ -32,7 +32,8 @@ export function createCompetition(config:CompetitionConfig,now:string):Competiti
   if(config.allowedInstruments.length===0)throw new Error("allowedInstruments must not be empty");
   positive(config.maxOrderNotional,"maxOrderNotional"); positive(config.startingEquity,"startingEquity");
   if(!Number.isInteger(config.maxOrdersPerParticipantPerSecond)||config.maxOrdersPerParticipantPerSecond<1)throw new Error("maxOrdersPerParticipantPerSecond must be a positive integer");
-  return Object.freeze({config:Object.freeze({...config,id:nonEmpty(config.id,"id"),name:nonEmpty(config.name,"name")}),state:"draft",participants:Object.freeze([]),version:0,sequence:0});
+  const normalizedConfig = Object.freeze({...config,id:nonEmpty(config.id,"id"),name:nonEmpty(config.name,"name"),allowedInstruments:Object.freeze([...config.allowedInstruments])});
+  return Object.freeze({config:normalizedConfig,state:"draft",participants:Object.freeze([]),version:0,sequence:0});
 }
 function evolve(c:Competition,state:CompetitionState,participants=c.participants):Competition{
   return Object.freeze({...c,state,participants:Object.freeze([...participants]),version:c.version+1,sequence:c.sequence+1});
@@ -45,7 +46,7 @@ export function registerCompetitionParticipant(c:Competition,p:CompetitionPartic
   if(c.state!=="registration")throw new Error("participants can only register during registration");
   if(c.participants.length>=c.config.maxParticipants)throw new Error("competition participant capacity reached");
   if(c.participants.some(x=>x.participantId===p.participantId||x.accountId===p.accountId))throw new Error("participant or account already registered");
-  return evolve(c,"registration",[...c.participants,p]);
+  return evolve(c,"registration",[...c.participants,Object.freeze({...p})]);
 }
 export function prepareCompetition(c:Competition):Competition{
   if(c.state!=="registration"||c.participants.length===0)throw new Error("competition requires registration and at least one participant");
