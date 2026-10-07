@@ -9,6 +9,7 @@ export interface BacktestTrade {
 export interface BacktestResult {
   readonly strategyId: string; readonly initialCapital: number; readonly finalCapital: number;
   readonly trades: readonly BacktestTrade[]; readonly equityCurve: readonly number[];
+  readonly executionCount: number; readonly turnover: number;
 }
 
 function positive(value: number, field: string): number {
