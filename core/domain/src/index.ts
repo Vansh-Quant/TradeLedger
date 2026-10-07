@@ -68,3 +68,5 @@ export * from "./walk-forward.js";
 export * from "./strategy-registry.js";
 export * from "./optimization.js";
 export * from "./research-experiment.js";
+
+export * from "./strategy-lifecycle.js";
