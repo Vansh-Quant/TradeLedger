@@ -74,6 +74,7 @@ export interface AuditEventPort {
 
 export type ApplicationEventType =
   | "order.submitted"
+  | "order.rejected"
   | "order.cancel.requested"
   | "order.cancelled"
   | "order.expired"
