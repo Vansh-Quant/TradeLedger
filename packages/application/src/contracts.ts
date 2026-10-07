@@ -11,6 +11,7 @@ import type {
 export type ApplicationAction =
   | "order.submit"
   | "order.cancel"
+  | "order.expire"
   | "order.read"
   | "market-data.read"
   | "execution.record"
@@ -75,6 +76,7 @@ export type ApplicationEventType =
   | "order.submitted"
   | "order.cancel.requested"
   | "order.cancelled"
+  | "order.expired"
   | "execution.recorded";
 
 export interface ApplicationEvent {
