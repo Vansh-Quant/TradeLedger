@@ -162,6 +162,38 @@ describe("HTTP API security boundary", () => {
     });
   });
 
+  it("expires an order through the HTTP boundary", async () => {
+    await withServer(async (baseUrl) => {
+      const orderResponse = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+          "idempotency-key": "http-expiry-order",
+        },
+        body: orderBody(),
+      });
+      expect(orderResponse.status).toBe(201);
+      const order = await orderResponse.json();
+
+      const expiryResponse = await fetch(
+        `${baseUrl}/api/v1/orders/${encodeURIComponent(order.order.id)}/expire?accountId=ACC-API`,
+        {
+          method: "POST",
+          headers: {
+            authorization: "Bearer test-token",
+            "idempotency-key": "http-expiry-1",
+          },
+        },
+      );
+
+      expect(expiryResponse.status).toBe(200);
+      const body = await expiryResponse.json();
+      expect(body.order.status).toBe("expired");
+      expect(body.state.buyingPower.reservedCapacity).toBe(0);
+    });
+  });
+
   it("records an authorized execution through the HTTP boundary", async () => {
     await withServer(async (baseUrl) => {
       const orderResponse = await fetch(`${baseUrl}/api/v1/orders`, {
