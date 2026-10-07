@@ -85,3 +85,7 @@ export * from "./monte-carlo.js";
 export * from "./strategy-engine.js";
 export * from "./portfolio-allocation.js";
 export * from "./research-cache.js";
+
+export * from "./strategy-combinators.js";
+export * from "./research-lab.js";
+export * from "./oos-validation.js";
