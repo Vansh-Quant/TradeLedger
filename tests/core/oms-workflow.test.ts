@@ -242,4 +242,42 @@ describe("OMS workflow", () => {
     expect(completed.state.reservation?.remainingAmount).toBe(0);
     expect(completed.state.buyingPower.reservedCapacity).toBe(0);
   });
+
+  it("preserves cancellation intent through a partial fill race and releases only the remainder on cancel", () => {
+    const admitted = admit();
+    const requested = requestOmsCancellation({ state: admitted.state });
+    const execution = createExecution({
+      id: "EX-OMS-CANCEL-RACE",
+      orderId: requested.order.id,
+      instrumentId,
+      side: "buy",
+      quantity: 4,
+      price: 100,
+      executedAt: "2026-10-03T12:03:00.000Z",
+      commission: 0,
+    });
+
+    const partiallyFilled = processOmsExecution({
+      state: requested.state,
+      execution,
+      eventStore: new InMemoryExecutionEventStore(),
+      eventId: "EV-OMS-CANCEL-RACE",
+      recordedAt: "2026-10-03T12:03:01.000Z",
+    });
+
+    expect(partiallyFilled.state.order.status).toBe("cancel_requested");
+    expect(partiallyFilled.state.order.filledQuantity).toBe(4);
+    expect(partiallyFilled.state.buyingPower.reservedCapacity).toBe(600);
+    expect(partiallyFilled.state.reservation?.remainingAmount).toBe(600);
+
+    const completed = completeOmsCancellation({
+      state: partiallyFilled.state,
+    });
+
+    expect(completed.order.status).toBe("cancelled");
+    expect(completed.released).toBe(true);
+    expect(completed.state.buyingPower.reservedCapacity).toBe(0);
+    expect(completed.state.reservation?.remainingAmount).toBe(0);
+    expect(completed.state.reconciliation.accountPortfolio.portfolio.positions.get(instrumentId)?.quantity).toBe(4);
+  });
 });
