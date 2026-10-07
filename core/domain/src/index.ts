@@ -58,3 +58,13 @@ export * from "./terminal-session.js";
 export * from "./intelligence-feed.js";
 
 export * from "./intelligence-events.js";
+
+export * from "./research-series.js";
+export * from "./indicators.js";
+export * from "./strategy.js";
+export * from "./backtest.js";
+export * from "./performance.js";
+export * from "./walk-forward.js";
+export * from "./strategy-registry.js";
+export * from "./optimization.js";
+export * from "./research-experiment.js";
