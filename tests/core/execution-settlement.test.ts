@@ -57,6 +57,8 @@ describe("execution settlement", () => {
       }),
     );
 
+    expect(bought.state.realizedPnl).toBe(-5);
+
     const sold = settleExecution(
       bought.state,
       createExecution({
@@ -75,7 +77,8 @@ describe("execution settlement", () => {
     expect(sold.state.cashBalance.amount).toBe(10_190);
     expect(sold.portfolio.positions.get("AAPL")).toBeUndefined();
     expect(sold.state.realizedPnl).toBe(190);
-    expect(sold.realizedPnlDelta).toBe(190);
+    expect(sold.realizedPnlDelta).toBe(195);
+    expect(sold.state.realizedPnl).toBe(190);
   });
 
   it("rejects duplicate settlement and negative cash", () => {
