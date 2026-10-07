@@ -283,6 +283,19 @@ async function route(
     return;
   }
 
+  const expiry = /^\/api\/v1\/orders\/([^/]+)\/expire$/.exec(path);
+  if (method === "POST" && expiry) {
+    const result = deps.application.expireOrder({
+      principal,
+      accountId: requiredString(Object.fromEntries(parsed.searchParams), "accountId"),
+      orderId: decodeOrderId(expiry),
+      requestId: id,
+      idempotencyKey: idempotencyKey(request),
+    });
+    send(response, id, 200, result, corsOrigin);
+    return;
+  }
+
   const completion = /^\/api\/v1\/orders\/([^/]+)\/cancel\/complete$/.exec(path);
   if (method === "POST" && completion) {
     const result = deps.application.completeOrderCancellation({
