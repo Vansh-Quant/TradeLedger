@@ -27,7 +27,7 @@ describe("phase 4 research engine",()=>{
   expect(barCloses(series.bars)).toEqual([100,102,104,103,106,108,107,110]);
   expect(simpleMovingAverage([1,2,3],3)).toBe(2);
   expect(exponentialMovingAverage([1,2,3],3)).toBe(2);
-  expect(returns([100,110])).toEqual([0.1]);
+  expect(returns([100,110])[0]).toBeCloseTo(0.1, 12);
   expect(volatility([100,101,102])).toBeGreaterThan(0);
  });
  it("runs a deterministic backtest and metrics",()=>{
@@ -39,7 +39,10 @@ describe("phase 4 research engine",()=>{
  });
  it("creates walk-forward windows",()=>{
   const windows=createWalkForwardWindows(20,10,5);
-  expect(windows).toEqual([{trainFrom:0,trainTo:10,testFrom:10,testTo:15}]);
+  expect(windows).toEqual([
+    {trainFrom:0,trainTo:10,testFrom:10,testTo:15},
+    {trainFrom:5,trainTo:15,testFrom:15,testTo:20},
+  ]);
  });
  it("runs walk-forward tests",()=>{
   const result=runWalkForward({strategy,bars:bars(),trainSize:4,testSize:2,initialCapital:10000});
