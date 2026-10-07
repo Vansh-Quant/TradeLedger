@@ -41,6 +41,8 @@ export function runBacktest(input: {
   let entryAt = "";
   const trades: BacktestTrade[] = [];
   const equity: number[] = [capital];
+  let executionCount = 0;
+  let turnover = 0;
 
   const fillPrice = (bar: Bar, direction: "buy" | "sell"): number =>
     direction === "buy" ? bar.open * (1 + slip) : bar.open * (1 - slip);
@@ -62,12 +64,16 @@ export function runBacktest(input: {
         entryPrice = fillPrice(next, desired === "long" ? "buy" : "sell");
         entryAt = next.startAt;
         capital -= commission;
+        executionCount += 1;
+        turnover += entryPrice * quantity;
       } else if (side !== undefined && desired !== side) {
         const exitPrice = fillPrice(next, side === "long" ? "sell" : "buy");
         const pnl = side === "long"
           ? (exitPrice - entryPrice) * quantity - commission
           : (entryPrice - exitPrice) * quantity - commission;
         capital += pnl;
+        executionCount += 1;
+        turnover += exitPrice * quantity;
         trades.push(Object.freeze({
           entryAt, exitAt: next.startAt, side, entryPrice, exitPrice, quantity, pnl,
         }));
@@ -76,6 +82,8 @@ export function runBacktest(input: {
           entryPrice = fillPrice(next, side === "long" ? "buy" : "sell");
           entryAt = next.startAt;
           capital -= commission;
+          executionCount += 1;
+          turnover += entryPrice * quantity;
         }
       }
     }
@@ -94,6 +102,8 @@ export function runBacktest(input: {
       ? (exitPrice - entryPrice) * quantity - commission
       : (entryPrice - exitPrice) * quantity - commission;
     capital += pnl;
+    executionCount += 1;
+    turnover += exitPrice * quantity;
     trades.push(Object.freeze({
       entryAt, exitAt: bar.endAt, side, entryPrice, exitPrice, quantity, pnl,
     }));
@@ -106,5 +116,7 @@ export function runBacktest(input: {
     finalCapital: capital,
     trades: Object.freeze(trades),
     equityCurve: Object.freeze(equity),
+    executionCount,
+    turnover,
   });
 }
