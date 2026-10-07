@@ -27,7 +27,9 @@ export function buildMarketContext(
     eventIds: Object.freeze(relevant.map((event) => event.id)),
     highImpactCount: relevant.filter((event) => event.impact === "high").length,
     criticalCount: relevant.filter((event) => event.impact === "critical").length,
-    latestEventAt: relevant[0]?.publishedAt,
+    ...(relevant[0]?.publishedAt === undefined
+      ? {}
+      : { latestEventAt: relevant[0].publishedAt }),
     tags: Object.freeze(tags),
   });
 }
