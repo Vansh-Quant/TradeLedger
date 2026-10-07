@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyMarketData,
+  createMarketDataEnvelope,
   createMarketDataState,
   createQuote,
   deriveMarkPrices,
@@ -10,16 +12,27 @@ const AAPL = "AAPL" as InstrumentId;
 
 describe("portfolio market marking", () => {
   it("prefers quote midpoint over trade and bar marks", () => {
-    const state = {
-      ...createMarketDataState(AAPL),
-      latestQuote: createQuote({
-        instrumentId: AAPL,
-        bid: 99,
-        bidSize: 10,
-        ask: 101,
-        askSize: 10,
-        observedAt: "2026-10-07T10:00:00Z",
-      }),
+    let state = createMarketDataState(AAPL);
+    const quote = createQuote({
+      instrumentId: AAPL,
+      bid: 99,
+      bidSize: 10,
+      ask: 101,
+      askSize: 10,
+      observedAt: "2026-10-07T10:00:00Z",
+    });
+
+    state = applyMarketData(
+      state,
+      createMarketDataEnvelope(
+        1,
+        "2026-10-07T10:00:01Z",
+        quote,
+      ),
+    );
+
+    state = {
+      ...state,
       latestTrade: {
         kind: "trade" as const,
         instrumentId: AAPL,
@@ -31,7 +44,7 @@ describe("portfolio market marking", () => {
 
     const marks = deriveMarkPrices(
       [state],
-      "2026-10-07T10:00:01Z",
+      "2026-10-07T10:00:02Z",
       { maxAgeMs: 5_000, rejectStale: true },
     );
 
