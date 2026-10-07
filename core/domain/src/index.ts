@@ -45,3 +45,11 @@ export * from "./order-expiry.js";
 export * from "./account-metrics.js";
 
 export * from "./portfolio-marking.js";
+
+export * from "./watchlist.js";
+export * from "./alerts.js";
+export * from "./charting.js";
+export * from "./trading-workspace.js";
+export * from "./intelligence.js";
+export * from "./market-context.js";
+export * from "./economic-calendar.js";
