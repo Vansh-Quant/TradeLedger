@@ -58,6 +58,7 @@ function application() {
       "api-user:order.submit:ACC-API",
       "api-user:order.read:ACC-API",
       "api-user:order.cancel:ACC-API",
+      "api-user:order.expire:ACC-API",
       "api-user:market-data.read:ACC-API",
       "api-user:execution.record:ACC-API",
       "api-user:event-stream.read:ACC-API",
