@@ -89,3 +89,9 @@ export * from "./research-cache.js";
 export * from "./strategy-combinators.js";
 export * from "./research-lab.js";
 export * from "./oos-validation.js";
+
+export * from "./portfolio-analytics.js";
+export * from "./portfolio-risk.js";
+export * from "./portfolio-optimization.js";
+export * from "./factor-engine.js";
+export * from "./portfolio-attribution.js";
