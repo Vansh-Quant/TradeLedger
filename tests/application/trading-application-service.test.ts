@@ -113,6 +113,22 @@ describe("trading application service", () => {
     expect(result.state.buyingPower.reservedCapacity).toBe(0);
   });
 
+  it("publishes an order.rejected event when admission fails", () => {
+    const { application, events } = service();
+
+    const result = application.submitOrder({
+      ...command(),
+      orderNotional: 6_000,
+      requestId: "req-rejected-event-1",
+    });
+
+    expect(result.admitted).toBe(false);
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.rejected",
+    ]);
+    expect(events.listAfterSequence(0)[0]?.payload.reason).toContain("order notional");
+  });
+
   it("rejects unauthorized commands before touching the domain", () => {
     const { application } = service([]);
 
