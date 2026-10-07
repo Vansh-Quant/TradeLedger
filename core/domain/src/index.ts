@@ -53,3 +53,6 @@ export * from "./trading-workspace.js";
 export * from "./intelligence.js";
 export * from "./market-context.js";
 export * from "./economic-calendar.js";
+
+export * from "./terminal-session.js";
+export * from "./intelligence-feed.js";
