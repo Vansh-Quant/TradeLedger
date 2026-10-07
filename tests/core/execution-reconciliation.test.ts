@@ -55,6 +55,22 @@ describe("execution state reconciliation", () => {
     expect(duplicate.state).toBe(first.state);
     expect(duplicate.state.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
   });
+  it("rejects an execution timestamp before order creation", () => {
+    const execution = createExecution({
+      id: "EXE-TIME-001",
+      orderId: "ORD-001",
+      instrumentId,
+      side: "buy",
+      quantity: 1,
+      price: 100,
+      executedAt: "2026-09-28T09:59:59Z",
+      commission: 0,
+    });
+    expect(() => reconcileExecution(makeState(), execution)).toThrow(
+      "execution executedAt cannot precede order createdAt",
+    );
+  });
+
   it("rejects an execution for another order", () => {
     const execution = createExecution({ id: "EXE-002", orderId: "ORD-999", instrumentId, side: "buy", quantity: 4, price: 100, executedAt: "2026-09-28T10:02:00Z", commission: 0 });
     expect(() => reconcileExecution(makeState(), execution)).toThrow("execution orderId does not match order id");
