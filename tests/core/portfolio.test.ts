@@ -4,6 +4,7 @@ import {
   calculatePortfolioUnrealizedPnl,
   calculateUnrealizedPnl,
   createPortfolio,
+  markPortfolio,
   createPosition,
   setPosition,
 } from "../../core/domain/src/index.js";
@@ -98,6 +99,22 @@ describe("Portfolio", () => {
     ]);
 
     expect(calculatePortfolioUnrealizedPnl(portfolio, marks)).toBe(400);
+  });
+
+  it("updates portfolio valuation from current marks", () => {
+    const position = applyFill(createPosition("AAPL"), "buy", {
+      quantity: 10,
+      price: 100,
+    });
+    const portfolio = setPosition(createPortfolio(), position);
+    const marked = markPortfolio(portfolio, new Map([["AAPL", 120]]));
+
+    expect(marked.marketValue).toBe(1_200);
+    expect(marked.netExposure).toBe(1_200);
+    expect(marked.grossExposure).toBe(1_200);
+    expect(marked.unrealizedPnl).toBe(200);
+    expect(portfolio.marketValue).toBe(1_000);
+    expect(portfolio.unrealizedPnl).toBe(0);
   });
 
   it("requires a mark price for every active position", () => {
