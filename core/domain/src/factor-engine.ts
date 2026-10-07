@@ -17,9 +17,12 @@ export function compositeFactorScore(
   factors: readonly FactorScore[],
   weights: Readonly<Partial<Record<FactorName,number>>>,
 ): readonly {readonly instrumentId:string;readonly score:number}[] {
-  const by=new Map<string,number>();
   const total=Object.values(weights).reduce((s,x)=>s+(x??0),0);
   if(total<=0) throw new Error("factor weights must have positive total");
-  for(const f of factors) by.set(f.instrumentId,(by.get(f.instrumentId)??0)+(factors.filter(x=>x.instrumentId===f.instrumentId).reduce((s,x)=>s+(weights[x.factor]??0)*x.score,0))/total);
-  return Object.freeze([...by].map(([instrumentId,score])=>Object.freeze({instrumentId,score})));
+  const scores=new Map<string,number>();
+  for(const factor of factors){
+    const weight=weights[factor.factor]??0;
+    scores.set(factor.instrumentId,(scores.get(factor.instrumentId)??0)+(weight*factor.score)/total);
+  }
+  return Object.freeze([...scores].map(([instrumentId,score])=>Object.freeze({instrumentId,score})));
 }
