@@ -113,6 +113,20 @@ describe("execution event store", () => {
     expect(store.listByOrderId("ORD-001")).toHaveLength(1);
   });
 
+  it("rejects an event id reused for different event data", () => {
+    const store = new InMemoryExecutionEventStore();
+    store.append(createExecutionEvent({
+      eventId: "EVT-CONFLICT",
+      execution: makeExecution("EXE-001", 4, "01"),
+      recordedAt: "2026-09-28T10:02:00Z",
+    }));
+    expect(() => store.append(createExecutionEvent({
+      eventId: "EVT-CONFLICT",
+      execution: makeExecution("EXE-002", 6, "03"),
+      recordedAt: "2026-09-28T10:04:00Z",
+    }))).toThrow("event id already exists with different event data");
+  });
+
   it("rejects an execution id reused for different execution data", () => {
     const store = new InMemoryExecutionEventStore();
     store.append(
