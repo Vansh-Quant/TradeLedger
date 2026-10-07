@@ -30,7 +30,13 @@ export interface ProcessExecutionResult {
 export function processExecution(
   input: ProcessExecutionInput,
 ): ProcessExecutionResult {
-  if (input.eventStore.hasExecution(input.execution.id)) {
+  const existing = input.eventStore.getByExecutionId(input.execution.id);
+
+  if (existing !== undefined) {
+    if (JSON.stringify(existing.execution) !== JSON.stringify(input.execution)) {
+      throw new Error("execution id already exists with different execution data");
+    }
+
     return Object.freeze({
       state: input.state,
       applied: false,
