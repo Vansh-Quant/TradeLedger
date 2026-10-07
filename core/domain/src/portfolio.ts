@@ -79,12 +79,29 @@ export function markPortfolio(
   portfolio: Portfolio,
   markPrices: ReadonlyMap<string, number>,
 ): Portfolio {
-  const valuation = calculateActiveMetrics(portfolio.positions);
-  const unrealizedPnl = calculatePortfolioUnrealizedPnl(portfolio, markPrices);
+  let marketValue = 0;
+  let netExposure = 0;
+  let grossExposure = 0;
+
+  for (const [instrumentId, position] of portfolio.positions) {
+    if (position.quantity === 0) continue;
+    const mark = markPrices.get(instrumentId);
+    if (mark === undefined) {
+      throw new Error("missing mark price for instrument " + instrumentId);
+    }
+    assertPositiveFinite(mark, "markPrice");
+
+    const value = position.quantity * mark;
+    marketValue += value;
+    netExposure += value;
+    grossExposure += Math.abs(value);
+  }
 
   return Object.freeze({
     ...portfolio,
-    ...valuation,
-    unrealizedPnl,
+    unrealizedPnl: calculatePortfolioUnrealizedPnl(portfolio, markPrices),
+    marketValue,
+    netExposure,
+    grossExposure,
   });
 }
