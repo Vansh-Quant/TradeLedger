@@ -29,9 +29,18 @@ function requireNonNegativeInteger(value: number, field: string): number {
 export class InMemoryExecutionJournal implements ExecutionJournal {
   private readonly entries: ExecutionJournalEntry[] = [];
   private readonly byExecutionId = new Map<string, ExecutionJournalEntry>();
+  private readonly byEventId = new Map<string, ExecutionJournalEntry>();
   private nextSequence = 1;
 
   append(event: ExecutionEvent): ExecutionJournalEntry {
+    const existingEvent = this.byEventId.get(event.eventId);
+    if (existingEvent !== undefined) {
+      if (JSON.stringify(existingEvent) !== JSON.stringify(event)) {
+        throw new Error("event id already exists with different event data");
+      }
+      return existingEvent;
+    }
+
     const existing = this.byExecutionId.get(event.execution.id);
 
     if (existing !== undefined) {
@@ -53,6 +62,7 @@ export class InMemoryExecutionJournal implements ExecutionJournal {
     this.nextSequence += 1;
     this.entries.push(entry);
     this.byExecutionId.set(event.execution.id, entry);
+    this.byEventId.set(event.eventId, entry);
 
     return entry;
   }
