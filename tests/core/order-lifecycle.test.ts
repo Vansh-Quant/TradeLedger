@@ -57,6 +57,17 @@ describe("order lifecycle", () => {
     expect(cancelled.status).toBe("cancelled");
   });
 
+  it("keeps cancellation requested when a partial fill races the cancellation", () => {
+    const requested = transitionOrder(acknowledgedOrder(), "cancel_requested");
+    const partiallyFilled = recordOrderFill(requested, 4);
+
+    expect(partiallyFilled.status).toBe("cancel_requested");
+    expect(partiallyFilled.filledQuantity).toBe(4);
+
+    const cancelled = transitionOrder(partiallyFilled, "cancelled");
+    expect(cancelled.status).toBe("cancelled");
+  });
+
   it("allows a cancel-requested order to finish if a fill races the cancellation", () => {
     const filled = recordOrderFill(transitionOrder(acknowledgedOrder(), "cancel_requested"), 10);
     expect(filled.status).toBe("filled");
