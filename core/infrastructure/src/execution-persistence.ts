@@ -89,7 +89,7 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
   appendExecutionEvent(event: ExecutionEvent): DurableExecutionRecord {
     const existingEvent = this.byEventId.get(event.eventId);
     if (existingEvent !== undefined) {
-      if (JSON.stringify(existingEvent.entry) !== JSON.stringify(event)) {
+      if (JSON.stringify(existingEvent.entry) !== JSON.stringify({ ...event })) {
         throw new Error("event id already exists with different event data");
       }
       return existingEvent;
