@@ -56,8 +56,17 @@ export function createExecutionEvent(input: {
 export class InMemoryExecutionEventStore implements ExecutionEventStore {
   private readonly events: ExecutionEvent[] = [];
   private readonly byExecutionId = new Map<string, ExecutionEvent>();
+  private readonly byEventId = new Map<string, ExecutionEvent>();
 
   append(event: ExecutionEvent): void {
+    const existingEvent = this.byEventId.get(event.eventId);
+    if (existingEvent !== undefined) {
+      if (JSON.stringify(existingEvent) !== JSON.stringify(event)) {
+        throw new Error("event id already exists with different event data");
+      }
+      return;
+    }
+
     const existing = this.byExecutionId.get(event.execution.id);
 
     if (existing !== undefined) {
@@ -73,6 +82,7 @@ export class InMemoryExecutionEventStore implements ExecutionEventStore {
 
     this.events.push(event);
     this.byExecutionId.set(event.execution.id, event);
+    this.byEventId.set(event.eventId, event);
   }
 
   hasExecution(executionId: string): boolean {
