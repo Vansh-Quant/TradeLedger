@@ -56,3 +56,5 @@ export * from "./economic-calendar.js";
 
 export * from "./terminal-session.js";
 export * from "./intelligence-feed.js";
+
+export * from "./intelligence-events.js";
