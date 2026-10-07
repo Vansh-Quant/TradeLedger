@@ -23,3 +23,7 @@ export function authorizeCompetitionCapability(principal:CompetitionPrincipal,ca
   return Object.freeze({allowed,reason:allowed?"allowed":"missing_capability",capability});
 }
 export function capabilitiesForRole(role:CompetitionRole):readonly CompetitionCapability[]{return Object.freeze([...ROLE_CAPABILITIES[role]]);}
+
+export function authorizeCompetitionRegistration(principal:CompetitionPrincipal):AccessDecision{
+  return authorizeCompetitionCapability(principal,"competition.register");
+}
