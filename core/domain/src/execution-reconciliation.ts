@@ -20,6 +20,9 @@ function assertOrderMatchesExecution(order: Order, execution: Execution): void {
   if (execution.orderId !== order.id) throw new Error("execution orderId does not match order id");
   if (execution.instrumentId !== order.instrumentId) throw new Error("execution instrumentId does not match order instrument");
   if (execution.side !== order.side) throw new Error("execution side does not match order side");
+  if (Date.parse(execution.executedAt) < Date.parse(order.createdAt)) {
+    throw new Error("execution executedAt cannot precede order createdAt");
+  }
 }
 
 export function createExecutionReconciliation(order: Order, accountPortfolio: AccountPortfolio): ExecutionReconciliation {
