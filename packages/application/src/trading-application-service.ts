@@ -257,7 +257,7 @@ export class TradingApplicationService {
           buyingPower: expired.buyingPower,
         });
         this.publishEvent("order.expired", "order", expired.order.id, accountId, requestId, {
-          releasedCapacity: expired.buyingPower.totalCapacity - expired.buyingPower.reservedCapacity,
+          releasedCapacity: current.buyingPower.reservedCapacity - expired.buyingPower.reservedCapacity,
         });
         return Object.freeze({ order: expired.order, state: expired });
       },
@@ -317,7 +317,7 @@ export class TradingApplicationService {
           buyingPower: cancelled.buyingPower,
         });
         this.publishEvent("order.cancelled", "order", cancelled.order.id, accountId, requestId, {
-          releasedCapacity: cancelled.buyingPower.totalCapacity - cancelled.buyingPower.reservedCapacity,
+          releasedCapacity: current.buyingPower.reservedCapacity - cancelled.buyingPower.reservedCapacity,
         });
         return Object.freeze({ order: cancelled.order, state: cancelled });
       },
