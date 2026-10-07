@@ -80,7 +80,7 @@ describe("phase 5 portfolio quant engine", () => {
       {id:"B",expectedReturn:0.12,volatility:0.4},
     ];
     expect(minimumVolatilityWeight(assets)[0]!.weight).toBeGreaterThan(minimumVolatilityWeight(assets)[1]!.weight);
-    expect(maxSharpeApproxWeight(assets)[1]!.weight).toBeGreaterThan(maxSharpeApproxWeight(assets)[0]!.weight);
+    expect(maxSharpeApproxWeight(assets)[0]!.weight).toBeGreaterThan(maxSharpeApproxWeight(assets)[1]!.weight);
     expect(validateRiskBudgets([{id:"A",budget:0.6},{id:"B",budget:0.4}])).toEqual([]);
     expect(validateRiskBudgets([{id:"A",budget:0.8},{id:"B",budget:0.4}])).toContain("risk budget total cannot exceed 1");
   });
