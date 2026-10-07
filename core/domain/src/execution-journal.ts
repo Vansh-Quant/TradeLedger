@@ -35,7 +35,7 @@ export class InMemoryExecutionJournal implements ExecutionJournal {
   append(event: ExecutionEvent): ExecutionJournalEntry {
     const existingEvent = this.byEventId.get(event.eventId);
     if (existingEvent !== undefined) {
-      if (JSON.stringify(existingEvent) !== JSON.stringify({ ...event })) {
+      if (JSON.stringify({ eventId: existingEvent.eventId, execution: existingEvent.execution, recordedAt: existingEvent.recordedAt }) !== JSON.stringify(event)) {
         throw new Error("event id already exists with different event data");
       }
       return existingEvent;
