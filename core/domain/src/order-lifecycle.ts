@@ -63,9 +63,16 @@ export function recordOrderFill(order: Order, fillQuantity: number): Order {
     throw new Error("cannot record fill for order from status " + order.status);
   }
   const filledQuantity = order.filledQuantity + fillQuantity;
+  const status =
+    filledQuantity === order.quantity
+      ? "filled"
+      : order.status === "cancel_requested"
+        ? "cancel_requested"
+        : "partially_filled";
+
   return Object.freeze({
     ...order,
     filledQuantity,
-    status: filledQuantity === order.quantity ? "filled" : "partially_filled",
+    status,
   });
 }
