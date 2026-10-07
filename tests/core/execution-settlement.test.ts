@@ -78,6 +78,33 @@ describe("execution settlement", () => {
     expect(sold.realizedPnlDelta).toBe(190);
   });
 
+  it("rejects duplicate settlement and negative cash", () => {
+    const execution = createExecution({
+      id: "EX-SETTLE-DUP",
+      orderId: "ORD-1",
+      instrumentId: "AAPL" as InstrumentId,
+      side: "buy",
+      quantity: 10,
+      price: 100,
+      executedAt: "2026-10-07T10:00:00Z",
+      commission: 0,
+    });
+
+    const settled = settleExecution(state(), execution);
+    expect(() => settleExecution(settled.state, execution)).toThrow(
+      "execution has already been settled",
+    );
+
+    expect(() => settleExecution(
+      createAccountingState({
+        account,
+        cashBalance: createCashBalance("USD", 50),
+        portfolio: createPortfolio(),
+      }),
+      execution,
+    )).toThrow("execution settlement would make cash negative");
+  });
+
   it("keeps partial closes on the original average and realizes only the closed portion", () => {
     const opened = settleExecution(
       state(),
