@@ -64,6 +64,14 @@ describe("execution persistence foundation", () => {
     ).toThrow("execution id already exists with different execution data");
   });
 
+  it("rejects an event id reused for different event data", () => {
+    const store = new InMemoryExecutionPersistence();
+    store.appendExecutionEvent(event("EVT-CONFLICT", "EXE-001", 4));
+    expect(() => store.appendExecutionEvent(event("EVT-CONFLICT", "EXE-002", 6))).toThrow(
+      "event id already exists with different event data",
+    );
+  });
+
   it("reads only records after a sequence cursor", () => {
     const store = new InMemoryExecutionPersistence();
     store.appendExecutionEvent(event("EVT-001", "EXE-001", 4));
