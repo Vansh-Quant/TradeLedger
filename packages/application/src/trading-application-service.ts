@@ -6,6 +6,7 @@ import {
   InMemoryExecutionEventStore,
   requestTradingOrderCancellation,
   completeTradingOrderCancellation,
+  expireTradingOrder,
   type AccountId,
   type InstrumentId,
 } from "@tradeledger/domain";
@@ -222,6 +223,38 @@ export class TradingApplicationService {
       state: admission.state,
       ...(admission.reason === undefined ? {} : { reason: admission.reason }),
     });
+  }
+
+  expireOrder(command: { readonly principal: ApplicationPrincipal; readonly accountId: string; readonly orderId: string; readonly requestId?: string; readonly idempotencyKey?: string }): CancelOrderResult {
+    const accountId = requireNonEmpty(command.accountId, "accountId") as AccountId;
+    const orderId = requireNonEmpty(command.orderId, "orderId");
+    const requestId = command.requestId ?? crypto.randomUUID();
+    this.authorize(command.principal, "order.expire", accountId, requestId, command.idempotencyKey);
+
+    return this.mutate(
+      "order.expire",
+      accountId,
+      command.principal,
+      command.idempotencyKey,
+      requestId,
+      command,
+      () => {
+        const current = this.orders.get(orderId);
+        if (current === undefined || current.order.accountId !== accountId) {
+          throw new NotFoundError(`order ${orderId} was not found`);
+        }
+        const expired = expireTradingOrder(current);
+        this.orders.save(expired);
+        this.context.saveContext({
+          ...this.context.getContext(accountId),
+          buyingPower: expired.buyingPower,
+        });
+        this.publishEvent("order.expired", "order", expired.order.id, accountId, requestId, {
+          releasedCapacity: expired.buyingPower.totalCapacity - expired.buyingPower.reservedCapacity,
+        });
+        return Object.freeze({ order: expired.order, state: expired });
+      },
+    );
   }
 
   cancelOrder(command: CancelOrderCommand): CancelOrderResult {
@@ -445,7 +478,7 @@ export class TradingApplicationService {
 
   private authorize(
     principal: SubmitOrderCommand["principal"],
-    action: "order.submit" | "order.cancel",
+    action: "order.submit" | "order.cancel" | "order.expire",
     accountId: AccountId,
     requestId: string,
     idempotencyKey?: string,
@@ -472,7 +505,7 @@ export class TradingApplicationService {
   }
 
   private mutate<T>(
-    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete" | "execution.record",
+    mutationOperation: "order.submit" | "order.cancel" | "order.cancel.complete" | "order.expire" | "execution.record",
     accountId: AccountId,
     principal: SubmitOrderCommand["principal"],
     key: string | undefined,
