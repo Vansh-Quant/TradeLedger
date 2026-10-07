@@ -81,11 +81,20 @@ export function validateSnapshot(
 export class InMemoryExecutionPersistence implements ExecutionPersistence {
   private readonly entries: DurableExecutionRecord[] = [];
   private readonly byExecutionId = new Map<string, DurableExecutionRecord>();
+  private readonly byEventId = new Map<string, DurableExecutionRecord>();
   private latestSnapshot?: DurableExecutionSnapshot;
   private nextSequence = 1;
   private transactionOpen = false;
 
   appendExecutionEvent(event: ExecutionEvent): DurableExecutionRecord {
+    const existingEvent = this.byEventId.get(event.eventId);
+    if (existingEvent !== undefined) {
+      if (JSON.stringify(existingEvent.entry) !== JSON.stringify(event)) {
+        throw new Error("event id already exists with different event data");
+      }
+      return existingEvent;
+    }
+
     const existing = this.byExecutionId.get(event.execution.id);
 
     if (existing !== undefined) {
@@ -99,6 +108,7 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
     const record = Object.freeze({ entry });
     this.entries.push(record);
     this.byExecutionId.set(event.execution.id, record);
+    this.byEventId.set(event.eventId, record);
     this.nextSequence += 1;
     return record;
   }
@@ -143,12 +153,34 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
       appendExecutionEvent: (event) => {
         ensureOpen();
 
+        const existingEvent = this.byEventId.get(event.eventId);
+        if (existingEvent !== undefined) {
+          if (JSON.stringify(existingEvent.entry) !== JSON.stringify(event)) {
+            throw new Error("event id already exists with different event data");
+          }
+          return existingEvent;
+        }
+
         const existing = this.byExecutionId.get(event.execution.id);
         if (existing !== undefined) {
           if (JSON.stringify(existing.entry.execution) !== JSON.stringify(event.execution)) {
             throw new Error("execution id already exists with different execution data");
           }
           return existing;
+        }
+
+        const stagedEvent = staged.find((candidate) => candidate.eventId === event.eventId);
+        if (stagedEvent !== undefined) {
+          if (JSON.stringify(stagedEvent) !== JSON.stringify(event)) {
+            throw new Error("event id already exists with different event data");
+          }
+          const stagedEventIndex = staged.findIndex((candidate) => candidate.eventId === event.eventId);
+          return Object.freeze({
+            entry: Object.freeze({
+              ...stagedEvent,
+              sequence: this.latestSequence() + stagedEventIndex + 1,
+            }),
+          });
         }
 
         const stagedExisting = staged.find(
