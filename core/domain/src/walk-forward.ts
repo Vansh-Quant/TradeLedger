@@ -49,3 +49,76 @@ export function runWalkForward(input: {
   }));
   return Object.freeze({ windows, tests: Object.freeze(tests) });
 }
+
+export interface WalkForwardOptimizationResult extends WalkForwardResult {
+  readonly selectedParameters: readonly Readonly<Record<string, number>>[];
+}
+
+export function runWalkForwardOptimization(input: {
+  readonly bars: readonly Bar[];
+  readonly strategy: StrategyDefinition;
+  readonly trainSize: number;
+  readonly testSize: number;
+  readonly step?: number;
+  readonly initialCapital: number;
+  readonly parameterSets: readonly Readonly<Record<string, number>>[];
+}): WalkForwardOptimizationResult {
+  const windows = createWalkForwardWindows(
+    input.bars.length,
+    input.trainSize,
+    input.testSize,
+    input.step,
+  );
+  const selectedParameters: Readonly<Record<string, number>>[] = [];
+  const tests: BacktestResult[] = [];
+
+  for (const window of windows) {
+    const trainBars = input.bars.slice(window.trainFrom, window.trainTo);
+    const testBars = input.bars.slice(window.testFrom, window.testTo);
+
+    let best: { parameters: Readonly<Record<string, number>>; score: number } | undefined;
+
+    for (const parameters of input.parameterSets) {
+      const candidate: StrategyDefinition = Object.freeze({
+        ...input.strategy,
+        parameters: Object.freeze({
+          ...input.strategy.parameters,
+          ...parameters,
+        }),
+      });
+      const train = runBacktest({
+        strategy: candidate,
+        bars: trainBars,
+        initialCapital: input.initialCapital,
+      });
+      const score = train.finalCapital - train.initialCapital;
+      if (best === undefined || score > best.score) {
+        best = Object.freeze({
+          parameters: Object.freeze({ ...candidate.parameters }),
+          score,
+        });
+      }
+    }
+
+    if (best === undefined) {
+      throw new Error("parameterSets must not be empty");
+    }
+
+    selectedParameters.push(best.parameters);
+    const selectedStrategy: StrategyDefinition = Object.freeze({
+      ...input.strategy,
+      parameters: best.parameters,
+    });
+    tests.push(runBacktest({
+      strategy: selectedStrategy,
+      bars: testBars,
+      initialCapital: input.initialCapital,
+    }));
+  }
+
+  return Object.freeze({
+    windows,
+    tests: Object.freeze(tests),
+    selectedParameters: Object.freeze(selectedParameters),
+  });
+}
