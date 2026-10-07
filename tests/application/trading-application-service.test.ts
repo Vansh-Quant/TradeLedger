@@ -224,6 +224,7 @@ describe("trading application service", () => {
       "order.submitted",
       "order.expired",
     ]);
+    expect(events.listAfterSequence(0)[1]?.payload.releasedCapacity).toBe(1_000);
   });
 
   it("persists buying-power changes across commands", () => {
@@ -253,6 +254,7 @@ describe("trading application service", () => {
       "order.submitted", "order.cancel.requested", "order.cancelled",
     ]);
     expect(events.listAfterSequence(0).map((event) => event.sequence)).toEqual([1, 2, 3]);
+    expect(events.listAfterSequence(0)[2]?.payload.releasedCapacity).toBe(1_000);
   });
 
   it("publishes an execution event only for a newly applied execution", () => {
