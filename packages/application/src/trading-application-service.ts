@@ -215,6 +215,13 @@ export class TradingApplicationService {
         side: command.side,
         quantity: command.quantity,
       });
+    } else {
+      this.publishEvent("order.rejected", "order", admission.state.order.id, accountId, requestId, {
+        instrumentId,
+        side: command.side,
+        quantity: command.quantity,
+        reason: admission.reason ?? "ORDER_REJECTED",
+      });
     }
 
     return Object.freeze({
