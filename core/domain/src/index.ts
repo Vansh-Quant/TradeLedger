@@ -70,3 +70,8 @@ export * from "./optimization.js";
 export * from "./research-experiment.js";
 
 export * from "./strategy-lifecycle.js";
+
+export * from "./research-features.js";
+export * from "./research-validation.js";
+export * from "./research-report.js";
+export * from "./benchmark.js";
