@@ -1,7 +1,7 @@
 import {describe,expect,it} from "vitest";
 import {
  authorizeCompetitionCapability,authorizeCompetitionControl,buildCompetitionLeaderboard,
- createCompetition,createCompetitionEngineState,createCompetitionPolicy,createIdempotencyState,
+ createCompetition,createCompetitionEngineState,createCompetitionPolicy,createIdempotencyState,authorizeCompetitionRegistration,
  registerCompetitionParticipant,openCompetitionRegistration,prepareCompetition,startCompetition,
  suspendParticipant,authorizeCompetitionOrder,acceptIdempotentRequest,updateCompetitionPolicy
 } from "@tradeledger/domain";
@@ -59,6 +59,14 @@ describe("phase 6 competition hardening",()=>{
   expect(a.state.records["REQ-1"]!.sequence).toBe(1);
  });
 
+ it("blocks emergency-halted and policy-disabled trading",()=>{
+  const live=liveCompetition();
+  const emergency=createCompetitionPolicy({tradingEnabled:true,emergencyHalt:true,allowedInstruments:["AAPL"],maxOrderNotional:1000,maxOrdersPerParticipantPerSecond:5});
+  expect((authorizeCompetitionOrder(live,{participantId:"P-1",instrumentId:"AAPL",orderNotional:100,ordersInCurrentSecond:0},emergency)).reason).toBe("emergency_halt");
+  const disabled=createCompetitionPolicy({tradingEnabled:false,emergencyHalt:false,allowedInstruments:["AAPL"],maxOrderNotional:1000,maxOrdersPerParticipantPerSecond:5});
+  expect((authorizeCompetitionOrder(live,{participantId:"P-1",instrumentId:"AAPL",orderNotional:100,ordersInCurrentSecond:0},disabled)).reason).toBe("trading_disabled");
+ });
+
  it("versions policy changes so stale control cannot silently use old rules",()=>{
   const p=createCompetitionPolicy({tradingEnabled:true,emergencyHalt:false,allowedInstruments:["AAPL"],maxOrderNotional:1000,maxOrdersPerParticipantPerSecond:5});
   const next=updateCompetitionPolicy(p,{emergencyHalt:true});
@@ -69,6 +77,11 @@ describe("phase 6 competition hardening",()=>{
  it("keeps leaderboard deterministic with stable tie breaking",()=>{
   const rows=[{participantId:"P-2",startingEquity:100,realizedPnl:5,unrealizedPnl:0},{participantId:"P-1",startingEquity:100,realizedPnl:5,unrealizedPnl:0}];
   expect(buildCompetitionLeaderboard(rows).map(x=>x.participantId)).toEqual(["P-1","P-2"]);
+ });
+
+ it("requires registration capability before participant registration",()=>{
+  expect(authorizeCompetitionRegistration({principalId:"p",roles:["observer"],disabled:false}).allowed).toBe(false);
+  expect(authorizeCompetitionRegistration({principalId:"p",roles:["participant"],disabled:false}).allowed).toBe(true);
  });
 
  it("creates isolated engine state for registered participants",()=>{
