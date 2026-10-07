@@ -87,6 +87,14 @@ describe("execution journal", () => {
     ).toThrow("execution id already exists with different execution data");
   });
 
+  it("rejects an event id reused for different event data", () => {
+    const journal = new InMemoryExecutionJournal();
+    journal.append(makeEvent("EVT-CONFLICT", makeExecution("EXE-001", 4, "01")));
+    expect(() => journal.append(makeEvent("EVT-CONFLICT", makeExecution("EXE-002", 6, "03")))).toThrow(
+      "event id already exists with different event data",
+    );
+  });
+
   it("returns only entries after a checkpoint sequence", () => {
     const journal = new InMemoryExecutionJournal();
 
