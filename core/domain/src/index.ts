@@ -104,3 +104,10 @@ export * from "./competition.js";
 export * from "./competition-authority.js";
 export * from "./competition-leaderboard.js";
 export * from "./competition-engine.js";
+
+export * from "./competition-access.js";
+export * from "./competition-controls.js";
+export * from "./competition-audit.js";
+export * from "./competition-policy.js";
+export * from "./competition-idempotency.js";
+export * from "./competition-trading-gate.js";
