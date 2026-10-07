@@ -155,7 +155,7 @@ export class InMemoryExecutionPersistence implements ExecutionPersistence {
 
         const existingEvent = this.byEventId.get(event.eventId);
         if (existingEvent !== undefined) {
-          if (JSON.stringify(existingEvent.entry) !== JSON.stringify(event)) {
+          if (JSON.stringify({ eventId: existingEvent.entry.eventId, execution: existingEvent.entry.execution, recordedAt: existingEvent.entry.recordedAt }) !== JSON.stringify(event)) {
             throw new Error("event id already exists with different event data");
           }
           return existingEvent;
