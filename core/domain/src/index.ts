@@ -95,3 +95,7 @@ export * from "./portfolio-risk.js";
 export * from "./portfolio-optimization.js";
 export * from "./factor-engine.js";
 export * from "./portfolio-attribution.js";
+
+export * from "./covariance.js";
+export * from "./portfolio-optimization-advanced.js";
+export * from "./risk-budget.js";
