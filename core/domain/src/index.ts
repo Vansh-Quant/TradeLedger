@@ -39,3 +39,5 @@ export * from "./market-data-state.js";
 
 export * from "./portfolio-valuation.js";
 export * from "./execution-settlement.js";
+
+export * from "./order-expiry.js";
