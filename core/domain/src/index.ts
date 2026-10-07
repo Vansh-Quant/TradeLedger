@@ -111,3 +111,4 @@ export * from "./competition-audit.js";
 export * from "./competition-policy.js";
 export * from "./competition-idempotency.js";
 export * from "./competition-trading-gate.js";
+export * from "./competition-control-executor.js";
