@@ -77,6 +77,32 @@ describe("execution processing workflow", () => {
     expect(eventStore.hasExecution("EXE-001")).toBe(false);
   });
 
+  it("rejects reuse of an execution id with different execution data", () => {
+    const base = makeState();
+    const eventStore = new InMemoryExecutionEventStore();
+    const execution = makeExecution("EXE-CONFLICT", 4);
+
+    processExecution({
+      state: base,
+      execution,
+      eventStore,
+      eventId: "EVT-CONFLICT-1",
+      recordedAt: "2026-09-28T10:02:00Z",
+    });
+
+    const conflicting = { ...execution, quantity: 5 };
+
+    expect(() =>
+      processExecution({
+        state: base,
+        execution: conflicting,
+        eventStore,
+        eventId: "EVT-CONFLICT-2",
+        recordedAt: "2026-09-28T10:03:00Z",
+      }),
+    ).toThrow("execution id already exists with different execution data");
+  });
+
   it("does not apply a previously recorded execution twice", () => {
     const base = makeState();
     const eventStore = new InMemoryExecutionEventStore();
