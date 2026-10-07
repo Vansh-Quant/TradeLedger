@@ -47,6 +47,7 @@ function service(
     "user-1:order.submit:ACC-APP",
     "user-1:order.read:ACC-APP",
     "user-1:order.cancel:ACC-APP",
+    "user-1:order.expire:ACC-APP",
   ],
 ) {
   const orders = new InMemoryOrderStateStore();
@@ -174,6 +175,39 @@ describe("trading application service", () => {
     expect(completed.order.status).toBe("cancelled");
     expect(completed.state.buyingPower.reservedCapacity).toBe(0);
     expect(completed.state.reservation?.remainingAmount).toBe(0);
+  });
+
+  it("expires through the canonical reservation lifecycle", () => {
+    const { application } = service();
+
+    const submitted = application.submitOrder(command());
+    const result = application.expireOrder({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+    });
+
+    expect(result.order.status).toBe("expired");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+    expect(result.state.reservation?.remainingAmount).toBe(0);
+  });
+
+  it("publishes an order.expired event only after expiry succeeds", () => {
+    const { application, events } = service();
+
+    const submitted = application.submitOrder(command());
+    application.expireOrder({
+      principal,
+      accountId: "ACC-APP",
+      orderId: submitted.order.id,
+      requestId: "req-expire-1",
+      idempotencyKey: "expire-1",
+    });
+
+    expect(events.listAfterSequence(0).map((event) => event.type)).toEqual([
+      "order.submitted",
+      "order.expired",
+    ]);
   });
 
   it("persists buying-power changes across commands", () => {
