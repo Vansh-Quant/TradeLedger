@@ -39,6 +39,13 @@ export function settleExecution(
   state: AccountingState,
   execution: Execution,
 ): ExecutionSettlementResult {
+  const existingEntry = state.ledger.find(
+    (entry) => entry.ledgerId === execution.id,
+  );
+  if (existingEntry !== undefined) {
+    throw new Error("execution has already been settled");
+  }
+
   const commission = requireFiniteNonNegative(
     execution.commission,
     "execution.commission",
@@ -61,9 +68,14 @@ export function settleExecution(
   const nextRealized = accountPortfolio.portfolio.realizedPnl;
   const realizedPnlDelta = nextRealized - previousRealized - commission;
 
+  const nextCashAmount = state.cashBalance.amount + cashDelta;
+  if (nextCashAmount < 0) {
+    throw new Error("execution settlement would make cash negative");
+  }
+
   const nextCash = Object.freeze({
     ...state.cashBalance,
-    amount: state.cashBalance.amount + cashDelta,
+    amount: nextCashAmount,
   });
 
   const ledgerEntry = createLedgerEntry({
