@@ -75,3 +75,7 @@ export * from "./research-features.js";
 export * from "./research-validation.js";
 export * from "./research-report.js";
 export * from "./benchmark.js";
+
+export * from "./research-dataset.js";
+export * from "./robustness.js";
+export * from "./strategy-promotion.js";
