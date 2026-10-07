@@ -1,4 +1,8 @@
-import type { IntelligenceEvent, ImpactLevel } from "./intelligence.js";
+import {
+  createIntelligenceEvent,
+  type IntelligenceEvent,
+  type ImpactLevel,
+} from "./intelligence.js";
 
 export interface EconomicCalendarEvent extends IntelligenceEvent {
   readonly type: "economic";
@@ -17,7 +21,19 @@ export function createEconomicCalendarEvent(input: {
 }): EconomicCalendarEvent {
   if (!input.country.trim()) throw new Error("country must not be empty");
   if (!input.indicator.trim()) throw new Error("indicator must not be empty");
-  const event = createEconomicBase(input);
+  const event = createIntelligenceEvent({
+    id: input.id,
+    type: "economic",
+    title: input.title,
+    summary: input.summary,
+    source: input.source,
+    publishedAt: input.publishedAt,
+    effectiveAt: input.effectiveAt,
+    ...(input.instruments === undefined ? {} : { instruments: input.instruments }),
+    ...(input.impact === undefined ? {} : { impact: input.impact }),
+    ...(input.tags === undefined ? {} : { tags: input.tags }),
+  });
+
   return Object.freeze({
     ...event,
     country: input.country.trim(),
@@ -26,8 +42,4 @@ export function createEconomicCalendarEvent(input: {
     ...(input.previous === undefined ? {} : { previous: input.previous }),
     ...(input.actual === undefined ? {} : { actual: input.actual }),
   });
-}
-
-function createEconomicBase(input: Parameters<typeof import("./intelligence.js")["createIntelligenceEvent"]>[0]) {
-  throw new Error("unreachable");
 }
