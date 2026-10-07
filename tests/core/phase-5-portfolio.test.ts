@@ -11,6 +11,11 @@ import {
   rankFactor,
   compositeFactorScore,
   attributePnl,
+  covarianceMatrix,
+  correlationMatrix,
+  minimumVolatilityWeight,
+  maxSharpeApproxWeight,
+  validateRiskBudgets,
 } from "@tradeledger/domain";
 
 describe("phase 5 portfolio quant engine", () => {
@@ -59,6 +64,25 @@ describe("phase 5 portfolio quant engine", () => {
       {instrumentId:"A",factor:"momentum",score:1},
       {instrumentId:"A",factor:"value",score:0.5},
     ],{momentum:1,value:1})[0]!.score).toBeCloseTo(0.75);
+  });
+
+  it("calculates covariance and correlation matrices", () => {
+    const covariance = covarianceMatrix({ A: [0.01,0.02,0.03], B: [0.01,0.02,0.04] });
+    expect(covariance).toHaveLength(2);
+    expect(covariance[0]![0]).toBeGreaterThan(0);
+    const correlation = correlationMatrix({ A: [0.01,0.02,0.03], B: [0.01,0.02,0.04] });
+    expect(correlation[0]![0]).toBeCloseTo(1);
+  });
+
+  it("supports constrained portfolio optimization and risk budgets", () => {
+    const assets = [
+      {id:"A",expectedReturn:0.08,volatility:0.2},
+      {id:"B",expectedReturn:0.12,volatility:0.4},
+    ];
+    expect(minimumVolatilityWeight(assets)[0]!.weight).toBeGreaterThan(minimumVolatilityWeight(assets)[1]!.weight);
+    expect(maxSharpeApproxWeight(assets)[1]!.weight).toBeGreaterThan(maxSharpeApproxWeight(assets)[0]!.weight);
+    expect(validateRiskBudgets([{id:"A",budget:0.6},{id:"B",budget:0.4}])).toEqual([]);
+    expect(validateRiskBudgets([{id:"A",budget:0.8},{id:"B",budget:0.4}])).toContain("risk budget total cannot exceed 1");
   });
 
   it("attributes P&L", () => {
