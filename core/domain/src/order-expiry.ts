@@ -27,17 +27,3 @@ export function isDayOrderExpired(
   return now >= sessionClose;
 }
 
-export function assertOrderExpiryContext(
-  context: OrderExpiryContext,
-): void {
-  const now = Date.parse(context.now);
-  const sessionClose = Date.parse(context.sessionClose);
-
-  if (!Number.isFinite(now)) throw new Error("now must be a valid timestamp");
-  if (!Number.isFinite(sessionClose)) {
-    throw new Error("sessionClose must be a valid timestamp");
-  }
-  if (sessionClose <= now) {
-    return;
-  }
-}
