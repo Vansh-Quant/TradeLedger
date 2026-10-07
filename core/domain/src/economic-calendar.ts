@@ -36,6 +36,7 @@ export function createEconomicCalendarEvent(input: {
 
   return Object.freeze({
     ...event,
+    type: "economic" as const,
     country: input.country.trim(),
     indicator: input.indicator.trim(),
     ...(input.forecast === undefined ? {} : { forecast: input.forecast }),
