@@ -176,6 +176,17 @@ export class TradeLedgerApiClient {
     );
   }
 
+  async expireOrder(
+    accountId: string,
+    orderId: string,
+    idempotencyKey = crypto.randomUUID(),
+  ): Promise<CancelOrderResult> {
+    return this.request<CancelOrderResult>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/expire?accountId=${encodeURIComponent(accountId)}`,
+      { method: "POST", headers: { "idempotency-key": idempotencyKey } },
+    );
+  }
+
   async completeOrderCancellation(
     accountId: string,
     orderId: string,
