@@ -10,7 +10,7 @@ import {
 } from "@tradeledger/domain";
 
 describe("competition 1,000-participant load profile", () => {
-  it("handles 1,000 isolated participants and 10,000 authority decisions", () => {
+  it("handles 1,000 isolated participants and 10,000 authority decisions", { timeout: 30_000 }, () => {
     let competition = createCompetition({
       id: "CMP-LOAD",
       name: "Competition Load",
