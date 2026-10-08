@@ -144,6 +144,7 @@ export class CompetitionApplicationService {
     const result = registerAuthorizedParticipant(competition, principalForCompetition(command.principal), participant);
     if (!result.registered) throw new AuthorizationError(result.reason);
     this.replaceCompetition(result.competition);
+    this.rebuildEngine();
     this.appendAudit(command.principal, "participant_state_change", participant.participantId, "applied", "registered", undefined);
     return this.snapshot();
   }
