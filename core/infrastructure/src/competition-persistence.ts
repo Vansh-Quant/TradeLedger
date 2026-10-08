@@ -70,9 +70,9 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
       if (events[index]!.sequence !== index + 1) throw new PersistenceError("competition event sequence is not contiguous");
     }
     return Object.freeze({
-      competition: competition as CompetitionPersistenceSnapshot["competition"],
-      policy: policy as CompetitionPersistenceSnapshot["policy"],
-      engine: engine as CompetitionPersistenceSnapshot["engine"],
+      competition: competition as unknown as CompetitionPersistenceSnapshot["competition"],
+      policy: policy as unknown as CompetitionPersistenceSnapshot["policy"],
+      engine: engine as unknown as CompetitionPersistenceSnapshot["engine"],
       audit: Object.freeze(raw.audit as CompetitionPersistenceSnapshot["audit"]),
       eventSequence,
       events: Object.freeze(events),
