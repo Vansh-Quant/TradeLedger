@@ -43,7 +43,7 @@ export class DurableCompetitionEventLog {
   appendManyEvents(events: readonly CompetitionEvent[]): void { this.events.appendMany(events); }
 
   appendAudit(event: CompetitionAuditEvent): void {
-    this.audit.append({ sequence: event.sequence, ...event });
+    this.audit.append(event);
   }
   appendManyAudit(events: readonly CompetitionAuditEvent[]): void { for (const event of events) this.appendAudit(event); }
 
