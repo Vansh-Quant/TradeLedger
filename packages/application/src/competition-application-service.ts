@@ -144,6 +144,10 @@ export class CompetitionApplicationService {
   }
 
   create(command: CompetitionCreateCommand): CompetitionSnapshot {
+    return this.exclusive(() => this.createUnsafe(command));
+  }
+
+  private createUnsafe(command: CompetitionCreateCommand): CompetitionSnapshot {
     this.requireCapability(command.principal, "competition.start");
     if (this.competition !== undefined) {
       throw new ValidationError("competition already exists");
@@ -170,6 +174,10 @@ export class CompetitionApplicationService {
   }
 
   register(command: CompetitionRegistrationCommand): CompetitionSnapshot {
+    return this.exclusive(() => this.registerUnsafe(command));
+  }
+
+  private registerUnsafe(command: CompetitionRegistrationCommand): CompetitionSnapshot {
     this.requireCapability(command.principal, "competition.register");
     const competition = this.requireCompetition();
     const registeredAt = command.registeredAt ?? new Date().toISOString();
@@ -189,6 +197,10 @@ export class CompetitionApplicationService {
   }
 
   prepare(principal: ApplicationPrincipal, requestId: string): CompetitionControlResult {
+    return this.exclusive(() => this.prepareUnsafe(principal, requestId));
+  }
+
+  private prepareUnsafe(principal: ApplicationPrincipal, requestId: string): CompetitionControlResult {
     this.requireCapability(principal, "competition.start");
     const competition = this.requireCompetition();
     const request = requireString(requestId, "requestId");
@@ -205,6 +217,10 @@ export class CompetitionApplicationService {
   }
 
   control(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
+    return this.exclusive(() => this.controlUnsafe(command));
+  }
+
+  private controlUnsafe(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
     const competition = this.requireCompetition();
     const fingerprint = JSON.stringify({ action: command.action, expectedVersion: command.expectedVersion, participantId: command.participantId ?? null, principalId: command.principal.id });
     const idem = acceptIdempotentRequest(this.idempotency, command.requestId, fingerprint, competition.sequence, true);
@@ -251,6 +267,10 @@ export class CompetitionApplicationService {
   }
 
   updatePolicy(command: CompetitionPolicyUpdateCommand): CompetitionSnapshot {
+    return this.exclusive(() => this.updatePolicyUnsafe(command));
+  }
+
+  private updatePolicyUnsafe(command: CompetitionPolicyUpdateCommand): CompetitionSnapshot {
     this.requireCapability(command.principal, "policy.update");
     const current = this.policy;
     if (!current) throw new NotFoundError("competition was not found");
@@ -261,6 +281,10 @@ export class CompetitionApplicationService {
   }
 
   authorizeOrder(command: CompetitionOrderAuthorizationCommand) {
+    return this.exclusive(() => this.authorizeOrderUnsafe(command));
+  }
+
+  private authorizeOrderUnsafe(command: CompetitionOrderAuthorizationCommand) {
     this.requireCapability(command.principal, "competition.view");
     const engine = this.engine;
     if (!engine) throw new NotFoundError("competition was not found");
@@ -294,6 +318,10 @@ export class CompetitionApplicationService {
   }
 
   updatePerformance(command: CompetitionPerformanceUpdateCommand): CompetitionSnapshot {
+    return this.exclusive(() => this.updatePerformanceUnsafe(command));
+  }
+
+  private updatePerformanceUnsafe(command: CompetitionPerformanceUpdateCommand): CompetitionSnapshot {
     this.requireCapability(command.principal, "competition.view");
     if (!this.engine) throw new NotFoundError("competition was not found");
     const participantId = requireString(command.participantId, "participantId");
@@ -328,6 +356,24 @@ export class CompetitionApplicationService {
   private persist(): void {
     if (!this.persistence) return;
     this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()) });
+  }
+
+  private exclusive<T>(operation: () => T): T {
+    if (this.persistence?.withExclusive === undefined) return operation();
+    return this.persistence.withExclusive(() => {
+      const snapshot = this.persistence?.load();
+      if (snapshot !== undefined) {
+        this.competition = snapshot.competition;
+        this.policy = snapshot.policy;
+        this.engine = snapshot.engine;
+        this.audit = snapshot.audit;
+        this.events = [...snapshot.events];
+        this.eventSequence = snapshot.eventSequence;
+        this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
+        this.idempotency = snapshot.idempotency;
+      }
+      return operation();
+    });
   }
 
   private requireCapability(principal: ApplicationPrincipal, capability: CompetitionCapability): void {
