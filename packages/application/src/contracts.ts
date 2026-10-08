@@ -245,3 +245,53 @@ export interface RecordExecutionResult {
   readonly order: Order;
   readonly state: TradingCoreState;
 }
+
+export interface CompetitionPersistenceSnapshot {
+  readonly competition: import("@tradeledger/domain").Competition;
+  readonly policy: import("@tradeledger/domain").CompetitionPolicy;
+  readonly engine: import("@tradeledger/domain").CompetitionEngineState;
+  readonly audit: readonly import("@tradeledger/domain").CompetitionAuditEvent[];
+  readonly eventSequence: number;
+  readonly events: readonly CompetitionEvent[];
+}
+
+export interface CompetitionPersistencePort {
+  load(): CompetitionPersistenceSnapshot | undefined;
+  save(snapshot: CompetitionPersistenceSnapshot): void;
+}
+
+export type CompetitionEventType =
+  | "competition.created"
+  | "competition.prepared"
+  | "competition.started"
+  | "competition.paused"
+  | "competition.resumed"
+  | "competition.halted"
+  | "competition.completed"
+  | "participant.registered"
+  | "participant.suspended"
+  | "participant.resumed"
+  | "participant.liquidation.requested"
+  | "competition.policy.updated"
+  | "competition.order.authorized"
+  | "competition.order.rejected"
+  | "competition.performance.updated";
+
+export interface CompetitionEvent {
+  readonly eventId: string;
+  readonly type: CompetitionEventType;
+  readonly occurredAt: string;
+  readonly competitionId: string;
+  readonly sequence: number;
+  readonly targetId: string;
+  readonly requestId?: string;
+  readonly payload: Readonly<Record<string, string | number | boolean>>;
+}
+
+export interface CompetitionEventStreamPort {
+  publish(event: CompetitionEvent): void;
+  latestSequence(): number;
+  subscribe(subscriber: (event: CompetitionEvent) => void): () => void;
+  listAfterSequence(sequence: number): readonly CompetitionEvent[];
+}
+
