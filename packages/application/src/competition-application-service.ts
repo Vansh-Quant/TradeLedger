@@ -79,6 +79,25 @@ export interface CompetitionOrderAuthorizationCommand {
   readonly second: number;
 }
 
+export interface CompetitionOrderSubmissionCommand {
+  readonly principal: ApplicationPrincipal;
+  readonly participantId: string;
+  readonly instrumentId: string;
+  readonly side: "buy" | "sell";
+  readonly type: "market" | "limit" | "stop" | "stop-limit";
+  readonly quantity: number;
+  readonly limitPrice?: number;
+  readonly stopPrice?: number;
+  readonly timeInForce: "day" | "gtc" | "ioc" | "fok";
+  readonly second: number;
+  readonly idempotencyKey?: string;
+}
+
+export interface CompetitionOrderSubmissionResult {
+  readonly competitionDecision: ReturnType<CompetitionApplicationService["authorizeOrder"]>;
+  readonly tradingResult: import("./trading-application-service.js").SubmitOrderResult;
+}
+
 export interface CompetitionPerformanceUpdateCommand {
   readonly principal: ApplicationPrincipal;
   readonly participantId: string;
@@ -116,7 +135,7 @@ export class CompetitionApplicationService {
   private readonly persistence: CompetitionPersistencePort | undefined;
   private idempotency: IdempotencyState = createIdempotencyState();
 
-  constructor(persistence?: CompetitionPersistencePort) {
+  constructor(persistence?: CompetitionPersistencePort, private readonly trading?: TradingApplicationService) {
     this.persistence = persistence;
     const snapshot = persistence?.load();
     if (snapshot !== undefined) {
@@ -315,6 +334,45 @@ export class CompetitionApplicationService {
     );
     this.emit(result.decision.allowed ? "competition.order.authorized" : "competition.order.rejected", participantId, { instrumentId, orderNotional, allowed: result.decision.allowed }, undefined);
     return Object.freeze(result);
+  }
+
+  submitParticipantOrder(command: CompetitionOrderSubmissionCommand): CompetitionOrderSubmissionResult {
+    return this.exclusive(() => this.submitParticipantOrderUnsafe(command));
+  }
+
+  private submitParticipantOrderUnsafe(command: CompetitionOrderSubmissionCommand): CompetitionOrderSubmissionResult {
+    if (!this.trading) throw new ValidationError("competition trading adapter is not configured");
+    const snapshot = this.requireCompetition();
+    const participant = snapshot.participants.find((entry) => entry.participantId === requireString(command.participantId, "participantId"));
+    if (!participant) throw new NotFoundError("participant was not found");
+    if (participant.state !== "active") throw new AuthorizationError("participant_not_active");
+    const price = command.limitPrice ?? command.stopPrice;
+    if (price === undefined || !Number.isFinite(price) || price <= 0) {
+      throw new ValidationError("competition orders require an authoritative limit or stop price until market pricing is available");
+    }
+    const decision = this.authorizeOrder({
+      principal: command.principal,
+      participantId: participant.participantId,
+      instrumentId: command.instrumentId,
+      orderNotional: command.quantity * price,
+      second: command.second,
+    });
+    if (!decision.decision.allowed) {
+      throw new AuthorizationError(decision.decision.reason);
+    }
+    const tradingResult = this.trading.submitOrderFromIntent({
+      principal: command.principal,
+      accountId: participant.accountId,
+      instrumentId: command.instrumentId,
+      side: command.side,
+      type: command.type,
+      quantity: command.quantity,
+      ...(command.limitPrice === undefined ? {} : { limitPrice: command.limitPrice }),
+      ...(command.stopPrice === undefined ? {} : { stopPrice: command.stopPrice }),
+      timeInForce: command.timeInForce,
+      idempotencyKey: command.idempotencyKey,
+    });
+    return Object.freeze({ competitionDecision: decision, tradingResult });
   }
 
   updatePerformance(command: CompetitionPerformanceUpdateCommand): CompetitionSnapshot {
