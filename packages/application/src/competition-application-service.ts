@@ -22,7 +22,7 @@ import {
   type CompetitionCapability,
   type CompetitionAuditEvent,
 } from "@tradeledger/domain";
-import type { ApplicationPrincipal } from "./contracts.js";
+import type { ApplicationPrincipal, CompetitionEvent, CompetitionPersistencePort } from "./contracts.js";
 import { AuthorizationError, NotFoundError, ValidationError } from "./errors.js";
 
 function principalForCompetition(principal: ApplicationPrincipal): CompetitionPrincipal {
@@ -107,6 +107,36 @@ export class CompetitionApplicationService {
   private policy: CompetitionPolicy | undefined;
   private audit: readonly CompetitionAuditEvent[] = [];
   private auditSequence = 0;
+  private eventSequence = 0;
+  private events: CompetitionEvent[] = [];
+  private readonly subscribers = new Set<(event: CompetitionEvent) => void>();
+  private readonly persistence: CompetitionPersistencePort | undefined;
+
+  constructor(persistence?: CompetitionPersistencePort) {
+    this.persistence = persistence;
+    const snapshot = persistence?.load();
+    if (snapshot !== undefined) {
+      this.competition = snapshot.competition;
+      this.policy = snapshot.policy;
+      this.engine = snapshot.engine;
+      this.audit = snapshot.audit;
+      this.events = [...snapshot.events];
+      this.eventSequence = snapshot.eventSequence;
+      this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
+    }
+  }
+
+  subscribeToEvents(principal: ApplicationPrincipal, subscriber: (event: CompetitionEvent) => void): () => void {
+    this.requireCapability(principal, "competition.view");
+    this.subscribers.add(subscriber);
+    return () => this.subscribers.delete(subscriber);
+  }
+
+  listEventsAfter(principal: ApplicationPrincipal, sequence: number): readonly CompetitionEvent[] {
+    this.requireCapability(principal, "competition.view");
+    if (!Number.isSafeInteger(sequence) || sequence < 0) throw new ValidationError("sequence must be a non-negative integer");
+    return Object.freeze(this.events.filter((event) => event.sequence > sequence).slice());
+  }
 
   create(command: CompetitionCreateCommand): CompetitionSnapshot {
     this.requireCapability(command.principal, "competition.start");
@@ -124,6 +154,7 @@ export class CompetitionApplicationService {
     });
     this.engine = createCompetitionEngineState(this.competition);
     this.appendAudit(command.principal, "competition_state_change", command.config.id, "applied", "created", undefined);
+    this.emit("competition.created", command.config.id, {}, undefined);
     return this.snapshot();
   }
 
@@ -148,6 +179,7 @@ export class CompetitionApplicationService {
     this.replaceCompetition(result.competition);
     this.rebuildEngine();
     this.appendAudit(command.principal, "participant_state_change", participant.participantId, "applied", "registered", undefined);
+    this.emit("participant.registered", participant.participantId, { accountId: participant.accountId }, undefined);
     return this.snapshot();
   }
 
@@ -159,6 +191,7 @@ export class CompetitionApplicationService {
     this.replaceCompetition(prepared);
     this.rebuildEngine();
     this.appendAudit(principal, "competition_state_change", competition.config.id, "applied", "prepared", request);
+    this.emit("competition.prepared", competition.config.id, {}, request);
     return Object.freeze({ applied: true, reason: "allowed", competition: prepared });
   }
 
@@ -199,6 +232,8 @@ export class CompetitionApplicationService {
     this.replaceCompetition(result.competition);
     this.rebuildEngine();
     this.appendAudit(command.principal, "competition_state_change", competition.config.id, "applied", command.action, requestId);
+    const eventType = ({ start: "competition.started", pause: "competition.paused", resume: "competition.resumed", complete: "competition.completed", halt: "competition.halted", suspend_participant: "participant.suspended", resume_participant: "participant.resumed", liquidate_participant: "participant.liquidation.requested" } as const)[command.action];
+    this.emit(eventType, command.participantId ?? competition.config.id, {}, requestId);
     return Object.freeze(result);
   }
 
@@ -208,6 +243,7 @@ export class CompetitionApplicationService {
     if (!current) throw new NotFoundError("competition was not found");
     this.policy = updateCompetitionPolicy(current, command.patch);
     this.appendAudit(command.principal, "policy_change", this.requireCompetition().config.id, "applied", "policy updated", undefined);
+    this.emit("competition.policy.updated", this.requireCompetition().config.id, { policyVersion: this.policy.version, tradingEnabled: this.policy.tradingEnabled, emergencyHalt: this.policy.emergencyHalt }, undefined);
     return this.snapshot();
   }
 
@@ -240,6 +276,7 @@ export class CompetitionApplicationService {
       undefined,
       result.decision.policyVersion,
     );
+    this.emit(result.decision.allowed ? "competition.order.authorized" : "competition.order.rejected", participantId, { instrumentId, orderNotional, allowed: result.decision.allowed }, undefined);
     return Object.freeze(result);
   }
 
@@ -262,7 +299,22 @@ export class CompetitionApplicationService {
     if (!this.engine.performance.some((entry) => entry.participantId === participantId)) {
       throw new NotFoundError("participant was not found");
     }
+    this.emit("competition.performance.updated", participantId, { realizedPnl: command.realizedPnl, unrealizedPnl: command.unrealizedPnl }, undefined);
     return this.snapshot();
+  }
+
+  private emit(type: CompetitionEvent["type"], targetId: string, payload: Readonly<Record<string, string | number | boolean>>, requestId?: string): void {
+    const competition = this.requireCompetition();
+    const event: CompetitionEvent = Object.freeze({ eventId: crypto.randomUUID(), type, occurredAt: new Date().toISOString(), competitionId: competition.config.id, sequence: this.eventSequence + 1, targetId, ...(requestId === undefined ? {} : { requestId }), payload: Object.freeze({ ...payload }) });
+    this.eventSequence = event.sequence;
+    this.events.push(event);
+    for (const subscriber of [...this.subscribers]) { try { subscriber(event); } catch { /* transport consumers cannot roll back state */ } }
+    this.persist();
+  }
+
+  private persist(): void {
+    if (!this.persistence) return;
+    this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()) });
   }
 
   private requireCapability(principal: ApplicationPrincipal, capability: CompetitionCapability): void {
