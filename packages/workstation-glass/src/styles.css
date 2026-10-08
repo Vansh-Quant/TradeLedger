@@ -140,3 +140,20 @@
 @utility animate-page { animation: fade-up 220ms ease-out; }
 @utility animate-pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+
+
+/* Competition command-center controls */
+.control-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 10px;
+  font-weight: 600;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.control-btn:hover { background: hsl(var(--accent)); border-color: hsl(var(--primary) / 0.5); }
+.control-btn.danger { border-color: hsl(var(--destructive) / 0.4); color: hsl(var(--destructive)); }
+.control-btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
