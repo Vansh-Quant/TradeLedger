@@ -21,6 +21,9 @@ import {
   type ControlAction,
   type CompetitionCapability,
   type CompetitionAuditEvent,
+  acceptIdempotentRequest,
+  createIdempotencyState,
+  type IdempotencyState,
 } from "@tradeledger/domain";
 import type { ApplicationPrincipal, CompetitionEvent, CompetitionPersistencePort } from "./contracts.js";
 import { AuthorizationError, NotFoundError, ValidationError } from "./errors.js";
@@ -111,6 +114,7 @@ export class CompetitionApplicationService {
   private events: CompetitionEvent[] = [];
   private readonly subscribers = new Set<(event: CompetitionEvent) => void>();
   private readonly persistence: CompetitionPersistencePort | undefined;
+  private idempotency: IdempotencyState = createIdempotencyState();
 
   constructor(persistence?: CompetitionPersistencePort) {
     this.persistence = persistence;
@@ -123,6 +127,7 @@ export class CompetitionApplicationService {
       this.events = [...snapshot.events];
       this.eventSequence = snapshot.eventSequence;
       this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
+      this.idempotency = snapshot.idempotency;
     }
   }
 
@@ -187,6 +192,10 @@ export class CompetitionApplicationService {
     this.requireCapability(principal, "competition.start");
     const competition = this.requireCompetition();
     const request = requireString(requestId, "requestId");
+    const fingerprint = JSON.stringify({ action: "prepare", principalId: principal.id });
+    const idem = acceptIdempotentRequest(this.idempotency, request, fingerprint, competition.sequence, true);
+    if (idem.duplicate) return Object.freeze({ applied: false, reason: "duplicate_request", competition });
+    this.idempotency = idem.state;
     const prepared = prepareCompetition(competition);
     this.replaceCompetition(prepared);
     this.rebuildEngine();
@@ -197,6 +206,10 @@ export class CompetitionApplicationService {
 
   control(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
     const competition = this.requireCompetition();
+    const fingerprint = JSON.stringify({ action: command.action, expectedVersion: command.expectedVersion, participantId: command.participantId ?? null, principalId: command.principal.id });
+    const idem = acceptIdempotentRequest(this.idempotency, command.requestId, fingerprint, competition.sequence, true);
+    if (idem.duplicate) return Object.freeze({ applied: false, reason: "duplicate_request", competition });
+    this.idempotency = idem.state;
     const principal = principalForCompetition(command.principal);
     const capability = this.capabilityForAction(command.action);
     this.requireCapability(command.principal, capability);
