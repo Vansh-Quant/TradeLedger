@@ -67,7 +67,7 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
     if (value.sequence !== latest + 1) throw new PersistenceError("segmented log sequence is not contiguous");
     const encoded = JSON.stringify(this.encode(value));
     if (encoded === undefined) throw new PersistenceError("segmented log entry is not serializable");
-    const line = encoded + "\\n";
+    const line = encoded + "\n";
     const target = this.currentSegmentPath(value.sequence);
     if (this.fileSize(target) > 0 && this.fileSize(target) + Buffer.byteLength(line, "utf8") > this.segmentMaxBytes) {
       this.writeDurably(segmentName(this.prefix, value.sequence), line);
@@ -135,7 +135,7 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
     this.assertRegularFile(path);
     const text = readFileSync(path, "utf8");
     if (text.length === 0) return [];
-    const lines = text.split("\\n");
+    const lines = text.split("\n");
     if (lines[lines.length - 1] === "") lines.pop();
     const result: T[] = [];
     for (const line of lines) {
