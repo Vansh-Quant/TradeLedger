@@ -179,6 +179,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(patch),
     }),
+  competitionEvents: (after = 0, onEvent: (event: unknown) => void) => {
+    const cfg = getApiConfig();
+    if (!cfg.baseUrl) throw new ApiError("API base URL not configured", 0);
+    const url = new URL("/api/v1/competition/events", cfg.baseUrl.replace(/\/$/, "") + "/");
+    url.searchParams.set("after", String(after));
+    const source = new EventSource(url.toString());
+    source.onmessage = (message) => {
+      try { onEvent(JSON.parse(message.data) as unknown); } catch { /* ignore malformed transport payload */ }
+    };
+    return () => source.close();
+  },
   cancelOrder: (orderId: string, accountId: string) =>
     request<unknown>(
       `/api/v1/orders/${encodeURIComponent(orderId)}?accountId=${encodeURIComponent(accountId)}`,
