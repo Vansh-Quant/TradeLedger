@@ -257,4 +257,165 @@ describe("competition HTTP load profile", () => {
       await close(server);
     }
   });
+  it("fans out a live policy event to 1,000 real SSE connections", { timeout: 180_000 }, async () => {
+    const competition = buildCompetition(1);
+    const server = buildServer(competition);
+    const { port } = await listen(server);
+    const controllers = Array.from({ length: 1000 }, () => new AbortController());
+    try {
+      const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
+      const batchSize = 25;
+      for (let offset = 0; offset < controllers.length; offset += batchSize) {
+        const batch = await Promise.all(
+          controllers.slice(offset, offset + batchSize).map(async (controller) => {
+            const response = await fetch(
+              "http://127.0.0.1:" + port + "/api/v1/competition/events?after=0",
+              { headers: { ...authHeaders(), accept: "text/event-stream" }, signal: controller.signal },
+            );
+            expect(response.status).toBe(200);
+            return response.body!.getReader();
+          }),
+        );
+        readers.push(...batch);
+      }
+
+      const decoder = new TextDecoder();
+      const initial = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.created"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+      expect(initial.every((text) => text.includes("competition.created"))).toBe(true);
+
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
+
+      const delivered = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.policy.updated"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+      expect(delivered.every((text) => text.includes("competition.policy.updated"))).toBe(true);
+
+      console.info("[competition-http-stress] sse", JSON.stringify({
+        subscribers: 1000,
+        eventSequence: competition.listEventsAfter(principal, 0).at(-1)?.sequence ?? 0,
+        delivered: delivered.filter((text) => text.includes("competition.policy.updated")).length,
+      }));
+    } finally {
+      controllers.forEach((controller) => controller.abort());
+      await close(server);
+    }
+  });
+
+  it("reconnects with Last-Event-ID and replays only missing events", { timeout: 60_000 }, async () => {
+    const competition = buildCompetition(1);
+    const server = buildServer(competition);
+    const { port } = await listen(server);
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    try {
+      const first = await fetch(
+        "http://127.0.0.1:" + port + "/api/v1/competition/events?after=0",
+        { headers: { ...authHeaders(), accept: "text/event-stream" }, signal: firstController.signal },
+      );
+      expect(first.status).toBe(200);
+      const firstReader = first.body!.getReader();
+      const decoder = new TextDecoder();
+      let firstText = "";
+      for (let attempt = 0; attempt < 10 && !firstText.includes("competition.created"); attempt += 1) {
+        const chunk = await firstReader.read();
+        if (chunk.done) break;
+        firstText += decoder.decode(chunk.value, { stream: true });
+      }
+      expect(firstText).toContain("competition.created");
+
+      const before = competition.listEventsAfter(principal, 0).at(-1)?.sequence ?? 0;
+      firstController.abort();
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 30_000 } });
+
+      const replay = await fetch(
+        "http://127.0.0.1:" + port + "/api/v1/competition/events",
+        { headers: { ...authHeaders(), accept: "text/event-stream", "last-event-id": String(before) }, signal: secondController.signal },
+      );
+      expect(replay.status).toBe(200);
+      const reader = replay.body!.getReader();
+      let text = "";
+      for (let attempt = 0; attempt < 10 && (text.match(/competition\.policy\.updated/g) ?? []).length < 2; attempt += 1) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+      const matches = text.match(/competition\.policy\.updated/g) ?? [];
+      expect(matches).toHaveLength(2);
+      expect(text).toContain(`id: ${before + 1}`);
+      expect(text).toContain(`id: ${before + 2}`);
+    } finally {
+      firstController.abort();
+      secondController.abort();
+      await close(server);
+    }
+  });
+
+  it("blocks a full post-halt HTTP burst and preserves the halted state", { timeout: 120_000 }, async () => {
+    const competition = buildCompetition(1000);
+    const server = buildServer(competition);
+    const { port } = await listen(server);
+    try {
+      const before = competition.get(principal);
+      const halt = await fetch("http://127.0.0.1:" + port + "/api/v1/competition/control", {
+        method: "POST",
+        headers: { ...authHeaders(), "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "halt",
+          expectedVersion: before.competition.version,
+          requestId: "http-halt-stress",
+        }),
+      });
+      expect(halt.status).toBe(200);
+
+      const responses: Response[] = [];
+      const batchSize = 50;
+      for (let offset = 0; offset < 10_000; offset += batchSize) {
+        const batch = await Promise.all(
+          Array.from({ length: batchSize }, (_, localIndex) => {
+            const index = offset + localIndex;
+            return fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+              method: "POST",
+              headers: { ...authHeaders(), "content-type": "application/json" },
+              body: JSON.stringify({
+                participantId: participantId(index % 1000),
+                instrumentId: "AAPL",
+                orderNotional: 1000,
+                second: 2,
+              }),
+            });
+          }),
+        );
+        responses.push(...batch);
+        const bodies: Array<{ decision?: { allowed?: boolean; reason?: string } }> = await Promise.all(
+          batch.map((response) => response.json() as Promise<{ decision?: { allowed?: boolean; reason?: string } }>),
+        );
+        expect(bodies.every((body) => body.decision?.allowed === false && body.decision.reason === "emergency_halt")).toBe(true);
+      }
+
+      expect(responses.every((response) => response.status === 200)).toBe(true);
+      const after = competition.get(principal);
+      expect(after.competition.state).toBe("halted");
+      expect(after.policy.emergencyHalt).toBe(true);
+      expect(after.engine.orderCounts).toEqual({});
+      expect(after.engine.second).toBe(0);
+    } finally {
+      await close(server);
+    }
+  });
+
 });
