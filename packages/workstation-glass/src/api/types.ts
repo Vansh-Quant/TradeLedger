@@ -112,3 +112,40 @@ export interface WorkstationDemoData {
   journal: Array<{ id: string; date: string; symbol: string; setup: string; bias: string; rating: number; pnl: number; note: string }>;
   chart: { symbol: string; candles: number[]; volume: number[] };
 }
+
+
+export interface CompetitionParticipant {
+  participantId: string;
+  accountId: string;
+  state: string;
+  registeredAt: string;
+}
+
+export interface CompetitionLeaderboardEntry {
+  participantId: string;
+  rank: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  totalPnl: number;
+  returnPct: number;
+}
+
+export interface CompetitionSnapshot {
+  competition: {
+    config: { id: string; name: string; maxParticipants: number; allowedInstruments: string[]; maxOrderNotional: number; maxOrdersPerParticipantPerSecond: number; startingEquity: number };
+    state: string;
+    participants: CompetitionParticipant[];
+    version: number;
+    sequence: number;
+  };
+  policy: {
+    version: number;
+    tradingEnabled: boolean;
+    emergencyHalt: boolean;
+    allowedInstruments: string[];
+    maxOrderNotional: number;
+    maxOrdersPerParticipantPerSecond: number;
+  };
+  leaderboard: CompetitionLeaderboardEntry[];
+  audit: Array<{ sequence: number; action: string; targetId?: string; outcome: string; reason?: string; occurredAt: string }>;
+}
