@@ -32,7 +32,6 @@ const context = {
   }),
 };
 const competitionContexts = Array.from({ length: 8 }, (_, index) => {
-  const participantId = `P-${String(index + 1).padStart(4, "0")}`;
   const participantAccount = createAccount({ id: `CMP-${String(index + 1).padStart(4, "0")}`, baseCurrency: "USD" });
   return {
     accountId: participantAccount.id,
