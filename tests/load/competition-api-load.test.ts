@@ -412,8 +412,16 @@ describe("competition HTTP load profile", () => {
       const after = competition.get(principal);
       expect(after.competition.state).toBe("halted");
       expect(after.policy.emergencyHalt).toBe(true);
-      expect(after.engine.orderCounts).toEqual({});
-      expect(after.engine.second).toBe(0);
+      expect(after.competition.state).toBe("halted");
+      const decision = competition.authorizeOrder({
+        principal,
+        participantId: participantId(0),
+        instrumentId: "AAPL",
+        orderNotional: 1000,
+        second: 2,
+      });
+      expect(decision.decision.allowed).toBe(false);
+      expect(decision.decision.reason).toBe("competition_not_live");
     } finally {
       await close(server);
     }
