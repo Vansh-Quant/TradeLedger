@@ -13,7 +13,8 @@
     "test": "vitest run tests",
     "test:watch": "vitest tests",
     "check": "npm run typecheck && npm test && npm run test:glass",
-    "test:glass": "npm run test --workspace packages/workstation-glass"
+    "test:glass": "npm run test --workspace packages/workstation-glass",
+    "test:competition-load": "vitest run tests/load/competition-load.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
