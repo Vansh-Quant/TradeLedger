@@ -1,4 +1,4 @@
-import type { ApplicationPrincipal, TradingApplicationService } from "@tradeledger/application";
+import type { ApplicationPrincipal, TradingApplicationService, CompetitionApplicationService } from "@tradeledger/application";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 
 export interface ApiRequest {
@@ -21,6 +21,7 @@ export interface ApiDependencies {
   readonly rateLimit?: RateLimitPolicy;
   /** Development-only fixture data for exercising the complete workstation UI. */
   readonly workstationDemoData?: (accountId: string) => unknown;
+  readonly competition?: CompetitionApplicationService;
 }
 
 export interface ApiServerOptions {
