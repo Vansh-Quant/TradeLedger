@@ -3,6 +3,8 @@ import {
   authorizeCompetitionCapability,
   authorizeCompetitionOrderWithState,
   buildCompetitionLeaderboard,
+  updateCompetitionLeaderboard,
+  type LeaderboardEntry,
   createCompetition,
   openCompetitionRegistration,
   prepareCompetition,
@@ -136,6 +138,7 @@ export class CompetitionApplicationService {
   private eventWatcher: ReturnType<typeof setInterval> | undefined;
   private readonly persistence: CompetitionPersistencePort | undefined;
   private idempotency: IdempotencyState = createIdempotencyState();
+  private leaderboard: readonly LeaderboardEntry[] = [];
 
   constructor(persistence?: CompetitionPersistencePort, private readonly trading?: TradingApplicationService) {
     this.persistence = persistence;
@@ -149,6 +152,7 @@ export class CompetitionApplicationService {
       this.eventSequence = snapshot.eventSequence;
       this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
       this.idempotency = snapshot.idempotency;
+      this.leaderboard = buildCompetitionLeaderboard(this.engine.performance);
     }
   }
 
@@ -193,6 +197,7 @@ export class CompetitionApplicationService {
       maxOrdersPerParticipantPerSecond: command.config.maxOrdersPerParticipantPerSecond,
     });
     this.engine = createCompetitionEngineState(this.competition);
+    this.leaderboard = buildCompetitionLeaderboard(this.engine.performance);
     this.appendAudit(command.principal, "competition_state_change", command.config.id, "applied", "created", undefined);
     this.emit("competition.created", command.config.id, {}, undefined);
     return this.snapshot();
@@ -408,9 +413,10 @@ export class CompetitionApplicationService {
           : entry,
       )),
     });
-    if (!this.engine.performance.some((entry) => entry.participantId === participantId)) {
-      throw new NotFoundError("participant was not found");
-    }
+    const updatedPerformance = this.engine.performance.find((entry) => entry.participantId === participantId);
+    if (updatedPerformance === undefined) throw new NotFoundError("participant was not found");
+    const startingEquity = Object.fromEntries(this.engine.performance.map((entry) => [entry.participantId, entry.startingEquity]));
+    this.leaderboard = updateCompetitionLeaderboard(this.leaderboard, updatedPerformance, startingEquity);
     this.emit("competition.performance.updated", participantId, { realizedPnl: command.realizedPnl, unrealizedPnl: command.unrealizedPnl }, undefined);
     return this.snapshot();
   }
@@ -515,6 +521,7 @@ export class CompetitionApplicationService {
       orderCounts: previous.orderCounts,
       second: previous.second,
     });
+    this.leaderboard = buildCompetitionLeaderboard(this.engine.performance);
   }
 
   private appendAudit(
@@ -554,7 +561,7 @@ export class CompetitionApplicationService {
     return Object.freeze({
       competition,
       policy,
-      leaderboard: Object.freeze(buildCompetitionLeaderboard(engine.performance)),
+      leaderboard: this.leaderboard,
       audit: this.audit,
     });
   }
