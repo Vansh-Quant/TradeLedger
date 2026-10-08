@@ -321,8 +321,8 @@ export class CompetitionApplicationService {
     const event: CompetitionEvent = Object.freeze({ eventId: crypto.randomUUID(), type, occurredAt: new Date().toISOString(), competitionId: competition.config.id, sequence: this.eventSequence + 1, targetId, ...(requestId === undefined ? {} : { requestId }), payload: Object.freeze({ ...payload }) });
     this.eventSequence = event.sequence;
     this.events.push(event);
-    for (const subscriber of [...this.subscribers]) { try { subscriber(event); } catch { /* transport consumers cannot roll back state */ } }
     this.persist();
+    for (const subscriber of [...this.subscribers]) { try { subscriber(event); } catch { /* transport consumers cannot roll back durable state */ } }
   }
 
   private persist(): void {
