@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Panel, PageHeader, DataTable } from "@/components/terminal/primitives";
 import { cn } from "@/lib/utils";
+import { api } from "@/api/client";
+import type { CompetitionSnapshot } from "@/api/types";
 
 export const Route = createFileRoute("/competition")({
   head: () => ({
@@ -73,11 +75,75 @@ function CompetitionDashboard() {
   const [tradingEnabled, setTradingEnabled] = useState(true);
   const [emergencyHalt, setEmergencyHalt] = useState(false);
   const [participants, setParticipants] = useState(initialParticipants);
+  const [snapshot, setSnapshot] = useState<CompetitionSnapshot | null>(null);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refreshCompetition = async () => {
+    try {
+      const next = await api.competition();
+      setSnapshot(next);
+      setStatus(next.competition.state === "live" ? "LIVE" : next.competition.state === "halted" ? "HALTED" : "PAUSED");
+      setTradingEnabled(next.policy.tradingEnabled);
+      setEmergencyHalt(next.policy.emergencyHalt);
+      const byId = new Map(next.leaderboard.map((entry) => [entry.participantId, entry]));
+      setParticipants(next.competition.participants.map((participant) => {
+        const entry = byId.get(participant.participantId);
+        return {
+          rank: entry?.rank ?? 0,
+          id: participant.participantId,
+          account: participant.accountId,
+          state: participant.state.toUpperCase() as ParticipantState,
+          pnl: entry?.totalPnl ?? 0,
+          returnPct: entry?.returnPct ?? 0,
+          drawdown: 0,
+          orders: 0,
+          lastActivity: "backend",
+        };
+      }));
+      setBackendError(null);
+    } catch (cause) {
+      setBackendError(cause instanceof Error ? cause.message : "competition backend unavailable");
+    }
+  };
+
+  useEffect(() => {
+    void refreshCompetition();
+    const timer = window.setInterval(() => void refreshCompetition(), 2000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const runControl = async (action: "start" | "pause" | "resume" | "complete" | "halt" | "suspend_participant" | "resume_participant", participantId?: string) => {
+    if (!snapshot) return;
+    setBusy(true);
+    try {
+      await api.competitionControl(action, snapshot.competition.version, participantId);
+      await refreshCompetition();
+    } catch (cause) {
+      setBackendError(cause instanceof Error ? cause.message : "competition control failed");
+    } finally { setBusy(false); }
+  };
+
+  const setTradingGate = async (enabled: boolean) => {
+    setBusy(true);
+    try { await api.competitionPolicy({ tradingEnabled: enabled }); await refreshCompetition(); }
+    catch (cause) { setBackendError(cause instanceof Error ? cause.message : "policy update failed"); }
+    finally { setBusy(false); }
+  };
+
+  const setEmergencyGate = async (halt: boolean) => {
+    setBusy(true);
+    try { await api.competitionPolicy({ emergencyHalt: halt }); await refreshCompetition(); }
+    catch (cause) { setBackendError(cause instanceof Error ? cause.message : "emergency control failed"); }
+    finally { setBusy(false); }
+  };
 
   const active = useMemo(() => participants.filter((p) => p.state === "ACTIVE").length, [participants]);
 
   const suspendTop = (id: string) => {
-    setParticipants((current) => current.map((p) => p.id === id ? { ...p, state: p.state === "SUSPENDED" ? "ACTIVE" : "SUSPENDED" } : p));
+    const participant = participants.find((p) => p.id === id);
+    if (!participant) return;
+    void runControl(participant.state === "SUSPENDED" ? "resume_participant" : "suspend_participant", id);
   };
 
   const controlState = emergencyHalt ? "EMERGENCY HALT" : status;
@@ -86,7 +152,7 @@ function CompetitionDashboard() {
     <div className="grid gap-3">
       <PageHeader
         title="Competition Control Center"
-        subtitle="CMP-2026-01 · 1,000-participant capacity · synchronized authority and live ranking"
+        subtitle={snapshot ? `${snapshot.competition.config.id} · ${snapshot.competition.config.maxParticipants.toLocaleString()}-participant capacity · backend authority` : "Connecting to competition backend…"}
         action={
           <div className={cn(
             "flex items-center gap-2 rounded border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider",
@@ -98,15 +164,17 @@ function CompetitionDashboard() {
         }
       />
 
+      {backendError && <div className="rounded border border-negative/30 bg-negative/5 px-3 py-2 text-[10px] text-negative">{backendError}</div>}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Stat label="Participants" value="1,000" detail="capacity" />
-        <Stat label="Active" value={String(active)} detail="live traders" tone="positive" />
+        <Stat label="Participants" value={snapshot ? `${snapshot.competition.participants.length} / ${snapshot.competition.config.maxParticipants}` : "—"} detail="registered / capacity" />
+        <Stat label="Active" value={snapshot ? String(active) : "—"} detail="live traders" tone="positive" />
         <Stat label="Orders / sec" value="142" detail="current burst" />
         <Stat label="Orders / min" value="2,486" detail="rolling minute" />
         <Stat label="Executions" value="18,421" detail="competition total" />
-        <Stat label="Gross P&L" value="+₹18.4L" detail="all participants" tone="positive" />
+        <Stat label="Gross P&L" value={snapshot ? `₹${snapshot.leaderboard.reduce((sum, x) => sum + x.totalPnl, 0).toLocaleString()}` : "—"} detail="competition service" tone="positive" />
         <Stat label="Max DD" value="7.8%" detail="current leader" tone="warning" />
-        <Stat label="Violations" value="3" detail="requires review" tone="negative" />
+        <Stat label="Audit events" value={snapshot ? String(snapshot.audit.length) : "—"} detail="authority audit" tone="normal" />
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.65fr_1fr]">
@@ -121,9 +189,9 @@ function CompetitionDashboard() {
                 <Power className="size-4 text-primary" />
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => setStatus("LIVE")} className="control-btn"><Play className="size-3" />Start / Resume</button>
-                <button onClick={() => setStatus("PAUSED")} className="control-btn"><CirclePause className="size-3" />Pause</button>
-                <button onClick={() => setStatus("HALTED")} className="control-btn danger"><Ban className="size-3" />Halt</button>
+                <button onClick={() => void runControl(status === "HALTED" ? "resume" : "start")} disabled={busy} className="control-btn"><Play className="size-3" />Start / Resume</button>
+                <button onClick={() => void runControl("pause")} className="control-btn"><CirclePause className="size-3" />Pause</button>
+                <button onClick={() => void runControl("halt")} className="control-btn danger"><Ban className="size-3" />Halt</button>
               </div>
             </div>
 
@@ -136,11 +204,11 @@ function CompetitionDashboard() {
                 <ShieldAlert className="size-4 text-warning" />
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setTradingEnabled((v) => !v)} className={cn("control-btn", !tradingEnabled && "danger")}>
+                <button onClick={() => void setTradingGate(!tradingEnabled)} disabled={busy} className={cn("control-btn", !tradingEnabled && "danger")}>
                   {tradingEnabled ? <CheckCircle2 className="size-3" /> : <Ban className="size-3" />}
                   Trading {tradingEnabled ? "Enabled" : "Disabled"}
                 </button>
-                <button onClick={() => setEmergencyHalt((v) => !v)} className={cn("control-btn", emergencyHalt && "danger")}>
+                <button onClick={() => void setEmergencyGate(!emergencyHalt)} disabled={busy} className={cn("control-btn", emergencyHalt && "danger")}>
                   <AlertTriangle className="size-3" />Emergency {emergencyHalt ? "Release" : "Halt"}
                 </button>
               </div>
