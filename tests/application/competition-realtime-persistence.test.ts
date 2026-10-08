@@ -137,14 +137,14 @@ describe("competition persistence and realtime", () => {
       expect(statusBefore.events.latestSequence).toBeGreaterThan(30);
       expect(statusBefore.events.segmentCount).toBeGreaterThan(1);
 
-      persistence.compactEventsThrough(2);
+      persistence.compactEventsThrough(statusBefore.events.latestSequence - 1);
       const status = persistence.eventLogStatus();
       expect(status.events.latestSequence).toBe(statusBefore.events.latestSequence);
       expect(status.events.firstSequence).toBeGreaterThan(1);
 
       const recovered = new CompetitionApplicationService(persistence);
       expect(() => recovered.listEventsAfter(owner, 0)).toThrow(/event stream gap/);
-      expect(recovered.listEventsAfter(owner, 2).length).toBe(status.events.latestSequence - 2);
+      expect(recovered.listEventsAfter(owner, status.events.firstSequence - 1).length).toBe(status.events.latestSequence - status.events.firstSequence + 1);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
