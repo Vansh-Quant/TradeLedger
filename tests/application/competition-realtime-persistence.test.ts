@@ -95,4 +95,26 @@ describe("competition persistence and realtime", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("serializes competing commands across two persistence-backed instances", () => {
+    const root = mkdtempSync(join(tmpdir(), "tradeledger-competition-lock-"));
+    try {
+      const persistenceA = new DurableCompetitionPersistence(root);
+      const persistenceB = new DurableCompetitionPersistence(root);
+      const first = new CompetitionApplicationService(persistenceA);
+      first.create({ principal: owner, config: config() });
+      first.register({ principal: owner, participantId: "P-0001", accountId: "CMP-0001" });
+      const prepared = first.prepare(owner, "prepare-lock");
+
+      const second = new CompetitionApplicationService(persistenceB);
+      const a = first.control({ principal: owner, action: "start", expectedVersion: prepared.competition.version, requestId: "lock-a" });
+      const b = second.control({ principal: owner, action: "start", expectedVersion: prepared.competition.version, requestId: "lock-b" });
+
+      expect(a.applied).toBe(true);
+      expect(b.reason).toBe("stale competition version");
+      expect(second.get(owner).competition.state).toBe("live");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
