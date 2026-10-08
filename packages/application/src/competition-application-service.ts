@@ -209,7 +209,6 @@ export class CompetitionApplicationService {
     });
     const result = registerAuthorizedParticipant(competition, principalForCompetition(command.principal), participant);
     if (!result.registered) throw new AuthorizationError(result.reason);
-    this.idempotency = idem.state;
     this.replaceCompetition(result.competition);
     this.rebuildEngine();
     this.appendAudit(command.principal, "participant_state_change", participant.participantId, "applied", "registered", undefined);
@@ -238,7 +237,7 @@ export class CompetitionApplicationService {
   }
 
   control(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
-    return this.exclusive(() => this.controlUnsafe(command));
+    return this.exclusive(() => this.controlUnsafe(command, prepareOnly));
   }
 
   private controlUnsafe(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
@@ -259,6 +258,7 @@ export class CompetitionApplicationService {
         throw new ValidationError("competition requires registration and at least one participant");
       }
       const prepared = { ...competition, state: "ready" as const, version: competition.version + 1, sequence: competition.sequence + 1, participants: Object.freeze([...competition.participants]) };
+      this.idempotency = idem.state;
       this.replaceCompetition(Object.freeze(prepared));
       this.appendAudit(command.principal, "competition_state_change", competition.config.id, "applied", "prepared", requestId);
       return Object.freeze({ applied: true, reason: "allowed", competition: this.requireCompetition() });
@@ -278,6 +278,7 @@ export class CompetitionApplicationService {
       return Object.freeze(result);
     }
 
+    this.idempotency = idem.state;
     this.replaceCompetition(result.competition);
     this.rebuildEngine();
     this.appendAudit(command.principal, "competition_state_change", competition.config.id, "applied", command.action, requestId);
