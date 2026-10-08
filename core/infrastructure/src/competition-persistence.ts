@@ -1,6 +1,8 @@
 import type { CompetitionPersistencePort, CompetitionPersistenceSnapshot } from "@tradeledger/application";
 import type { CompetitionEvent } from "@tradeledger/application";
 import { DurableJsonStore, PersistenceError, type JsonCodec } from "./durable-json-store.js";
+import { mkdirSync, rmSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 function objectRecord(value: unknown, field: string): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new PersistenceError(field + " must be an object");
@@ -97,4 +99,36 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
     if (snapshot.events.length !== snapshot.eventSequence) throw new PersistenceError("competition event sequence is invalid");
     this.store.save("state", snapshot);
   }
+
+  withExclusive<T>(operation: () => T): T {
+    const directory = join(this.rootDirectory(), "competition");
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const lock = join(directory, ".exclusive-lock");
+    const deadline = Date.now() + 5000;
+    while (true) {
+      try {
+        mkdirSync(lock);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw new PersistenceError("could not acquire competition lock");
+        try {
+          if (Date.now() - statSync(lock).mtimeMs > 30_000) rmSync(lock, { recursive: true, force: true });
+        } catch { /* retry acquisition */ }
+        if (Date.now() >= deadline) throw new PersistenceError("timed out acquiring competition lock");
+        const waiter = new Int32Array(new SharedArrayBuffer(4));
+        Atomics.wait(waiter, 0, 0, 5);
+      }
+    }
+    try {
+      return operation();
+    } finally {
+      rmSync(lock, { recursive: true, force: true });
+    }
+  }
+
+  private rootDirectory(): string {
+    return this.root;
+  }
+
+  private readonly root = (this.store as unknown as { rootDirectory: string }).rootDirectory;
 }
