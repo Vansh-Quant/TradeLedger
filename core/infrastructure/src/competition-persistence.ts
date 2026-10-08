@@ -102,13 +102,20 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
     if (snapshot === undefined) return undefined;
     let events = this.log.listEvents();
     let audit = this.log.listAudit();
-    if (events.length === 0 && snapshot.events.length > 0) {
-      this.log.appendManyEvents(snapshot.events);
+    const eventHighWater = events.length === 0 ? 0 : events[events.length - 1]!.sequence;
+    const auditHighWater = audit.length === 0 ? 0 : audit[audit.length - 1]!.sequence;
+    const missingEvents = snapshot.events.filter((event) => event.sequence > eventHighWater);
+    const missingAudit = snapshot.audit.filter((event) => event.sequence > auditHighWater);
+    if (missingEvents.length > 0) {
+      this.log.appendManyEvents(missingEvents);
       events = this.log.listEvents();
     }
-    if (audit.length === 0 && snapshot.audit.length > 0) {
-      this.log.appendManyAudit(snapshot.audit);
+    if (missingAudit.length > 0) {
+      this.log.appendManyAudit(missingAudit);
       audit = this.log.listAudit();
+    }
+    if (events.length > 0 && events[events.length - 1]!.sequence !== snapshot.eventSequence) {
+      throw new PersistenceError("competition event log does not match snapshot high-water mark");
     }
     return Object.freeze({ ...snapshot, events: Object.freeze(events), audit: Object.freeze(audit) });
   }
@@ -116,13 +123,16 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
   save(snapshot: CompetitionPersistenceSnapshot): void {
     if (snapshot.eventSequence < 0 || !Number.isSafeInteger(snapshot.eventSequence)) throw new PersistenceError("competition event sequence is invalid");
     const latestEvent = this.log.status().events.latestSequence;
-    for (const event of snapshot.events) {
-      if (event.sequence > latestEvent) this.log.appendEvent(event);
-    }
     const latestAudit = this.log.status().audit.latestSequence;
-    for (const event of snapshot.audit) {
-      if (event.sequence > latestAudit) this.log.appendAudit(event);
+    const missingEvents = snapshot.events.filter((event) => event.sequence > latestEvent);
+    const missingAudit = snapshot.audit.filter((event) => event.sequence > latestAudit);
+    if (missingEvents.length === 0 && missingAudit.length === 0) {
+      this.store.save("state", { ...snapshot, events: Object.freeze([]), audit: Object.freeze([]) });
+      return;
     }
+    this.store.save("state", { ...snapshot, events: Object.freeze(missingEvents), audit: Object.freeze(missingAudit) });
+    this.log.appendManyEvents(missingEvents);
+    this.log.appendManyAudit(missingAudit);
     this.store.save("state", { ...snapshot, events: Object.freeze([]), audit: Object.freeze([]) });
   }
 
