@@ -189,6 +189,7 @@ export class CompetitionApplicationService {
     });
     const result = registerAuthorizedParticipant(competition, principalForCompetition(command.principal), participant);
     if (!result.registered) throw new AuthorizationError(result.reason);
+    this.idempotency = idem.state;
     this.replaceCompetition(result.competition);
     this.rebuildEngine();
     this.appendAudit(command.principal, "participant_state_change", participant.participantId, "applied", "registered", undefined);
@@ -222,18 +223,16 @@ export class CompetitionApplicationService {
 
   private controlUnsafe(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
     const competition = this.requireCompetition();
-    const fingerprint = JSON.stringify({ action: command.action, expectedVersion: command.expectedVersion, participantId: command.participantId ?? null, principalId: command.principal.id });
-    const idem = acceptIdempotentRequest(this.idempotency, command.requestId, fingerprint, competition.sequence, true);
-    if (idem.duplicate) return Object.freeze({ applied: false, reason: "duplicate_request", competition });
-    this.idempotency = idem.state;
     const principal = principalForCompetition(command.principal);
     const capability = this.capabilityForAction(command.action);
     this.requireCapability(command.principal, capability);
-
     if (!Number.isSafeInteger(command.expectedVersion) || command.expectedVersion < 0) {
       throw new ValidationError("expectedVersion must be a non-negative integer");
     }
     const requestId = requireString(command.requestId, "requestId");
+    const fingerprint = JSON.stringify({ action: command.action, expectedVersion: command.expectedVersion, participantId: command.participantId ?? null, principalId: command.principal.id });
+    const idem = acceptIdempotentRequest(this.idempotency, requestId, fingerprint, competition.sequence, true);
+    if (idem.duplicate) return Object.freeze({ applied: false, reason: "duplicate_request", competition });
 
     if (prepareOnly) {
       if (competition.state !== "registration" || competition.participants.length === 0) {
@@ -254,6 +253,7 @@ export class CompetitionApplicationService {
     });
 
     if (!result.applied) {
+      this.idempotency = idem.state;
       this.appendAudit(command.principal, "control", competition.config.id, "denied", result.reason, requestId);
       return Object.freeze(result);
     }
