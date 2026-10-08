@@ -31,6 +31,22 @@ const context = {
     maxDailyLoss: 5_000,
   }),
 };
+const competitionContexts = Array.from({ length: 8 }, (_, index) => {
+  const participantId = `P-${String(index + 1).padStart(4, "0")}`;
+  const participantAccount = createAccount({ id: `CMP-${String(index + 1).padStart(4, "0")}`, baseCurrency: "USD" });
+  return {
+    accountId: participantAccount.id,
+    accountPortfolio: createAccountPortfolio(participantAccount, createPortfolio()),
+    buyingPower: createBuyingPower(100_000),
+    riskLimits: createRiskLimits({
+      maxOrderNotional: 50_000,
+      maxPositionNotional: 100_000,
+      maxGrossExposure: 200_000,
+      maxNetExposure: 150_000,
+      maxDailyLoss: 5_000,
+    }),
+  };
+});
 
 const principal = { id: "dev-user", roles: ["trader", "owner"] };
 const marketData = new InMemoryMarketDataStateStore();
@@ -45,10 +61,19 @@ marketData.accept("AAPL" as InstrumentId, createQuote({
 }), "2026-10-04T09:30:00Z");
 
 const application = new TradingApplicationService(
-  new InMemoryTradingContext([context]),
+  new InMemoryTradingContext([context, ...competitionContexts]),
   new InMemoryOrderStateStore(),
   new AllowListedAuthorization([
     "dev-user:order.read:ACC-APP",
+    ...competitionContexts.flatMap((entry) => [
+      `dev-user:order.read:${entry.accountId}`,
+      `dev-user:order.submit:${entry.accountId}`,
+      `dev-user:order.cancel:${entry.accountId}`,
+      `dev-user:order.expire:${entry.accountId}`,
+      `dev-user:market-data.read:${entry.accountId}`,
+      `dev-user:execution.record:${entry.accountId}`,
+      `dev-user:event-stream.read:${entry.accountId}`,
+    ]),
     "dev-user:order.submit:ACC-APP",
     "dev-user:order.cancel:ACC-APP",
     "dev-user:order.expire:ACC-APP",
@@ -128,7 +153,7 @@ const workstationDemoData = (accountId: string) => ({
 });
 
 const competitionPersistence = new DurableCompetitionPersistence(process.env.TRADELEDGER_DATA_DIR ?? ".tradeledger-data");
-const competitionApplication = new CompetitionApplicationService(competitionPersistence);
+const competitionApplication = new CompetitionApplicationService(competitionPersistence, application);
 
 try {
   competitionApplication.get(principal);
