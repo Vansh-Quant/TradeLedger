@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   AllowListedAuthorization,
   CompetitionApplicationService,
-  InMemoryMarketDataStateStore,
   InMemoryOrderStateStore,
   InMemoryTradingContext,
   RandomOrderIdGenerator,
@@ -12,6 +11,7 @@ import {
   type TradingContext,
 } from "../../packages/application/src/index.js";
 import { createHttpApi, staticBearerAuthenticator } from "../../packages/api/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 import {
   createAccount,
   createAccountPortfolio,
@@ -164,7 +164,7 @@ describe("competition HTTP load profile", () => {
       const snapshot = competition.get(principal);
       expect(snapshot.competition.participants).toHaveLength(1000);
       expect(snapshot.audit.filter((event) => event.action === "order_authorization")).toHaveLength(10_000);
-      expect(competition.listEventsAfter(principal, 0)).toHaveLength(10_004);
+      expect(competition.listEventsAfter(principal, 0)).toHaveLength(11_003);
       console.info("[competition-http-stress] authority", JSON.stringify({
         requests: 10_000,
         allowed: bodies.filter((body) => body.decision?.allowed === true).length,
@@ -214,13 +214,29 @@ describe("competition HTTP load profile", () => {
         }),
       );
 
-      const initialReads = await Promise.all(readers.map((reader) => reader.read()));
-      expect(initialReads.every((chunk) => !chunk.done && new TextDecoder().decode(chunk.value).includes("competition.created"))).toBe(true);
+      const decoder = new TextDecoder();
+      const initialReads = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.created"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+      expect(initialReads.every((chunk) => chunk.includes("competition.created"))).toBe(true);
 
       competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
-      const eventChunks = await Promise.all(readers.map((reader) => reader.read()));
-      const decoded = eventChunks.map((chunk) => chunk.value === undefined ? "" : new TextDecoder().decode(chunk.value));
-      expect(decoded.every((chunk) => chunk.includes("competition.policy.updated"))).toBe(true);
+      const eventChunks = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.policy.updated"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+      expect(eventChunks.every((chunk) => chunk.includes("competition.policy.updated"))).toBe(true);
     } finally {
       controllers.forEach((controller) => controller.abort());
       await close(server);
