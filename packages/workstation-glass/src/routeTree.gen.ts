@@ -99,8 +99,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/competition': typeof CompetitionRoute
-  '/competition': typeof CompetitionRoute
-  '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
   '/journal': typeof JournalRoute
@@ -116,6 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
   '/journal': typeof JournalRoute
@@ -132,6 +131,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
   '/journal': typeof JournalRoute
@@ -150,8 +150,6 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/competition'
-    | '/competition'
-    | '/competition'
     | '/executions'
     | '/jarvis'
     | '/journal'
@@ -167,6 +165,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/analytics'
+    | '/competition'
     | '/executions'
     | '/jarvis'
     | '/journal'
@@ -182,6 +181,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/analytics'
+    | '/competition'
     | '/executions'
     | '/jarvis'
     | '/journal'
@@ -218,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/competition': {
+      id: '/competition'
+      path: '/competition'
+      fullPath: '/competition'
+      preLoaderRoute: typeof CompetitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/competition': {
