@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, CandlestickChart, ListOrdered, Briefcase, Zap, ShieldCheck, BookOpen,
+  LayoutDashboard, CandlestickChart, ListOrdered, Briefcase, Zap, ShieldCheck, BookOpen, Trophy,
   FlaskConical, Boxes, Activity, BarChart3, Sparkles, Settings,
 } from "lucide-react";
 
@@ -10,6 +10,7 @@ export const NAV = [
   { to: "/positions", label: "Positions", icon: Briefcase },
   { to: "/executions", label: "Executions", icon: Zap },
   { to: "/risk", label: "Risk", icon: ShieldCheck },
+  { to: "/competition", label: "Competition", icon: Trophy },
   { to: "/journal", label: "Journal", icon: BookOpen },
   { to: "/research", label: "Research", icon: FlaskConical },
   { to: "/strategies", label: "Strategies", icon: Boxes },
