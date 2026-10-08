@@ -1,7 +1,7 @@
 import { getApiConfig } from "./config";
 import {
   ApiError, type AccountContext, type Execution, type Order, type Position,
-  type SubmitOrderIntent, type WorkstationDemoData,
+  type SubmitOrderIntent, type WorkstationDemoData, type CompetitionSnapshot,
 } from "./types";
 
 // Single entry point for all TradeLedger HTTP communication.
@@ -155,6 +155,30 @@ export const api = {
   },
   submitOrder: (intent: SubmitOrderIntent) =>
     request<unknown>("/api/v1/orders", { method: "POST", body: JSON.stringify(intent), idempotent: true }),
+  competition: async () =>
+    request<CompetitionSnapshot>("/api/v1/competition"),
+  competitionControl: (
+    action: "start" | "pause" | "resume" | "complete" | "halt" | "suspend_participant" | "resume_participant" | "liquidate_participant",
+    expectedVersion: number,
+    participantId?: string,
+  ) =>
+    request<CompetitionSnapshot | { applied: boolean; reason: string; competition: CompetitionSnapshot["competition"] }>(
+      "/api/v1/competition/control",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action,
+          expectedVersion,
+          requestId: crypto.randomUUID(),
+          ...(participantId === undefined ? {} : { participantId }),
+        }),
+      },
+    ),
+  competitionPolicy: (patch: Partial<CompetitionSnapshot["policy"]>) =>
+    request<CompetitionSnapshot>("/api/v1/competition/policy", {
+      method: "POST",
+      body: JSON.stringify(patch),
+    }),
   cancelOrder: (orderId: string, accountId: string) =>
     request<unknown>(
       `/api/v1/orders/${encodeURIComponent(orderId)}?accountId=${encodeURIComponent(accountId)}`,
