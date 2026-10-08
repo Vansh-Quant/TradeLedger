@@ -4,6 +4,8 @@ import {
   authorizeCompetitionOrderWithState,
   buildCompetitionLeaderboard,
   createCompetition,
+  openCompetitionRegistration,
+  prepareCompetition,
   createCompetitionEngineState,
   createCompetitionPolicy,
   createCompetitionAuditEvent,
@@ -112,7 +114,7 @@ export class CompetitionApplicationService {
       throw new ValidationError("competition already exists");
     }
     const now = command.now ?? new Date().toISOString();
-    this.competition = createCompetition(command.config, now);
+    this.competition = openCompetitionRegistration(createCompetition(command.config, now));
     this.policy = createCompetitionPolicy({
       tradingEnabled: true,
       emergencyHalt: false,
@@ -150,7 +152,14 @@ export class CompetitionApplicationService {
   }
 
   prepare(principal: ApplicationPrincipal, requestId: string): CompetitionControlResult {
-    return this.control({ principal, action: "start", expectedVersion: this.requireCompetition().version, requestId, participantId: undefined }, true);
+    this.requireCapability(principal, "competition.start");
+    const competition = this.requireCompetition();
+    const request = requireString(requestId, "requestId");
+    const prepared = prepareCompetition(competition);
+    this.replaceCompetition(prepared);
+    this.rebuildEngine();
+    this.appendAudit(principal, "competition_state_change", competition.config.id, "applied", "prepared", request);
+    return Object.freeze({ applied: true, reason: "allowed", competition: prepared });
   }
 
   control(command: CompetitionControlCommand, prepareOnly = false): CompetitionControlResult {
