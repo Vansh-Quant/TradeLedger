@@ -168,6 +168,9 @@ export class CompetitionApplicationService {
   listEventsAfter(principal: ApplicationPrincipal, sequence: number): readonly CompetitionEvent[] {
     this.requireCapability(principal, "competition.view");
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new ValidationError("sequence must be a non-negative integer");
+    if (this.events.length > 0 && sequence < this.events[0]!.sequence - 1) {
+      throw new ValidationError("event stream gap; resync from a current snapshot is required");
+    }
     return Object.freeze(this.events.filter((event) => event.sequence > sequence).slice());
   }
 
