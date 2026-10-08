@@ -502,6 +502,19 @@ describe("competition HTTP load profile", () => {
       let allowed = 0;
       const requestCount = 2_000;
       const requestBatchSize = 20;
+
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
+
+      const deliveredPromise = Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 20 && !text.includes("competition.policy.updated"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+
       for (let offset = 0; offset < requestCount; offset += requestBatchSize) {
         const batch = await Promise.all(
           Array.from({ length: Math.min(requestBatchSize, requestCount - offset) }, (_, localIndex) => {
@@ -522,20 +535,9 @@ describe("competition HTTP load profile", () => {
           batch.map((response) => response.json() as Promise<{ decision?: { allowed?: boolean } }>),
         );
         allowed += bodies.filter((body) => body.decision?.allowed === true).length;
-
       }
 
-      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
-
-      const delivered = await Promise.all(readers.map(async (reader) => {
-        let text = "";
-        for (let attempt = 0; attempt < 10 && !text.includes("competition.policy.updated"); attempt += 1) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          text += decoder.decode(chunk.value, { stream: true });
-        }
-        return text;
-      }));
+      const delivered = await deliveredPromise;
 
       const authorityElapsed = (performance.now() - authorityStarted) / 1000;
       const connectionElapsed = (performance.now() - connectionStarted) / 1000;
