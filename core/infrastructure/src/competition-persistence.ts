@@ -3,6 +3,7 @@ import type { CompetitionEvent } from "@tradeledger/application";
 import { DurableJsonStore, PersistenceError, type JsonCodec } from "./durable-json-store.js";
 import { mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { DurableCompetitionEventLog } from "./competition-event-log.js";
 
 function objectRecord(value: unknown, field: string): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new PersistenceError(field + " must be an object");
@@ -68,10 +69,11 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
     if (!Array.isArray(raw.audit) || !Array.isArray(raw.events)) throw new PersistenceError("competition persistence collections are invalid");
     const eventSequence = integer(raw.eventSequence, "competitionPersistence.eventSequence");
     const events = raw.events.map(validateEvent);
-    if (events.length !== eventSequence) throw new PersistenceError("competition event sequence does not match event count");
-    for (let index = 0; index < events.length; index += 1) {
-      if (events[index]!.sequence !== index + 1) throw new PersistenceError("competition event sequence is not contiguous");
+    if (events.length > eventSequence) throw new PersistenceError("competition event count exceeds sequence");
+    for (let index = 1; index < events.length; index += 1) {
+      if (events[index]!.sequence !== events[index - 1]!.sequence + 1) throw new PersistenceError("competition event sequence is not contiguous");
     }
+    if (events.length > 0 && events[events.length - 1]!.sequence !== eventSequence) throw new PersistenceError("competition event sequence does not reach high-water mark");
     return Object.freeze({
       competition: competition as unknown as CompetitionPersistenceSnapshot["competition"],
       policy: policy as unknown as CompetitionPersistenceSnapshot["policy"],
@@ -87,19 +89,53 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
 export class DurableCompetitionPersistence implements CompetitionPersistencePort {
   private readonly store: DurableJsonStore<CompetitionPersistenceSnapshot>;
   private readonly rootPath: string;
+  private readonly log: DurableCompetitionEventLog;
 
   constructor(rootDirectory: string) {
     this.rootPath = rootDirectory.trim();
     this.store = new DurableJsonStore(this.rootPath, "competition", codec);
+    this.log = new DurableCompetitionEventLog(this.rootPath);
   }
 
   load(): CompetitionPersistenceSnapshot | undefined {
-    return this.store.get("state");
+    const snapshot = this.store.get("state");
+    if (snapshot === undefined) return undefined;
+    let events = this.log.listEvents();
+    let audit = this.log.listAudit();
+    if (events.length === 0 && snapshot.events.length > 0) {
+      this.log.appendManyEvents(snapshot.events);
+      events = this.log.listEvents();
+    }
+    if (audit.length === 0 && snapshot.audit.length > 0) {
+      this.log.appendManyAudit(snapshot.audit);
+      audit = this.log.listAudit();
+    }
+    return Object.freeze({ ...snapshot, events: Object.freeze(events), audit: Object.freeze(audit) });
   }
 
   save(snapshot: CompetitionPersistenceSnapshot): void {
-    if (snapshot.events.length !== snapshot.eventSequence) throw new PersistenceError("competition event sequence is invalid");
-    this.store.save("state", snapshot);
+    if (snapshot.eventSequence < 0 || !Number.isSafeInteger(snapshot.eventSequence)) throw new PersistenceError("competition event sequence is invalid");
+    const latestEvent = this.log.status().events.latestSequence;
+    for (const event of snapshot.events) {
+      if (event.sequence > latestEvent) this.log.appendEvent(event);
+    }
+    const latestAudit = this.log.status().audit.latestSequence;
+    for (const event of snapshot.audit) {
+      if (event.sequence > latestAudit) this.log.appendAudit(event);
+    }
+    this.store.save("state", { ...snapshot, events: Object.freeze([]), audit: Object.freeze([]) });
+  }
+
+  eventLogStatus() {
+    return this.log.status();
+  }
+
+  compactEventsThrough(sequence: number): void {
+    this.log.compactEventsThrough(sequence);
+  }
+
+  compactAuditThrough(sequence: number): void {
+    this.log.compactAuditThrough(sequence);
   }
 
   withExclusive<T>(operation: () => T): T {
