@@ -203,6 +203,40 @@ export class TradeLedgerApiClient {
   }
 
 
+  async submitCompetitionOrder(command: {
+    participantId: string;
+    accountId: string;
+    instrumentId: string;
+    side: "buy" | "sell";
+    type: "market" | "limit" | "stop" | "stop-limit";
+    quantity: number;
+    limitPrice?: number;
+    stopPrice?: number;
+    timeInForce: "day" | "gtc" | "ioc" | "fok";
+    second: number;
+    idempotencyKey?: string;
+  }): Promise<import("@tradeledger/application").CompetitionOrderSubmissionResult> {
+    return this.request<import("@tradeledger/application").CompetitionOrderSubmissionResult>("/api/v1/competition/orders", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": command.idempotencyKey ?? crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        participantId: command.participantId,
+        accountId: command.accountId,
+        instrumentId: command.instrumentId,
+        side: command.side,
+        type: command.type,
+        quantity: command.quantity,
+        ...(command.limitPrice === undefined ? {} : { limitPrice: command.limitPrice }),
+        ...(command.stopPrice === undefined ? {} : { stopPrice: command.stopPrice }),
+        timeInForce: command.timeInForce,
+        second: command.second,
+      }),
+    });
+  }
+
   async recordExecution(
     command: Omit<RecordExecutionCommand, "principal" | "requestId">,
   ): Promise<RecordExecutionResult> {
