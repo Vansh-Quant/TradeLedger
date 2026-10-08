@@ -222,12 +222,14 @@ export class CompetitionApplicationService {
       throw new ValidationError("second must be a non-negative integer");
     }
 
+    const policy = this.policy;
+    if (!policy) throw new NotFoundError("competition policy was not found");
     const result = authorizeCompetitionOrderWithState(engine, {
       participantId,
       instrumentId,
       orderNotional,
       second: command.second,
-    });
+    }, policy);
     this.engine = result.state;
     this.appendAudit(
       command.principal,
