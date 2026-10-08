@@ -96,7 +96,7 @@ export interface CompetitionOrderSubmissionCommand {
 
 export interface CompetitionOrderSubmissionResult {
   readonly competitionDecision: ReturnType<CompetitionApplicationService["authorizeOrder"]>;
-  readonly tradingResult: import("./trading-application-service.js").SubmitOrderResult;
+  readonly tradingResult: import("./contracts.js").SubmitOrderResult;
 }
 
 export interface CompetitionPerformanceUpdateCommand {
@@ -380,7 +380,7 @@ export class CompetitionApplicationService {
       ...(command.limitPrice === undefined ? {} : { limitPrice: command.limitPrice }),
       ...(command.stopPrice === undefined ? {} : { stopPrice: command.stopPrice }),
       timeInForce: command.timeInForce,
-      idempotencyKey: command.idempotencyKey,
+      ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
     });
     return Object.freeze({ competitionDecision: decision, tradingResult });
   }
@@ -423,7 +423,7 @@ export class CompetitionApplicationService {
 
   private persist(): void {
     if (!this.persistence) return;
-    this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()) });
+    this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()), idempotency: this.idempotency });
   }
 
   private startEventWatcher(): void {
