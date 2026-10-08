@@ -50,13 +50,13 @@ export class DurableCompetitionEventLog {
   listEventsAfter(sequence: number): readonly CompetitionEvent[] { return this.events.listAfter(sequence); }
 
   listAuditAfter(sequence: number): readonly CompetitionAuditEvent[] {
-    return Object.freeze(this.audit.listAfter(sequence).map(({ sequence: _sequence, ...event }) => event as CompetitionAuditEvent));
+    return Object.freeze(this.audit.listAfter(sequence).map((event) => event as CompetitionAuditEvent));
   }
 
   listEvents(): readonly CompetitionEvent[] { return this.events.listAll(); }
 
   listAudit(): readonly CompetitionAuditEvent[] {
-    return Object.freeze(this.audit.listAll().map(({ sequence: _sequence, ...event }) => event as CompetitionAuditEvent));
+    return Object.freeze(this.audit.listAll().map((event) => event as CompetitionAuditEvent));
   }
 
   status(): CompetitionEventLogStatus {
