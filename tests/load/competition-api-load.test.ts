@@ -523,10 +523,9 @@ describe("competition HTTP load profile", () => {
         );
         allowed += bodies.filter((body) => body.decision?.allowed === true).length;
 
-        if (offset === 1_000) {
-          competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
-        }
       }
+
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
 
       const delivered = await Promise.all(readers.map(async (reader) => {
         let text = "";
