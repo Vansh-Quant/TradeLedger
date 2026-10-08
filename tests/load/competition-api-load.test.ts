@@ -56,7 +56,7 @@ function buildCompetition(participants = 1000): CompetitionApplicationService {
   return service;
 }
 
-function buildServer(competition: CompetitionApplicationService, maxRequests = 200_000) {
+function buildServer(competition: CompetitionApplicationService, maxRequests = 200_000, maxBodyBytes = 1_048_576) {
   const account = createAccount({ id: "ACC-HTTP-STRESS", baseCurrency: "USD" });
   const context: TradingContext = {
     accountId: account.id,
@@ -91,6 +91,7 @@ function buildServer(competition: CompetitionApplicationService, maxRequests = 2
     },
     {
       rateLimit: { windowMs: 60_000, maxRequests },
+      maxBodyBytes,
     },
   );
 }
@@ -436,6 +437,13 @@ describe("competition HTTP load profile", () => {
         body: JSON.stringify({ participantId: "P-0000" }),
       });
       expect(wrongContentType.status).toBe(400);
+
+      const oversized = await fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+        method: "POST",
+        headers: { ...authHeaders(), "content-type": "application/json" },
+        body: JSON.stringify({ payload: "x".repeat(300) }),
+      });
+      expect(oversized.status).toBe(400);
 
       const requests = await Promise.all(
         Array.from({ length: 50 }, () =>
