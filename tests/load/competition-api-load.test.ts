@@ -56,7 +56,7 @@ function buildCompetition(participants = 1000): CompetitionApplicationService {
   return service;
 }
 
-function buildServer(competition: CompetitionApplicationService) {
+function buildServer(competition: CompetitionApplicationService, maxRequests = 200_000) {
   const account = createAccount({ id: "ACC-HTTP-STRESS", baseCurrency: "USD" });
   const context: TradingContext = {
     accountId: account.id,
@@ -90,7 +90,7 @@ function buildServer(competition: CompetitionApplicationService) {
       authenticate: staticBearerAuthenticator(new Map([[token, principal]])),
     },
     {
-      rateLimit: { windowMs: 60_000, maxRequests: 200_000 },
+      rateLimit: { windowMs: 60_000, maxRequests },
     },
   );
 }
@@ -413,6 +413,37 @@ describe("competition HTTP load profile", () => {
       expect(after.policy.emergencyHalt).toBe(true);
       expect(after.engine.orderCounts).toEqual({});
       expect(after.engine.second).toBe(0);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("enforces malformed-body, body-size, and rate-limit boundaries", { timeout: 30_000 }, async () => {
+    const competition = buildCompetition(1);
+    const server = buildServer(competition, 20);
+    const { port } = await listen(server);
+    try {
+      const malformed = await fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+        method: "POST",
+        headers: { ...authHeaders(), "content-type": "application/json" },
+        body: "{not-json",
+      });
+      expect(malformed.status).toBe(400);
+
+      const wrongContentType = await fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ participantId: "P-0000" }),
+      });
+      expect(wrongContentType.status).toBe(400);
+
+      const requests = await Promise.all(
+        Array.from({ length: 50 }, () =>
+          fetch("http://127.0.0.1:" + port + "/api/v1/competition", { headers: authHeaders() }),
+        ),
+      );
+      expect(requests.some((response) => response.status === 429)).toBe(true);
+      expect(requests.every((response) => [200, 429].includes(response.status))).toBe(true);
     } finally {
       await close(server);
     }
