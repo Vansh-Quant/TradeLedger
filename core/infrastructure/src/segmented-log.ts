@@ -70,7 +70,7 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
     const line = encoded + "\n";
     const target = this.currentSegmentPath(value.sequence);
     if (this.fileSize(target) > 0 && this.fileSize(target) + Buffer.byteLength(line, "utf8") > this.segmentMaxBytes) {
-      this.writeDurably(segmentName(this.prefix, value.sequence), line);
+      this.writeDurably(this.nextSegmentPath(value.sequence), line);
     } else {
       this.appendDurably(target, line);
     }
@@ -161,6 +161,16 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
   private currentSegmentPath(sequence: number): string {
     const paths = this.segmentPaths();
     return paths.length === 0 ? join(this.directory, segmentName(this.prefix, sequence)) : paths[paths.length - 1]!;
+  }
+
+  private nextSegmentPath(sequence: number): string {
+    let candidate = sequence;
+    while (true) {
+      const path = join(this.directory, segmentName(this.prefix, candidate));
+      if (this.fileSize(path) === 0) return path;
+      candidate += 1;
+      if (!Number.isSafeInteger(candidate)) throw new PersistenceError("segmented log segment sequence exhausted");
+    }
   }
 
   private fileSize(path: string): number {
