@@ -27,6 +27,7 @@ import {
 } from "@tradeledger/domain";
 import type { ApplicationPrincipal, CompetitionEvent, CompetitionPersistencePort } from "./contracts.js";
 import { AuthorizationError, NotFoundError, ValidationError } from "./errors.js";
+import type { TradingApplicationService } from "./trading-application-service.js";
 
 function principalForCompetition(principal: ApplicationPrincipal): CompetitionPrincipal {
   const roles = principal.roles.filter((role): role is CompetitionPrincipal["roles"][number] =>
@@ -350,7 +351,7 @@ export class CompetitionApplicationService {
     if (price === undefined || !Number.isFinite(price) || price <= 0) {
       throw new ValidationError("competition orders require an authoritative limit or stop price until market pricing is available");
     }
-    const decision = this.authorizeOrder({
+    const decision = this.authorizeOrderUnsafe({
       principal: command.principal,
       participantId: participant.participantId,
       instrumentId: command.instrumentId,
