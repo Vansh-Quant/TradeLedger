@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { ApplicationPrincipal } from "@tradeledger/application";
+import type { ControlAction } from "@tradeledger/domain";
 import { AuthorizationError, ValidationError } from "@tradeledger/application";
 import { mapError } from "./errors.js";
 import { DEFAULT_MAX_BODY_BYTES, FixedWindowRateLimiter } from "./security.js";
@@ -99,6 +100,14 @@ function optionalNumber(body: Record<string, unknown>, field: string): number | 
   return value;
 }
 
+function stringArray(body: Record<string, unknown>, field: string): string[] {
+  const value = body[field];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.trim().length === 0)) {
+    throw new ValidationError(field + " must be a non-empty string array");
+  }
+  return value.map((item) => String(item).trim());
+}
+
 function enumValue<T extends string>(body: Record<string, unknown>, field: string, values: readonly T[]): T {
   const value = requiredString(body, field) as T;
   if (!values.includes(value)) throw new ValidationError(field + " has an invalid value");
@@ -172,6 +181,96 @@ async function route(
     const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
     send(response, id, 200, provider(accountId), corsOrigin);
     return;
+  }
+
+  const competition = deps.competition;
+  if (competition !== undefined) {
+    if (method === "GET" && path === "/api/v1/competition") {
+      send(response, id, 200, competition.get(principal), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition") {
+      const body = await readJson(request, maxBodyBytes);
+      const instruments = stringArray(body, "allowedInstruments");
+      const config = {
+        id: requiredString(body, "id"),
+        name: requiredString(body, "name"),
+        maxParticipants: requiredNumber(body, "maxParticipants"),
+        allowedInstruments: instruments,
+        maxOrderNotional: requiredNumber(body, "maxOrderNotional"),
+        maxOrdersPerParticipantPerSecond: requiredNumber(body, "maxOrdersPerParticipantPerSecond"),
+        startingEquity: requiredNumber(body, "startingEquity"),
+      };
+      send(response, id, 201, competition.create({ principal, config }), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/register") {
+      const body = await readJson(request, maxBodyBytes);
+      send(response, id, 200, competition.register({
+        principal,
+        participantId: requiredString(body, "participantId"),
+        accountId: requiredString(body, "accountId"),
+        ...(typeof body.registeredAt === "string" ? { registeredAt: body.registeredAt } : {}),
+      }), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/prepare") {
+      const body = await readJson(request, maxBodyBytes);
+      send(response, id, 200, competition.prepare(principal, requiredString(body, "requestId")), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/control") {
+      const body = await readJson(request, maxBodyBytes);
+      const action = enumValue(body, "action", ["start","pause","resume","complete","halt","suspend_participant","resume_participant","liquidate_participant"] as const) as ControlAction;
+      const participantId = typeof body.participantId === "string" ? body.participantId : undefined;
+      send(response, id, 200, competition.control({
+        principal,
+        action,
+        expectedVersion: requiredNumber(body, "expectedVersion"),
+        requestId: requiredString(body, "requestId"),
+        ...(participantId === undefined ? {} : { participantId }),
+      }), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/policy") {
+      const body = await readJson(request, maxBodyBytes);
+      const patch: Record<string, unknown> = {};
+      if (typeof body.tradingEnabled === "boolean") patch.tradingEnabled = body.tradingEnabled;
+      if (typeof body.emergencyHalt === "boolean") patch.emergencyHalt = body.emergencyHalt;
+      if (body.allowedInstruments !== undefined) patch.allowedInstruments = stringArray(body, "allowedInstruments");
+      if (body.maxOrderNotional !== undefined) patch.maxOrderNotional = requiredNumber(body, "maxOrderNotional");
+      if (body.maxOrdersPerParticipantPerSecond !== undefined) patch.maxOrdersPerParticipantPerSecond = requiredNumber(body, "maxOrdersPerParticipantPerSecond");
+      send(response, id, 200, competition.updatePolicy({ principal, patch: patch as never }), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/authorize-order") {
+      const body = await readJson(request, maxBodyBytes);
+      send(response, id, 200, competition.authorizeOrder({
+        principal,
+        participantId: requiredString(body, "participantId"),
+        instrumentId: requiredString(body, "instrumentId"),
+        orderNotional: requiredNumber(body, "orderNotional"),
+        second: requiredNumber(body, "second"),
+      }), corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && path === "/api/v1/competition/performance") {
+      const body = await readJson(request, maxBodyBytes);
+      send(response, id, 200, competition.updatePerformance({
+        principal,
+        participantId: requiredString(body, "participantId"),
+        realizedPnl: requiredNumber(body, "realizedPnl"),
+        unrealizedPnl: requiredNumber(body, "unrealizedPnl"),
+      }), corsOrigin);
+      return;
+    }
   }
 
   const eventStream = path === "/api/v1/events";
