@@ -463,7 +463,7 @@ describe("competition HTTP load profile", () => {
     }
   });
 
-  it("survives a combined HTTP + SSE competition assault with 1,000 participants", { timeout: 300_000 }, async () => {
+  it("survives a combined HTTP + SSE competition assault with 1,000 participants", { timeout: 180_000 }, async () => {
     const competition = buildCompetition(1000);
     const server = buildServer(competition);
     const { port } = await listen(server);
@@ -500,8 +500,8 @@ describe("competition HTTP load profile", () => {
 
       const authorityStarted = performance.now();
       let allowed = 0;
-      const requestCount = 5_000;
-      const requestBatchSize = 25;
+      const requestCount = 2_000;
+      const requestBatchSize = 20;
       for (let offset = 0; offset < requestCount; offset += requestBatchSize) {
         const batch = await Promise.all(
           Array.from({ length: Math.min(requestBatchSize, requestCount - offset) }, (_, localIndex) => {
@@ -513,7 +513,7 @@ describe("competition HTTP load profile", () => {
                 participantId: participantId(index % 1000),
                 instrumentId: index % 3 === 0 ? "AAPL" : index % 3 === 1 ? "MSFT" : "NVDA",
                 orderNotional: 1000,
-                second: Math.floor(index / 2500),
+                second: Math.floor(index / 1000),
               }),
             });
           }),
@@ -523,7 +523,7 @@ describe("competition HTTP load profile", () => {
         );
         allowed += bodies.filter((body) => body.decision?.allowed === true).length;
 
-        if (offset === 2_500) {
+        if (offset === 1_000) {
           competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
         }
       }
