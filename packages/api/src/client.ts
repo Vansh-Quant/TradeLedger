@@ -205,7 +205,6 @@ export class TradeLedgerApiClient {
 
   async submitCompetitionOrder(command: {
     participantId: string;
-    accountId: string;
     instrumentId: string;
     side: "buy" | "sell";
     type: "market" | "limit" | "stop" | "stop-limit";
@@ -224,7 +223,6 @@ export class TradeLedgerApiClient {
       },
       body: JSON.stringify({
         participantId: command.participantId,
-        accountId: command.accountId,
         instrumentId: command.instrumentId,
         side: command.side,
         type: command.type,
