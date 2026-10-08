@@ -259,6 +259,7 @@ export interface CompetitionPersistenceSnapshot {
 export interface CompetitionPersistencePort {
   load(): CompetitionPersistenceSnapshot | undefined;
   save(snapshot: CompetitionPersistenceSnapshot): void;
+  withExclusive<T>(operation: () => T): T;
 }
 
 export type CompetitionEventType =
