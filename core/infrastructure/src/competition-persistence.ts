@@ -54,6 +54,7 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
       audit: value.audit,
       eventSequence: value.eventSequence,
       events: value.events,
+      idempotency: value.idempotency,
     };
   },
   decode(value) {
@@ -76,6 +77,7 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
       audit: Object.freeze(raw.audit as CompetitionPersistenceSnapshot["audit"]),
       eventSequence,
       events: Object.freeze(events),
+      idempotency: (raw.idempotency === undefined ? { records: {} } : raw.idempotency) as CompetitionPersistenceSnapshot["idempotency"],
     });
   },
 };
