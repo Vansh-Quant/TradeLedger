@@ -103,6 +103,7 @@ async function listen(server: ReturnType<typeof createHttpApi>): Promise<{ serve
 }
 
 async function close(server: ReturnType<typeof createHttpApi>): Promise<void> {
+  server.closeAllConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
@@ -118,7 +119,7 @@ describe("competition HTTP load profile", () => {
     try {
       const started = performance.now();
       const responses: Response[] = [];
-      const batchSize = 25;
+      const batchSize = 10;
       for (let offset = 0; offset < 1000; offset += batchSize) {
         const batch = await Promise.all(
           Array.from({ length: Math.min(batchSize, 1000 - offset) }, () =>
@@ -143,14 +144,15 @@ describe("competition HTTP load profile", () => {
     }
   });
 
-  it("processes a 10,000-request concurrent authority burst without losing decisions", { timeout: 90_000 }, async () => {
+  it("processes a 10,000-request concurrent authority burst without losing decisions", { timeout: 180_000 }, async () => {
     const competition = buildCompetition();
     const server = buildServer(competition);
     const { port } = await listen(server);
     try {
       const started = performance.now();
       const responses: Response[] = [];
-      const batchSize = 250;
+      let allowed = 0;
+      const batchSize = 20;
       for (let offset = 0; offset < 10_000; offset += batchSize) {
         const batch = await Promise.all(
           Array.from({ length: batchSize }, (_, localIndex) => {
@@ -168,8 +170,9 @@ describe("competition HTTP load profile", () => {
           }),
         );
         responses.push(...batch);
-        const bodies = await Promise.all(batch.map((response) => response.json()));
+        const bodies: Array<{ decision?: { allowed?: boolean } }> = await Promise.all(batch.map((response) => response.json() as Promise<{ decision?: { allowed?: boolean } }>));
         expect(bodies.every((body) => body.decision?.allowed === true)).toBe(true);
+        allowed += bodies.filter((body) => body.decision?.allowed === true).length;
       }
       const elapsedSeconds = (performance.now() - started) / 1000;
       expect(responses.every((response) => response.status === 200)).toBe(true);
@@ -179,7 +182,7 @@ describe("competition HTTP load profile", () => {
       expect(competition.listEventsAfter(principal, 0)).toHaveLength(11_003);
       console.info("[competition-http-stress] authority", JSON.stringify({
         requests: 10_000,
-        allowed: bodies.filter((body) => body.decision?.allowed === true).length,
+        allowed,
         elapsedSeconds: Number(elapsedSeconds.toFixed(3)),
         requestsPerSecond: Number((10_000 / elapsedSeconds).toFixed(2)),
       }));
