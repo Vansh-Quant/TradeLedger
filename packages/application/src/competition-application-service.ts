@@ -133,6 +133,7 @@ export class CompetitionApplicationService {
   private eventSequence = 0;
   private events: CompetitionEvent[] = [];
   private readonly subscribers = new Set<(event: CompetitionEvent) => void>();
+  private eventWatcher: ReturnType<typeof setInterval> | undefined;
   private readonly persistence: CompetitionPersistencePort | undefined;
   private idempotency: IdempotencyState = createIdempotencyState();
 
@@ -154,7 +155,14 @@ export class CompetitionApplicationService {
   subscribeToEvents(principal: ApplicationPrincipal, subscriber: (event: CompetitionEvent) => void): () => void {
     this.requireCapability(principal, "competition.view");
     this.subscribers.add(subscriber);
-    return () => this.subscribers.delete(subscriber);
+    this.startEventWatcher();
+    return () => {
+      this.subscribers.delete(subscriber);
+      if (this.subscribers.size === 0 && this.eventWatcher !== undefined) {
+        clearInterval(this.eventWatcher);
+        this.eventWatcher = undefined;
+      }
+    };
   }
 
   listEventsAfter(principal: ApplicationPrincipal, sequence: number): readonly CompetitionEvent[] {
@@ -416,6 +424,29 @@ export class CompetitionApplicationService {
   private persist(): void {
     if (!this.persistence) return;
     this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()) });
+  }
+
+  private startEventWatcher(): void {
+    if (this.persistence === undefined || this.eventWatcher !== undefined) return;
+    this.eventWatcher = setInterval(() => {
+      const snapshot = this.persistence?.load();
+      if (snapshot === undefined || snapshot.eventSequence <= this.eventSequence) return;
+      const unseen = snapshot.events.filter((event) => event.sequence > this.eventSequence);
+      this.competition = snapshot.competition;
+      this.policy = snapshot.policy;
+      this.engine = snapshot.engine;
+      this.audit = snapshot.audit;
+      this.events = [...snapshot.events];
+      this.eventSequence = snapshot.eventSequence;
+      this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
+      this.idempotency = snapshot.idempotency;
+      for (const event of unseen) {
+        for (const subscriber of [...this.subscribers]) {
+          try { subscriber(event); } catch { /* subscriber failures must not stop fan-out */ }
+        }
+      }
+    }, 250);
+    this.eventWatcher.unref();
   }
 
   private exclusive<T>(operation: () => T): T {
