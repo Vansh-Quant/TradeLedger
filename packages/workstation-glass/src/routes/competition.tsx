@@ -9,8 +9,6 @@ import {
   Play,
   Power,
   ShieldAlert,
-  Users,
-  Zap,
 } from "lucide-react";
 import { Panel, PageHeader, DataTable } from "@/components/terminal/primitives";
 import { cn } from "@/lib/utils";
@@ -52,7 +50,7 @@ const initialParticipants: Participant[] = [
   { rank: 8, id: "P-0067", account: "CMP-0067", state: "ACTIVE", pnl: 1120, returnPct: 1.12, drawdown: 1.5, orders: 83, lastActivity: "2s ago" },
 ];
 
-const events = [
+const events: readonly [string, string, string, string, string][] = [
   ["10:09:41", "ORDER_ACCEPTED", "P-0042", "AAPL BUY 25", "authority seq 18,421"],
   ["10:09:39", "RISK_CHECK", "P-0177", "TSLA SELL 10", "passed"],
   ["10:09:36", "PARTICIPANT_SUSPENDED", "P-0088", "CMP-0088", "risk officer"],
