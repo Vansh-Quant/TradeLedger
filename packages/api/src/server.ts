@@ -186,7 +186,9 @@ async function route(
   const competition = deps.competition;
   if (competition !== undefined) {
     if (method === "GET" && path === "/api/v1/competition/events") {
-      const afterRaw = parsed.searchParams.get("after") ?? "0";
+      const headerAfter = request.headers["last-event-id"];
+      const queryAfter = parsed.searchParams.get("after");
+      const afterRaw = queryAfter ?? (typeof headerAfter === "string" ? headerAfter : "0");
       const after = Number(afterRaw);
       if (!Number.isSafeInteger(after) || after < 0) throw new ValidationError("after must be a non-negative integer");
       const origin = corsOrigin;
