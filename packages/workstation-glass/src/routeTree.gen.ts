@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as CompetitionRouteImport } from './routes/competition'
 import { Route as ExecutionsRouteImport } from './routes/executions'
 import { Route as JarvisRouteImport } from './routes/jarvis'
 import { Route as JournalRouteImport } from './routes/journal'
@@ -26,6 +27,11 @@ import { Route as TradingRouteImport } from './routes/trading'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompetitionRoute = CompetitionRouteImport.update({
+  id: '/competition',
+  path: '/competition',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -92,6 +98,9 @@ const TradingRoute = TradingRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/competition': typeof CompetitionRoute
+  '/competition': typeof CompetitionRoute
+  '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
   '/journal': typeof JournalRoute
@@ -140,6 +149,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analytics'
+    | '/competition'
+    | '/competition'
+    | '/competition'
     | '/executions'
     | '/jarvis'
     | '/journal'
@@ -206,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/competition': {
+      id: '/competition'
+      path: '/competition'
+      fullPath: '/competition'
+      preLoaderRoute: typeof CompetitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -298,6 +317,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
+  CompetitionRoute: CompetitionRoute,
   ExecutionsRoute: ExecutionsRoute,
   JarvisRoute: JarvisRoute,
   JournalRoute: JournalRoute,
