@@ -91,10 +91,10 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
   private readonly rootPath: string;
   private readonly log: DurableCompetitionEventLog;
 
-  constructor(rootDirectory: string) {
+  constructor(rootDirectory: string, segmentMaxBytes = 256 * 1024) {
     this.rootPath = rootDirectory.trim();
     this.store = new DurableJsonStore(this.rootPath, "competition", codec);
-    this.log = new DurableCompetitionEventLog(this.rootPath);
+    this.log = new DurableCompetitionEventLog(this.rootPath, segmentMaxBytes);
   }
 
   load(): CompetitionPersistenceSnapshot | undefined {
