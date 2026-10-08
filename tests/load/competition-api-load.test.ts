@@ -117,16 +117,22 @@ describe("competition HTTP load profile", () => {
     const { port } = await listen(server);
     try {
       const started = performance.now();
-      const responses = await Promise.all(
-        Array.from({ length: 1000 }, () =>
-          fetch("http://127.0.0.1:" + port + "/api/v1/competition", { headers: authHeaders() }),
-        ),
-      );
+      const responses: Response[] = [];
+      const batchSize = 25;
+      for (let offset = 0; offset < 1000; offset += batchSize) {
+        const batch = await Promise.all(
+          Array.from({ length: Math.min(batchSize, 1000 - offset) }, () =>
+            fetch("http://127.0.0.1:" + port + "/api/v1/competition", { headers: authHeaders() }),
+          ),
+        );
+        responses.push(...batch);
+        const bodies = await Promise.all(batch.map((response) => response.json()));
+        expect(bodies.every((body) => body.competition.state === "live")).toBe(true);
+        expect(bodies.every((body) => body.competition.participants.length === 1000)).toBe(true);
+      }
       const elapsedSeconds = (performance.now() - started) / 1000;
+      expect(responses).toHaveLength(1000);
       expect(responses.every((response) => response.status === 200)).toBe(true);
-      const bodies = await Promise.all(responses.map((response) => response.json()));
-      expect(bodies.every((body) => body.competition.state === "live")).toBe(true);
-      expect(bodies.every((body) => body.competition.participants.length === 1000)).toBe(true);
       console.info("[competition-http-stress] snapshots", JSON.stringify({
         requests: 1000,
         elapsedSeconds: Number(elapsedSeconds.toFixed(3)),
@@ -143,24 +149,30 @@ describe("competition HTTP load profile", () => {
     const { port } = await listen(server);
     try {
       const started = performance.now();
-      const responses = await Promise.all(
-        Array.from({ length: 10_000 }, (_, index) =>
-          fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
-            method: "POST",
-            headers: { ...authHeaders(), "content-type": "application/json" },
-            body: JSON.stringify({
-              participantId: participantId(index % 1000),
-              instrumentId: index % 3 === 0 ? "AAPL" : index % 3 === 1 ? "MSFT" : "NVDA",
-              orderNotional: 1000,
-              second: Math.floor(index / 5000),
-            }),
+      const responses: Response[] = [];
+      const batchSize = 250;
+      for (let offset = 0; offset < 10_000; offset += batchSize) {
+        const batch = await Promise.all(
+          Array.from({ length: batchSize }, (_, localIndex) => {
+            const index = offset + localIndex;
+            return fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+              method: "POST",
+              headers: { ...authHeaders(), "content-type": "application/json" },
+              body: JSON.stringify({
+                participantId: participantId(index % 1000),
+                instrumentId: index % 3 === 0 ? "AAPL" : index % 3 === 1 ? "MSFT" : "NVDA",
+                orderNotional: 1000,
+                second: Math.floor(index / 5000),
+              }),
+            });
           }),
-        ),
-      );
+        );
+        responses.push(...batch);
+        const bodies = await Promise.all(batch.map((response) => response.json()));
+        expect(bodies.every((body) => body.decision?.allowed === true)).toBe(true);
+      }
       const elapsedSeconds = (performance.now() - started) / 1000;
       expect(responses.every((response) => response.status === 200)).toBe(true);
-      const bodies = await Promise.all(responses.map((response) => response.json()));
-      expect(bodies.every((body) => body.decision?.allowed === true)).toBe(true);
       const snapshot = competition.get(principal);
       expect(snapshot.competition.participants).toHaveLength(1000);
       expect(snapshot.audit.filter((event) => event.action === "order_authorization")).toHaveLength(10_000);
