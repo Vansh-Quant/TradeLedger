@@ -11,10 +11,11 @@ function compare(a: ParticipantPerformance, b: ParticipantPerformance): number {
 export function updateCompetitionLeaderboard(
   previous: readonly LeaderboardEntry[],
   updated: ParticipantPerformance,
+  startingEquityByParticipant: Readonly<Record<string, number>>,
 ): readonly LeaderboardEntry[] {
   const rows = previous.map((entry) => ({
     participantId: entry.participantId,
-    startingEquity: entry.returnPct === 0 ? 0 : entry.totalPnl / (entry.returnPct / 100),
+    startingEquity: startingEquityByParticipant[entry.participantId] ?? 0,
     realizedPnl: entry.realizedPnl,
     unrealizedPnl: entry.unrealizedPnl,
   }));
