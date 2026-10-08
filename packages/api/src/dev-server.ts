@@ -16,6 +16,7 @@ import {
   createRiskLimits,
 } from "@tradeledger/domain";
 import { createHttpApi, staticBearerAuthenticator } from "./index.js";
+import { DurableCompetitionPersistence } from "../../../core/infrastructure/src/index.js";
 
 const account = createAccount({ id: "ACC-APP", baseCurrency: "USD" });
 const context = {
@@ -126,37 +127,42 @@ const workstationDemoData = (accountId: string) => ({
   chart: { symbol: "AAPL", candles: [100.2,100.8,100.5,101.4,101.1,102.2,101.8,103.0,102.6,103.4,104.0,103.6,104.8], volume: [82,91,77,110,96,124,118,132,105,143,151,137,160] },
 });
 
-const competitionApplication = new CompetitionApplicationService();
+const competitionPersistence = new DurableCompetitionPersistence(process.env.TRADELEDGER_DATA_DIR ?? ".tradeledger-data");
+const competitionApplication = new CompetitionApplicationService(competitionPersistence);
 
-competitionApplication.create({
-  principal,
-  config: {
-    id: "CMP-2026-01",
-    name: "TradeLedger Quant Competition",
-    maxParticipants: 1000,
-    allowedInstruments: ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "META", "GOOGL", "AMD"],
-    maxOrderNotional: 50_000,
-    maxOrdersPerParticipantPerSecond: 10,
-    startingEquity: 100_000,
-  },
-});
-
-for (let index = 1; index <= 8; index += 1) {
-  const participantId = `P-${String(index).padStart(4, "0")}`;
-  competitionApplication.register({
+try {
+  competitionApplication.get(principal);
+} catch {
+  competitionApplication.create({
     principal,
-    participantId,
-    accountId: `CMP-${String(index).padStart(4, "0")}`,
+    config: {
+      id: "CMP-2026-01",
+      name: "TradeLedger Quant Competition",
+      maxParticipants: 1000,
+      allowedInstruments: ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "META", "GOOGL", "AMD"],
+      maxOrderNotional: 50_000,
+      maxOrdersPerParticipantPerSecond: 10,
+      startingEquity: 100_000,
+    },
+  });
+
+  for (let index = 1; index <= 8; index += 1) {
+    const participantId = `P-${String(index).padStart(4, "0")}`;
+    competitionApplication.register({
+      principal,
+      participantId,
+      accountId: `CMP-${String(index).padStart(4, "0")}`,
+    });
+  }
+
+  const prepared = competitionApplication.prepare(principal, "dev-competition-prepare");
+  competitionApplication.control({
+    principal,
+    action: "start",
+    expectedVersion: prepared.competition.version,
+    requestId: "dev-competition-start",
   });
 }
-
-const prepared = competitionApplication.prepare(principal, "dev-competition-prepare");
-competitionApplication.control({
-  principal,
-  action: "start",
-  expectedVersion: prepared.competition.version,
-  requestId: "dev-competition-start",
-});
 
 const server = createHttpApi(
   {
