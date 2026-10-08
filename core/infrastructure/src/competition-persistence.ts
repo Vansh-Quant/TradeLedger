@@ -128,9 +128,4 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
     }
   }
 
-  private rootDirectory(): string {
-    return this.root;
-  }
-
-  private readonly root = (this.store as unknown as { rootDirectory: string }).rootDirectory;
 }
