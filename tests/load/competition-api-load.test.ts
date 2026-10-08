@@ -463,4 +463,105 @@ describe("competition HTTP load profile", () => {
     }
   });
 
+  it("survives a combined HTTP + SSE competition assault with 1,000 participants", { timeout: 300_000 }, async () => {
+    const competition = buildCompetition(1000);
+    const server = buildServer(competition);
+    const { port } = await listen(server);
+    const controllers = Array.from({ length: 1000 }, () => new AbortController());
+    const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
+    const decoder = new TextDecoder();
+    try {
+      const connectionStarted = performance.now();
+      const connectionBatchSize = 25;
+      for (let offset = 0; offset < controllers.length; offset += connectionBatchSize) {
+        const batch = await Promise.all(
+          controllers.slice(offset, offset + connectionBatchSize).map(async (controller) => {
+            const response = await fetch(
+              "http://127.0.0.1:" + port + "/api/v1/competition/events?after=0",
+              { headers: { ...authHeaders(), accept: "text/event-stream" }, signal: controller.signal },
+            );
+            expect(response.status).toBe(200);
+            return response.body!.getReader();
+          }),
+        );
+        readers.push(...batch);
+      }
+
+      const initial = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.created"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+      expect(initial.every((text) => text.includes("competition.created"))).toBe(true);
+
+      const authorityStarted = performance.now();
+      let allowed = 0;
+      const requestCount = 5_000;
+      const requestBatchSize = 25;
+      for (let offset = 0; offset < requestCount; offset += requestBatchSize) {
+        const batch = await Promise.all(
+          Array.from({ length: Math.min(requestBatchSize, requestCount - offset) }, (_, localIndex) => {
+            const index = offset + localIndex;
+            return fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
+              method: "POST",
+              headers: { ...authHeaders(), "content-type": "application/json" },
+              body: JSON.stringify({
+                participantId: participantId(index % 1000),
+                instrumentId: index % 3 === 0 ? "AAPL" : index % 3 === 1 ? "MSFT" : "NVDA",
+                orderNotional: 1000,
+                second: Math.floor(index / 2500),
+              }),
+            });
+          }),
+        );
+        const bodies: Array<{ decision?: { allowed?: boolean } }> = await Promise.all(
+          batch.map((response) => response.json() as Promise<{ decision?: { allowed?: boolean } }>),
+        );
+        allowed += bodies.filter((body) => body.decision?.allowed === true).length;
+
+        if (offset === 2_500) {
+          competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
+        }
+      }
+
+      const delivered = await Promise.all(readers.map(async (reader) => {
+        let text = "";
+        for (let attempt = 0; attempt < 10 && !text.includes("competition.policy.updated"); attempt += 1) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        return text;
+      }));
+
+      const authorityElapsed = (performance.now() - authorityStarted) / 1000;
+      const connectionElapsed = (performance.now() - connectionStarted) / 1000;
+      const snapshot = competition.get(principal);
+      expect(allowed).toBe(requestCount);
+      expect(snapshot.competition.state).toBe("live");
+      expect(snapshot.competition.participants).toHaveLength(1000);
+      expect(snapshot.policy.maxOrderNotional).toBe(40_000);
+      expect(snapshot.audit.filter((event) => event.action === "order_authorization")).toHaveLength(requestCount);
+      expect(delivered.filter((text) => text.includes("competition.policy.updated"))).toHaveLength(1000);
+
+      console.info("[competition-http-stress] combined", JSON.stringify({
+        participants: 1000,
+        sseSubscribers: 1000,
+        authorityRequests: requestCount,
+        allowed,
+        connectionSeconds: Number(connectionElapsed.toFixed(3)),
+        authoritySeconds: Number(authorityElapsed.toFixed(3)),
+        authorityRequestsPerSecond: Number((requestCount / authorityElapsed).toFixed(2)),
+        liveEventDeliveries: delivered.filter((text) => text.includes("competition.policy.updated")).length,
+      }));
+    } finally {
+      controllers.forEach((controller) => controller.abort());
+      await close(server);
+    }
+  });
+
 });
