@@ -253,6 +253,7 @@ export interface CompetitionPersistenceSnapshot {
   readonly audit: readonly import("@tradeledger/domain").CompetitionAuditEvent[];
   readonly eventSequence: number;
   readonly events: readonly CompetitionEvent[];
+  readonly idempotency: import("@tradeledger/domain").IdempotencyState;
 }
 
 export interface CompetitionPersistencePort {
