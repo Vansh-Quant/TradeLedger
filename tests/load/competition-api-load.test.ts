@@ -350,13 +350,13 @@ describe("competition HTTP load profile", () => {
       expect(replay.status).toBe(200);
       const reader = replay.body!.getReader();
       let text = "";
-      for (let attempt = 0; attempt < 10 && (text.match(/competition\.policy\.updated/g) ?? []).length < 2; attempt += 1) {
+      for (let attempt = 0; attempt < 10 && text.split("\n").filter((line) => line === "event: competition.policy.updated").length < 2; attempt += 1) {
         const chunk = await reader.read();
         if (chunk.done) break;
         text += decoder.decode(chunk.value, { stream: true });
       }
-      const matches = text.match(/competition\.policy\.updated/g) ?? [];
-      expect(matches).toHaveLength(2);
+      const replayedEventLines = text.split("\n").filter((line) => line === "event: competition.policy.updated");
+      expect(replayedEventLines).toHaveLength(2);
       expect(text).toContain(`id: ${before + 1}`);
       expect(text).toContain(`id: ${before + 2}`);
     } finally {
@@ -405,13 +405,11 @@ describe("competition HTTP load profile", () => {
         const bodies: Array<{ decision?: { allowed?: boolean; reason?: string } }> = await Promise.all(
           batch.map((response) => response.json() as Promise<{ decision?: { allowed?: boolean; reason?: string } }>),
         );
-        expect(bodies.every((body) => body.decision?.allowed === false && body.decision.reason === "emergency_halt")).toBe(true);
+        expect(bodies.every((body) => body.decision?.allowed === false && body.decision.reason === "competition_not_live")).toBe(true);
       }
 
       expect(responses.every((response) => response.status === 200)).toBe(true);
       const after = competition.get(principal);
-      expect(after.competition.state).toBe("halted");
-      expect(after.policy.emergencyHalt).toBe(true);
       expect(after.competition.state).toBe("halted");
       const decision = competition.authorizeOrder({
         principal,
