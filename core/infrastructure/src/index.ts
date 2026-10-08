@@ -6,3 +6,5 @@ export * from "./transactional-application-persistence.js";
 
 export * from "./market-data-state-store.js";
 export * from "./competition-persistence.js";
+export * from "./segmented-log.js";
+export * from "./competition-event-log.js";
