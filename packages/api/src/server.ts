@@ -312,6 +312,25 @@ async function route(
       return;
     }
 
+    if (method === "POST" && path === "/api/v1/competition/orders") {
+      const body = await readJson(request, maxBodyBytes);
+      const result = competition.submitParticipantOrder({
+        principal,
+        participantId: requiredString(body, "participantId"),
+        instrumentId: requiredString(body, "instrumentId"),
+        side: enumValue(body, "side", ["buy", "sell"] as const),
+        type: enumValue(body, "type", ["market", "limit", "stop", "stop-limit"] as const),
+        quantity: requiredNumber(body, "quantity"),
+        ...(body.limitPrice === undefined ? {} : { limitPrice: requiredNumber(body, "limitPrice") }),
+        ...(body.stopPrice === undefined ? {} : { stopPrice: requiredNumber(body, "stopPrice") }),
+        timeInForce: enumValue(body, "timeInForce", ["day", "gtc", "ioc", "fok"] as const),
+        second: requiredNumber(body, "second"),
+        ...(request.headers["idempotency-key"] === undefined ? {} : { idempotencyKey: idempotencyKey(request) }),
+      });
+      send(response, id, result.tradingResult.admitted ? 201 : 422, result, corsOrigin);
+      return;
+    }
+
     if (method === "POST" && path === "/api/v1/competition/authorize-order") {
       const body = await readJson(request, maxBodyBytes);
       send(response, id, 200, competition.authorizeOrder({
