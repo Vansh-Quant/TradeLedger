@@ -4,6 +4,7 @@ import {
   InMemoryTradingContext,
   RandomOrderIdGenerator,
   TradingApplicationService,
+  CompetitionApplicationService,
 } from "@tradeledger/application";
 import { InMemoryMarketDataStateStore } from "../../../core/infrastructure/src/index.js";
 import { createQuote, type InstrumentId } from "@tradeledger/domain";
@@ -30,7 +31,7 @@ const context = {
   }),
 };
 
-const principal = { id: "dev-user", roles: ["trader"] };
+const principal = { id: "dev-user", roles: ["trader", "owner"] };
 const marketData = new InMemoryMarketDataStateStore();
 marketData.accept("AAPL" as InstrumentId, createQuote({
   instrumentId: "AAPL" as InstrumentId,
@@ -125,9 +126,42 @@ const workstationDemoData = (accountId: string) => ({
   chart: { symbol: "AAPL", candles: [100.2,100.8,100.5,101.4,101.1,102.2,101.8,103.0,102.6,103.4,104.0,103.6,104.8], volume: [82,91,77,110,96,124,118,132,105,143,151,137,160] },
 });
 
+const competitionApplication = new CompetitionApplicationService();
+
+competitionApplication.create({
+  principal,
+  config: {
+    id: "CMP-2026-01",
+    name: "TradeLedger Quant Competition",
+    maxParticipants: 1000,
+    allowedInstruments: ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "META", "GOOGL", "AMD"],
+    maxOrderNotional: 50_000,
+    maxOrdersPerParticipantPerSecond: 10,
+    startingEquity: 100_000,
+  },
+});
+
+for (let index = 1; index <= 8; index += 1) {
+  const participantId = `P-${String(index).padStart(4, "0")}`;
+  competitionApplication.register({
+    principal,
+    participantId,
+    accountId: `CMP-${String(index).padStart(4, "0")}`,
+  });
+}
+
+const prepared = competitionApplication.prepare(principal, "dev-competition-prepare");
+competitionApplication.control({
+  principal,
+  action: "start",
+  expectedVersion: prepared.competition.version,
+  requestId: "dev-competition-start",
+});
+
 const server = createHttpApi(
   {
     application,
+    competition: competitionApplication,
     workstationDemoData,
     authenticate: staticBearerAuthenticator(
       new Map([["dev-token", principal]]),
