@@ -198,6 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  CompetitionRoute: typeof CompetitionRoute
   ExecutionsRoute: typeof ExecutionsRoute
   JarvisRoute: typeof JarvisRoute
   JournalRoute: typeof JournalRoute
@@ -218,13 +219,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/competition': {
-      id: '/competition'
-      path: '/competition'
-      fullPath: '/competition'
-      preLoaderRoute: typeof CompetitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/competition': {
@@ -324,6 +318,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
+  CompetitionRoute: CompetitionRoute,
   CompetitionRoute: CompetitionRoute,
   ExecutionsRoute: ExecutionsRoute,
   JarvisRoute: JarvisRoute,
