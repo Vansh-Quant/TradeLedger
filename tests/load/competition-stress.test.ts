@@ -27,13 +27,16 @@ function percentile(values: readonly number[], fraction: number): number {
 }
 
 describe("competition full stress profile", () => {
-  it("sustains 10,000+ authority decisions per simulated second with 1,000 participants", { timeout: 60_000 }, () => {
+  it("sustains 10,000+ authority decisions per simulated second with 1,000 participants", { timeout: 60_000 }, async () => {
     const competition = buildLiveCompetition(); let engine = createCompetitionEngineState(competition);
     let accepted = 0; const latencies: number[] = []; const started = performance.now();
+    let decisions = 0;
     for (let second = 0; second < 2; second += 1) for (let participant = 0; participant < 1000; participant += 1) for (let order = 0; order < 10; order += 1) {
       const t0 = performance.now();
       const result = authorizeCompetitionOrderWithState(engine, { participantId: participantId(participant), instrumentId: participant % 3 === 0 ? "AAPL" : participant % 3 === 1 ? "MSFT" : "NVDA", orderNotional: 1000, second });
       latencies.push(performance.now() - t0); engine = result.state; if (result.decision.allowed) accepted += 1;
+      decisions += 1;
+      if (decisions % 500 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
     }
     const elapsedSeconds = (performance.now() - started) / 1000; const throughput = accepted / elapsedSeconds;
     expect(accepted).toBe(20_000); expect(engine.orderCounts[participantId(0)]).toBe(10); expect(Object.keys(engine.orderCounts)).toHaveLength(1000);
