@@ -117,4 +117,27 @@ describe("competition persistence and realtime", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("supports event-log compaction and rejects stale cursors after compaction", () => {
+    const root = mkdtempSync(join(tmpdir(), "tradeledger-competition-compaction-"));
+    try {
+      const persistence = new DurableCompetitionPersistence(root);
+      const service = new CompetitionApplicationService(persistence);
+      service.create({ principal: owner, config: config() });
+      service.register({ principal: owner, participantId: "P-0001", accountId: "CMP-0001" });
+      const prepared = service.prepare(owner, "prepare-compaction");
+      service.control({ principal: owner, action: "start", expectedVersion: prepared.competition.version, requestId: "start-compaction" });
+
+      persistence.compactEventsThrough(2);
+      const status = persistence.eventLogStatus();
+      expect(status.events.latestSequence).toBe(4);
+      expect(status.events.firstSequence).toBeGreaterThan(1);
+
+      const recovered = new CompetitionApplicationService(persistence);
+      expect(() => recovered.listEventsAfter(owner, 0)).toThrow(/event stream gap/);
+      expect(recovered.listEventsAfter(owner, 2).map((event) => event.sequence)).toEqual([3, 4]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
