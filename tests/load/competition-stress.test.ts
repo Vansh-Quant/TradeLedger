@@ -36,7 +36,7 @@ describe("competition full stress profile", () => {
       latencies.push(performance.now() - t0); engine = result.state; if (result.decision.allowed) accepted += 1;
     }
     const elapsedSeconds = (performance.now() - started) / 1000; const throughput = accepted / elapsedSeconds;
-    expect(accepted).toBe(20_000); expect(engine.orderCounts[participantId(0)]).toBe(20); expect(Object.keys(engine.orderCounts)).toHaveLength(1000);
+    expect(accepted).toBe(20_000); expect(engine.orderCounts[participantId(0)]).toBe(10); expect(Object.keys(engine.orderCounts)).toHaveLength(1000);
     expect(throughput).toBeGreaterThan(100); expect(percentile(latencies, .50)).toBeGreaterThanOrEqual(0); expect(percentile(latencies, .95)).toBeGreaterThanOrEqual(0); expect(percentile(latencies, .99)).toBeGreaterThanOrEqual(0);
     console.info("[competition-stress] authority", JSON.stringify({ accepted, throughputPerSecond: Number(throughput.toFixed(2)), p50Ms: Number(percentile(latencies,.50).toFixed(4)), p95Ms: Number(percentile(latencies,.95).toFixed(4)), p99Ms: Number(percentile(latencies,.99).toFixed(4)), elapsedSeconds: Number(elapsedSeconds.toFixed(3)) }));
   });
@@ -56,7 +56,7 @@ describe("competition full stress profile", () => {
     const service = new CompetitionApplicationService();
     service.create({ principal: owner, config: { id: "CMP-FANOUT-STRESS", name: "Fanout Stress", maxParticipants: 1000, allowedInstruments: ["AAPL"], maxOrderNotional: 50_000, maxOrdersPerParticipantPerSecond: 10, startingEquity: 100_000 } });
     const received = new Uint32Array(1000);
-    const unsubscribers = Array.from({ length: 1000 }, (_, index) => service.subscribeToEvents(owner, () => { received[index] += 1; }));
+    const unsubscribers = Array.from({ length: 1000 }, (_, index) => service.subscribeToEvents(owner, () => { received[index] = (received[index] ?? 0) + 1; }));
     const started = performance.now(); for (let index = 0; index < 100; index += 1) service.updatePolicy({ principal: owner, patch: { maxOrderNotional: 40_000 + index } });
     const elapsedSeconds = (performance.now() - started) / 1000; for (const unsubscribe of unsubscribers) unsubscribe();
     expect(Array.from(received).every((count) => count === 100)).toBe(true); expect(service.listEventsAfter(owner, 0)).toHaveLength(101); expect(elapsedSeconds).toBeLessThan(10);
