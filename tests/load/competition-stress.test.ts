@@ -70,7 +70,7 @@ describe("competition full stress profile", () => {
     const started = performance.now(); for (let index = 0; index < 1000; index += 1) service.updatePerformance({ principal: owner, participantId: participantId(index), realizedPnl: index, unrealizedPnl: index / 2 });
     const elapsedSeconds = (performance.now() - started) / 1000; const snapshot = service.get(owner);
     expect(snapshot.competition.participants).toHaveLength(1000); expect(snapshot.competition.participants.every((p) => p.accountId.startsWith("ACC-P-"))).toBe(true);
-    expect(snapshot.leaderboard).toHaveLength(1000); expect(snapshot.leaderboard[0]?.participantId).toBe("P-0999"); expect(snapshot.leaderboard[999]?.participantId).toBe("P-0000"); expect(snapshot.audit).toHaveLength(2002); expect(elapsedSeconds).toBeLessThan(60);
+    expect(snapshot.leaderboard).toHaveLength(1000); expect(snapshot.leaderboard[0]?.participantId).toBe("P-0999"); expect(snapshot.leaderboard[999]?.participantId).toBe("P-0000"); expect(snapshot.audit).toHaveLength(2003); expect(elapsedSeconds).toBeLessThan(60);
     console.info("[competition-stress] leaderboard", JSON.stringify({ participants: 1000, performanceUpdates: 1000, elapsedSeconds: Number(elapsedSeconds.toFixed(3)) }));
   });
 
