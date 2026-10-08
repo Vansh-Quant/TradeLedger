@@ -190,6 +190,13 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
       writeFileSync(fd, text, { encoding: "utf8" });
       fsyncSync(fd);
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        if (this.fileSize(path) === 0) {
+          this.appendDurably(path, text);
+          return;
+        }
+        throw new PersistenceError("segmented log segment already contains data");
+      }
       throw new PersistenceError("segmented log segment creation failed: " + (error instanceof Error ? error.message : "unknown error"));
     } finally {
       if (fd !== undefined) closeSync(fd);
