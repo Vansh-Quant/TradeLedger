@@ -503,8 +503,6 @@ describe("competition HTTP load profile", () => {
       const requestCount = 2_000;
       const requestBatchSize = 20;
 
-      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
-
       const deliveredPromise = Promise.all(readers.map(async (reader) => {
         let text = "";
         for (let attempt = 0; attempt < 20 && !text.includes("competition.policy.updated"); attempt += 1) {
@@ -514,6 +512,8 @@ describe("competition HTTP load profile", () => {
         }
         return text;
       }));
+
+      competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
 
       for (let offset = 0; offset < requestCount; offset += requestBatchSize) {
         const batch = await Promise.all(
