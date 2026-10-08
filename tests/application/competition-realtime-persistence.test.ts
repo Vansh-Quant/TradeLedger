@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CompetitionApplicationService } from "@tradeledger/application";
-import { DurableCompetitionPersistence } from "@tradeledger/infrastructure";
+import { DurableCompetitionPersistence } from "../../core/infrastructure/src/index.js";
 
 const owner = { id: "owner", roles: ["owner"] };
 
