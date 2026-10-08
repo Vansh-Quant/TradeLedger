@@ -110,9 +110,10 @@ export class DurableSegmentedLog<T extends SegmentedLogEntry> {
 
   compactThrough(sequence: number): void {
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new PersistenceError("compact sequence is invalid");
-    for (const path of this.segmentPaths()) {
-      const entries = this.readSegment(path);
-      if (entries.length > 0 && entries[entries.length - 1]!.sequence <= sequence) rmSync(path, { force: true });
+    const paths = this.segmentPaths();
+    for (let index = 0; index < paths.length - 1; index += 1) {
+      const entries = this.readSegment(paths[index]!);
+      if (entries.length > 0 && entries[entries.length - 1]!.sequence <= sequence) rmSync(paths[index]!, { force: true });
     }
     this.recover();
   }
