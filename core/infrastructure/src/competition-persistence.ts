@@ -86,9 +86,11 @@ const codec: JsonCodec<CompetitionPersistenceSnapshot> = {
 
 export class DurableCompetitionPersistence implements CompetitionPersistencePort {
   private readonly store: DurableJsonStore<CompetitionPersistenceSnapshot>;
+  private readonly rootPath: string;
 
   constructor(rootDirectory: string) {
-    this.store = new DurableJsonStore(rootDirectory, "competition", codec);
+    this.rootPath = rootDirectory.trim();
+    this.store = new DurableJsonStore(this.rootPath, "competition", codec);
   }
 
   load(): CompetitionPersistenceSnapshot | undefined {
@@ -101,7 +103,7 @@ export class DurableCompetitionPersistence implements CompetitionPersistencePort
   }
 
   withExclusive<T>(operation: () => T): T {
-    const directory = join(this.rootDirectory(), "competition");
+    const directory = join(this.rootPath, "competition");
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     const lock = join(directory, ".exclusive-lock");
     const deadline = Date.now() + 5000;
