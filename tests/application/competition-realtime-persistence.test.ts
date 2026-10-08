@@ -72,4 +72,27 @@ describe("competition persistence and realtime", () => {
       "competition.started",
     ]);
   });
+
+  it("fans out persisted events to a second application instance", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tradeledger-competition-fanout-"));
+    try {
+      const persistence = new DurableCompetitionPersistence(root);
+      const first = new CompetitionApplicationService(persistence);
+      const second = new CompetitionApplicationService(persistence);
+      first.create({ principal: owner, config: config(), now: "2026-10-08T12:00:00Z" });
+      first.register({ principal: owner, participantId: "P-0001", accountId: "CMP-0001" });
+
+      const received: string[] = [];
+      const unsubscribe = second.subscribeToEvents(owner, (event) => received.push(event.type));
+      const prepared = first.prepare(owner, "prepare-fanout");
+
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      unsubscribe();
+
+      expect(prepared.competition.state).toBe("ready");
+      expect(received).toContain("competition.prepared");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
