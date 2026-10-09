@@ -443,7 +443,7 @@ export class CompetitionApplicationService {
       this.competition = snapshot.competition;
       this.policy = snapshot.policy;
       this.engine = snapshot.engine;
-      this.audit = snapshot.audit;
+      this.audit = [...snapshot.audit];
       this.events = [...snapshot.events];
       this.eventSequence = snapshot.eventSequence;
       this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
