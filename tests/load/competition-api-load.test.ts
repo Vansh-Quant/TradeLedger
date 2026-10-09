@@ -156,7 +156,7 @@ describe("competition HTTP load profile", () => {
       const batchSize = 20;
       for (let offset = 0; offset < 10_000; offset += batchSize) {
         const batch = await Promise.all(
-          Array.from({ length: Math.min(batchSize, requestCount - offset) }, (_, localIndex) => {
+          Array.from({ length: Math.min(batchSize, 10_000 - offset) }, (_, localIndex) => {
             const index = offset + localIndex;
             return fetch("http://127.0.0.1:" + port + "/api/v1/competition/authorize-order", {
               method: "POST",
