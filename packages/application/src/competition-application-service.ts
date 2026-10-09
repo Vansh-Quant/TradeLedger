@@ -11,7 +11,6 @@ import {
   createCompetitionEngineState,
   createCompetitionPolicy,
   createCompetitionAuditEvent,
-  appendCompetitionAudit,
   registerAuthorizedParticipant,
   updateCompetitionPolicy,
   type Competition,
@@ -130,7 +129,7 @@ export class CompetitionApplicationService {
   private competition: Competition | undefined;
   private engine: CompetitionEngineState | undefined;
   private policy: CompetitionPolicy | undefined;
-  private audit: readonly CompetitionAuditEvent[] = [];
+  private audit: CompetitionAuditEvent[] = [];
   private auditSequence = 0;
   private eventSequence = 0;
   private events: CompetitionEvent[] = [];
@@ -147,7 +146,7 @@ export class CompetitionApplicationService {
       this.competition = snapshot.competition;
       this.policy = snapshot.policy;
       this.engine = snapshot.engine;
-      this.audit = snapshot.audit;
+      this.audit = [...snapshot.audit];
       this.events = [...snapshot.events];
       this.eventSequence = snapshot.eventSequence;
       this.auditSequence = snapshot.audit.reduce((max, event) => Math.max(max, event.sequence), 0);
@@ -432,7 +431,7 @@ export class CompetitionApplicationService {
 
   private persist(): void {
     if (!this.persistence) return;
-    this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: this.audit, eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()), idempotency: this.idempotency });
+    this.persistence.save({ competition: this.requireCompetition(), policy: this.policy!, engine: this.engine!, audit: Object.freeze(this.audit.slice()), eventSequence: this.eventSequence, events: Object.freeze(this.events.slice()), idempotency: this.idempotency });
   }
 
   private startEventWatcher(): void {
@@ -550,7 +549,9 @@ export class CompetitionApplicationService {
       ...(requestId === undefined ? {} : { requestId }),
       policyVersion: policyVersion ?? policy.version,
     });
-    this.audit = appendCompetitionAudit(this.audit, event);
+    const last = this.audit[this.audit.length - 1];
+    if (last && event.sequence <= last.sequence) throw new Error("audit sequence must be strictly increasing");
+    this.audit.push(event);
   }
 
   private snapshot(): CompetitionSnapshot {
@@ -562,7 +563,7 @@ export class CompetitionApplicationService {
       competition,
       policy,
       leaderboard: this.leaderboard,
-      audit: this.audit,
+      audit: Object.freeze(this.audit.slice()),
     });
   }
 }
