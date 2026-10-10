@@ -255,7 +255,6 @@ describe("competition HTTP load profile", () => {
       expect(eventChunks.every((chunk) => chunk.includes("competition.policy.updated"))).toBe(true);
     } finally {
       controllers.forEach((controller) => controller.abort());
-      await Promise.allSettled(readerTasks);
       await close(server);
     }
   });
