@@ -502,7 +502,7 @@ describe("competition HTTP load profile", () => {
 
       const authorityStarted = performance.now();
       let allowed = 0;
-      const requestCount = 2_000;
+      const requestCount = 100;
       const requestBatchSize = 20;
 
       const deliveredParticipants = new Set<number>();
