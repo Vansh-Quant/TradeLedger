@@ -526,7 +526,12 @@ describe("competition HTTP load profile", () => {
           // fills socket buffers, and turns the test into a slow-consumer disconnect test.
           while (true) {
             const chunk = await reader.read();
-            if (chunk.done) return;
+            if (chunk.done) {
+              if (!controllers[readerIndex]!.signal.aborted && !deliveredParticipants.has(readerIndex)) {
+                rejectDelivered(new Error("SSE stream closed before policy event delivery"));
+              }
+              return;
+            }
             pending += decoder.decode(chunk.value, { stream: true });
             let boundary = pending.indexOf("\n\n");
             while (boundary >= 0) {
