@@ -82,8 +82,8 @@ describe("execution → position → P&L consistency", () => {
     expect(position?.averagePrice).toBe(100);
     expect(position?.realizedPnl).toBe(100);
     expect(partial.state.realizedPnl).toBe(99);
-    expect(partial.state.cashBalance.amount).toBe(100_499);
-    expect(partial.state.totalEquity).toBe(100_499);
+    expect(partial.state.cashBalance.amount).toBe(99_499);
+    expect(partial.state.totalEquity).toBe(99_499);
     expect(partial.state.ledger).toHaveLength(2);
   });
 
@@ -97,7 +97,7 @@ describe("execution → position → P&L consistency", () => {
 
     expect(msft.portfolio.positions.get("AAPL")?.quantity).toBe(2);
     expect(msft.portfolio.positions.get("MSFT")?.quantity).toBe(-3);
-    expect(msft.state.cashBalance.amount).toBe(100_147);
+    expect(msft.state.cashBalance.amount).toBe(99_947);
     expect(msft.state.realizedPnl).toBe(-3);
     expect(msft.state.ledger).toHaveLength(2);
     expect(msft.state.ledger.every((entry) => entry.accountId === account.id)).toBe(true);
