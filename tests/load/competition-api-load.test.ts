@@ -472,6 +472,7 @@ describe("competition HTTP load profile", () => {
     const controllers = Array.from({ length: 1000 }, () => new AbortController());
     const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
     const decoder = new TextDecoder();
+    let readerTasks: Promise<void>[] = [];
     try {
       const connectionStarted = performance.now();
       const connectionBatchSize = 25;
@@ -518,7 +519,7 @@ describe("competition HTTP load profile", () => {
         (error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)) }),
       );
       const readerErrors: Error[] = [];
-      const readerTasks = readers.map(async (reader, readerIndex) => {
+      readerTasks = readers.map(async (reader, readerIndex) => {
         let pending = "";
         try {
           // Keep draining every SSE stream for the whole HTTP burst. Returning as soon
