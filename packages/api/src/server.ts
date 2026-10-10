@@ -233,7 +233,7 @@ async function route(
           close();
           return;
         }
-        response.write(": heartbeat\\n\\n");
+        response.write(": heartbeat\n\n");
       }, 20_000);
 
       request.on("close", close);
