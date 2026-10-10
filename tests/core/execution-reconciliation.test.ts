@@ -55,6 +55,16 @@ describe("execution state reconciliation", () => {
     expect(duplicate.state).toBe(first.state);
     expect(duplicate.state.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
   });
+  it("rejects a duplicate execution ID when the execution payload conflicts", () => {
+    const first = reconcileExecution(makeState(), makeExecution("EXE-CONFLICT", 4));
+    const conflicting = makeExecution("EXE-CONFLICT", 5);
+    expect(() => reconcileExecution(first.state, conflicting)).toThrow(
+      "execution id already exists with different execution data",
+    );
+    expect(first.state.order.filledQuantity).toBe(4);
+    expect(first.state.accountPortfolio.portfolio.positions.get("AAPL")?.quantity).toBe(4);
+  });
+
   it("rejects an execution timestamp before order creation", () => {
     const execution = createExecution({
       id: "EXE-TIME-001",
