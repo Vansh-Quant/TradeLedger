@@ -255,6 +255,7 @@ describe("competition HTTP load profile", () => {
       expect(eventChunks.every((chunk) => chunk.includes("competition.policy.updated"))).toBe(true);
     } finally {
       controllers.forEach((controller) => controller.abort());
+      await Promise.allSettled(readerTasks);
       await close(server);
     }
   });
@@ -504,15 +505,48 @@ describe("competition HTTP load profile", () => {
       const requestCount = 2_000;
       const requestBatchSize = 20;
 
-      const deliveredPromise = Promise.all(readers.map(async (reader) => {
-        let text = "";
-        for (let attempt = 0; attempt < 20 && !text.includes("competition.policy.updated"); attempt += 1) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          text += decoder.decode(chunk.value, { stream: true });
+      const deliveredParticipants = new Set<number>();
+      let resolveDelivered!: (count: number) => void;
+      let rejectDelivered!: (error: Error) => void;
+      const deliveredPromise = new Promise<number>((resolve, reject) => {
+        resolveDelivered = resolve;
+        rejectDelivered = reject;
+      });
+      // Attach a rejection handler immediately while the HTTP burst is still running.
+      const deliveredOutcomePromise = deliveredPromise.then(
+        (count) => ({ count }),
+        (error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)) }),
+      );
+      const readerErrors: Error[] = [];
+      const readerTasks = readers.map(async (reader, readerIndex) => {
+        let pending = "";
+        try {
+          // Keep draining every SSE stream for the whole HTTP burst. Returning as soon
+          // as the policy event arrives leaves subsequent events unread per client,
+          // fills socket buffers, and turns the test into a slow-consumer disconnect test.
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) return;
+            pending += decoder.decode(chunk.value, { stream: true });
+            let boundary = pending.indexOf("\n\n");
+            while (boundary >= 0) {
+              const frame = pending.slice(0, boundary);
+              pending = pending.slice(boundary + 2);
+              if (frame.includes("event: competition.policy.updated") && !deliveredParticipants.has(readerIndex)) {
+                deliveredParticipants.add(readerIndex);
+                if (deliveredParticipants.size === readers.length) resolveDelivered(deliveredParticipants.size);
+              }
+              boundary = pending.indexOf("\n\n");
+            }
+          }
+        } catch (error) {
+          if (!controllers[readerIndex]!.signal.aborted) {
+            const normalized = error instanceof Error ? error : new Error(String(error));
+            readerErrors.push(normalized);
+            rejectDelivered(normalized);
+          }
         }
-        return text;
-      }));
+      });
 
       competition.updatePolicy({ principal, patch: { maxOrderNotional: 40_000 } });
 
@@ -538,7 +572,11 @@ describe("competition HTTP load profile", () => {
         allowed += bodies.filter((body) => body.decision?.allowed === true).length;
       }
 
-      const delivered = await deliveredPromise;
+      const deliveryOutcome = await deliveredOutcomePromise;
+      if ("error" in deliveryOutcome) throw deliveryOutcome.error;
+      const deliveredCount = deliveryOutcome.count;
+      expect(readerErrors).toEqual([]);
+      expect(deliveredCount).toBe(1000);
 
       const authorityElapsed = (performance.now() - authorityStarted) / 1000;
       const connectionElapsed = (performance.now() - connectionStarted) / 1000;
@@ -548,7 +586,7 @@ describe("competition HTTP load profile", () => {
       expect(snapshot.competition.participants).toHaveLength(1000);
       expect(snapshot.policy.maxOrderNotional).toBe(40_000);
       expect(snapshot.audit.filter((event) => event.action === "order_authorization")).toHaveLength(requestCount);
-      expect(delivered.filter((text) => text.includes("competition.policy.updated"))).toHaveLength(1000);
+      expect(deliveredCount).toBe(1000);
 
       console.info("[competition-http-stress] combined", JSON.stringify({
         participants: 1000,
@@ -558,7 +596,7 @@ describe("competition HTTP load profile", () => {
         connectionSeconds: Number(connectionElapsed.toFixed(3)),
         authoritySeconds: Number(authorityElapsed.toFixed(3)),
         authorityRequestsPerSecond: Number((requestCount / authorityElapsed).toFixed(2)),
-        liveEventDeliveries: delivered.filter((text) => text.includes("competition.policy.updated")).length,
+        liveEventDeliveries: deliveredCount,
       }));
     } finally {
       controllers.forEach((controller) => controller.abort());
