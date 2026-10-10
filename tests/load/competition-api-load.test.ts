@@ -113,14 +113,18 @@ function authHeaders(): Record<string, string> {
 }
 
 describe("competition HTTP load profile", () => {
-  it("serves 1,000 participant snapshots through the real HTTP boundary", { timeout: 60_000 }, async () => {
-    const competition = buildCompetition();
+  it("serves 1,000 competition snapshots through HTTP while preserving a 100-participant payload", { timeout: 60_000 }, async () => {
+    // Keep this request-throughput test focused on HTTP behavior. The separate
+    // combined HTTP + SSE profile exercises 1,000 participants; repeating that
+    // full 1,000-participant JSON payload 1,000 times needlessly transfers roughly
+    // a gigabyte and makes this test measure serialization volume more than routing.
+    const competition = buildCompetition(100);
     const server = buildServer(competition);
     const { port } = await listen(server);
     try {
       const started = performance.now();
       const responses: Response[] = [];
-      const batchSize = 10;
+      const batchSize = 50;
       for (let offset = 0; offset < 1000; offset += batchSize) {
         const batch = await Promise.all(
           Array.from({ length: Math.min(batchSize, 1000 - offset) }, () =>
@@ -130,13 +134,14 @@ describe("competition HTTP load profile", () => {
         responses.push(...batch);
         const bodies = await Promise.all(batch.map((response) => response.json()));
         expect(bodies.every((body) => body.competition.state === "live")).toBe(true);
-        expect(bodies.every((body) => body.competition.participants.length === 1000)).toBe(true);
+        expect(bodies.every((body) => body.competition.participants.length === 100)).toBe(true);
       }
       const elapsedSeconds = (performance.now() - started) / 1000;
       expect(responses).toHaveLength(1000);
       expect(responses.every((response) => response.status === 200)).toBe(true);
       console.info("[competition-http-stress] snapshots", JSON.stringify({
         requests: 1000,
+        participantsPerSnapshot: 100,
         elapsedSeconds: Number(elapsedSeconds.toFixed(3)),
         requestsPerSecond: Number((1000 / elapsedSeconds).toFixed(2)),
       }));
