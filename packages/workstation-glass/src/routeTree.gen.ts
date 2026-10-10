@@ -319,7 +319,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   CompetitionRoute: CompetitionRoute,
-  CompetitionRoute: CompetitionRoute,
   ExecutionsRoute: ExecutionsRoute,
   JarvisRoute: JarvisRoute,
   JournalRoute: JournalRoute,
