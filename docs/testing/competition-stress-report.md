@@ -25,6 +25,12 @@ Observed stress measurements from successful runs (single development PC; not pr
 
 Measurements varied materially between runs. The test machine is a development environment, and these numbers must not be represented as production or multi-instance capacity.
 
+## Latest optimization under validation
+
+The 10,000-request HTTP authorization route previously serialized the complete authority result, including the competition engine state and its participant/performance/order-count structures, for every request. The stress client only consumes the authorization decision. The branch `fix/competition-http-authority-payload` changes this endpoint to return the compact `{ decision }` response and adds a regression test that rejects accidental full-state payloads. It also fixes the competition SSE connection comment so it emits real newline delimiters.
+
+These are targeted payload/framing fixes, not a production-capacity claim. Validate the branch locally with the isolated authority burst, the complete API load profile, typecheck, and full repository checks before merging.
+
 ## Current follow-up and limitations
 
 The combined HTTP + SSE test also produced intermittent `ECONNRESET` errors and test timeouts in other runs. Therefore, the latest stress gate must be rerun before declaring the current branch fully green.
