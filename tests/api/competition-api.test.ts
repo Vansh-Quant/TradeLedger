@@ -80,6 +80,33 @@ describe("competition HTTP realtime boundary", () => {
     }
   });
 
+  it("returns only the authority decision instead of the full competition engine snapshot", async () => {
+    const { server } = createServer();
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("server did not bind");
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/competition/authorize-order`, {
+        method: "POST",
+        headers: { authorization: "Bearer competition-token", "content-type": "application/json" },
+        body: JSON.stringify({
+          participantId: "P-0001",
+          instrumentId: "AAPL",
+          orderNotional: 1000,
+          second: 1,
+        }),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.decision.allowed).toBe(true);
+      expect(body.decision.reason).toBe("allowed");
+      expect(body.state).toBeUndefined();
+      expect(JSON.stringify(body).length).toBeLessThan(1000);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it("streams competition events and supports sequence replay", async () => {
     const { server, competition } = createServer();
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
