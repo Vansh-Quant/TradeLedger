@@ -244,7 +244,7 @@ async function route(
       for (const event of queued) writeEvent(event);
       queued = [];
 
-      response.write(": connected\\n\\n");
+      response.write(": connected\n\n");
       return;
     }
 
@@ -333,13 +333,15 @@ async function route(
 
     if (method === "POST" && path === "/api/v1/competition/authorize-order") {
       const body = await readJson(request, maxBodyBytes);
-      send(response, id, 200, competition.authorizeOrder({
+      const result = competition.authorizeOrder({
         principal,
         participantId: requiredString(body, "participantId"),
         instrumentId: requiredString(body, "instrumentId"),
         orderNotional: requiredNumber(body, "orderNotional"),
         second: requiredNumber(body, "second"),
-      }), corsOrigin);
+      });
+      // Authorization callers need the decision, not a full copy of the 1,000-participant engine state.
+      send(response, id, 200, { decision: result.decision }, corsOrigin);
       return;
     }
 
