@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ChangeEvent, type Re
 import { Download, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Panel, EmptyState } from "@/components/terminal/primitives";
+import { JournalAnalyticsPanel } from "@/components/JournalAnalyticsPanel";
 import {
   decodeJournalEntries, decodeJournalBackup, encodeJournalEntries, summarizeJournal,
   type JournalEntry, type JournalOutcome, type JournalSide,
@@ -255,6 +256,8 @@ function JournalPage() {
         <Metric title="Win rate · closed" value={stats.closed ? stats.winRate.toFixed(1) + "%" : "—"} />
         <Metric title="Average R · closed" value={fmtNumber(stats.averageR, "R")} />
       </div>
+
+      <JournalAnalyticsPanel entries={entries} />
 
       {showForm && <Panel title={editingId ? "Edit journal entry" : "New trade journal"} action={<button type="button" onClick={cancelForm} aria-label="Close journal form" className="p-1 text-muted-foreground hover:text-foreground"><X className="size-4" /></button>}>
         <form onSubmit={submit} className="space-y-4 p-3">
