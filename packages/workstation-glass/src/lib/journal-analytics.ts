@@ -1,4 +1,4 @@
-import type { JournalEntry, JournalOutcome } from "./journal-store";
+import type { JournalEntry } from "./journal-store";
 
 export type StreakKind = "WIN" | "LOSS" | "NONE";
 
@@ -115,7 +115,7 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
     peak = Math.max(peak, equity);
     const drawdown = peak - equity;
     maxDrawdown = Math.max(maxDrawdown, drawdown);
-    if (peak > 0) {
+    if (peak > 0 && drawdown > 0) {
       const drawdownPercent = (drawdown / peak) * 100;
       maxDrawdownPercent = maxDrawdownPercent === null
         ? drawdownPercent
