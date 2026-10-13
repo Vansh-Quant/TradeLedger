@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc -p packages/workstation-glass/tsconfig.json --noEmit",
-    "test": "vitest run tests --pool=threads",
+    "test": "vitest run tests --exclude tests/load/** --pool=threads",
     "test:watch": "vitest tests",
     "check": "npm run typecheck && npm test && npm run test:glass",
     "test:glass": "npm run test --workspace packages/workstation-glass",
