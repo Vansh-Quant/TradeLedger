@@ -4,7 +4,7 @@ import { Download, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } fr
 import { toast } from "sonner";
 import { PageHeader, Panel, EmptyState } from "@/components/terminal/primitives";
 import {
-  decodeJournalEntries, encodeJournalEntries, summarizeJournal,
+  decodeJournalEntries, decodeJournalBackup, encodeJournalEntries, summarizeJournal,
   type JournalEntry, type JournalOutcome, type JournalSide,
 } from "@/lib/journal-store";
 
@@ -222,13 +222,9 @@ function JournalPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      const payload = parsed && typeof parsed === "object" && !Array.isArray(parsed) && "entries" in parsed
-        ? (parsed as { entries: unknown }).entries
-        : parsed;
-      const imported = decodeJournalEntries(JSON.stringify(payload));
-      if (!Array.isArray(payload) || imported.length !== payload.length) {
-        throw new Error("This file is not a valid TradeLedger journal backup.");
+      const imported = decodeJournalBackup(await file.text());
+      if (imported === null) {
+        throw new Error("This file is not a valid TradeLedger or Private Trading Desk backup.");
       }
       const byId = new Map(entries.map((entry) => [entry.id, entry]));
       imported.forEach((entry) => byId.set(entry.id, entry));
