@@ -109,16 +109,17 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
   let equity = 0;
   let peak = 0;
   let maxDrawdown = 0;
-  let peakForPercent: number | null = null;
-  let maxDrawdownPercent = 0;
+  let maxDrawdownPercent: number | null = null;
   for (const entry of pnlEntries) {
     equity += entry.pnl as number;
     peak = Math.max(peak, equity);
     const drawdown = peak - equity;
-    if (drawdown > maxDrawdown) {
-      maxDrawdown = drawdown;
-      peakForPercent = peak > 0 ? peak : null;
-      maxDrawdownPercent = peak > 0 ? (drawdown / peak) * 100 : 0;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+    if (peak > 0) {
+      const drawdownPercent = (drawdown / peak) * 100;
+      maxDrawdownPercent = maxDrawdownPercent === null
+        ? drawdownPercent
+        : Math.max(maxDrawdownPercent, drawdownPercent);
     }
   }
 
@@ -140,7 +141,7 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
       : null,
     averageR: average(rValues),
     maxDrawdown: pnlEntries.length > 0 ? maxDrawdown : null,
-    maxDrawdownPercent: peakForPercent === null ? null : maxDrawdownPercent,
+    maxDrawdownPercent,
     ...streakSummary,
     setups: breakdown(entries, "setup"),
     sessions: breakdown(entries, "session"),
