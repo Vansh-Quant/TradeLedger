@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ChangeEvent, type ReactNode } from "react";
-import { Download, FileDown, FileSpreadsheet, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Download, FileSpreadsheet, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Panel, EmptyState } from "@/components/terminal/primitives";
 import { JournalAnalyticsPanel } from "@/components/JournalAnalyticsPanel";
