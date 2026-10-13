@@ -241,7 +241,7 @@ function JournalPage() {
     <div className="space-y-3">
       <PageHeader
         title="Trade Journal"
-        subtitle="Capture the setup, execution, psychology and lesson behind every trade. Private to this browser."
+        subtitle="Capture the setup, execution, psychology and lesson behind every trade. Stored locally in this browser profile."
         action={<div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={exportBackup} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><Download className="size-3.5" /> Export</button>
           <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><FileUp className="size-3.5" /> Import<input key={importInputKey} type="file" accept="application/json,.json" onChange={importBackup} className="hidden" /></label>
@@ -342,7 +342,7 @@ function JournalPage() {
             </details>)}
           </div>}
       </Panel>
-      <p className="text-[10px] text-muted-foreground">Local-first storage: entries remain in this browser profile. Export backups regularly. They are not synced to the API or included in Git commits.</p>
+      <p className="text-[10px] text-muted-foreground">Local-first storage: entries remain in this browser profile and are not sent to the API or committed to Git. Browser storage is not encrypted or synced; use a trusted device and export backups regularly.</p>
     </div>
   );
 }
