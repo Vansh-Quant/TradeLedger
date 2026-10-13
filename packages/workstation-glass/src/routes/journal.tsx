@@ -122,7 +122,7 @@ function JournalPage() {
       .some((value) => value.toLowerCase().includes(query));
     return matchesSearch && (!outcomeFilter || entry.outcome === outcomeFilter) &&
       (!dateFrom || entry.date >= dateFrom) && (!dateTo || entry.date <= dateTo) &&
-      (!setupFilter || entry.setup === setupFilter) && (!sessionFilter || entry.session === sessionFilter);
+      (!setupFilter || entry.setup.trim() === setupFilter) && (!sessionFilter || entry.session.trim() === sessionFilter);
   }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [entries, search, outcomeFilter, dateFrom, dateTo, setupFilter, sessionFilter]);
   const setupOptions = useMemo(() => [...new Set(entries.map((entry) => entry.setup.trim()).filter(Boolean))].sort(), [entries]);
   const sessionOptions = useMemo(() => [...new Set(entries.map((entry) => entry.session.trim()).filter(Boolean))].sort(), [entries]);
@@ -224,7 +224,7 @@ function JournalPage() {
     anchor.href = url;
     anchor.download = "tradeledger-journal-" + new Date().toISOString().slice(0, 10) + ".json";
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success("Journal backup exported.");
   }
   function exportCsv() {
@@ -241,6 +241,7 @@ function JournalPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
+      if (file.size > 25 * 1024 * 1024) throw new Error("Journal backup must be 25 MB or smaller.");
       const imported = decodeJournalBackup(await file.text());
       if (imported === null) {
         throw new Error("This file is not a valid TradeLedger or Private Trading Desk backup.");
