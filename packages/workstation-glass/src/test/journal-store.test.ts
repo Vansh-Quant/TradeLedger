@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeJournalEntries, encodeJournalEntries, summarizeJournal, type JournalEntry } from "../lib/journal-store";
+import { decodeJournalBackup, decodeJournalEntries, encodeJournalEntries, summarizeJournal, type JournalEntry } from "../lib/journal-store";
 
 const entry = (overrides: Partial<JournalEntry> = {}): JournalEntry => ({
   id: "j-1", date: "2026-10-13", symbol: "XAUUSD", side: "LONG", setup: "Liquidity sweep",
@@ -9,6 +9,40 @@ const entry = (overrides: Partial<JournalEntry> = {}): JournalEntry => ({
   mistake: "", ruleAdherence: "Followed all rules", thesis: "Sweep and reclaim", notes: "Waited for close",
   reflection: "Repeat patiently", createdAt: "2026-10-13T10:00:00.000Z", updatedAt: "2026-10-13T10:00:00.000Z",
   ...overrides,
+
+  it("imports trades from the old Private Trading Desk localStorage export", () => {
+    const backup = {
+      tl_trades: JSON.stringify([{
+        id: 1730000000000, date: "2026-10-12", symbol: "XAUUSD", dir: "Short",
+        entry: 2650.5, exit: 2640.5, sl: 2655, qty: 1, pnl: 10, rr: 2,
+        outcome: "Win", setup: "Liquidity sweep", session: "London",
+        htf: "Bearish", liquidity: "PDL", confluence: ["Sweep", "MSS"],
+        emotion: "Calm", execQuality: ["Followed plan"], mistake: "",
+        ruleAdhere: "Yes", thesis: "Sweep and rejection", notes: "Waited for close",
+        reflection: "Repeat", loggedAt: "2026-10-12T10:00:00.000Z",
+        images: [{ data: "data:image/jpeg;base64,AA==", name: "chart.jpg" }],
+      }]),
+      tl_rules: JSON.stringify(["Do not chase"]),
+    };
+    const imported = decodeJournalBackup(JSON.stringify(backup));
+    expect(imported).toHaveLength(1);
+    expect(imported?.[0]).toMatchObject({
+      id: "1730000000000",
+      symbol: "XAUUSD",
+      side: "SHORT",
+      outcome: "WIN",
+      entryPrice: 2650.5,
+      rMultiple: 2,
+      confluence: ["Sweep", "MSS"],
+      screenshotData: "data:image/jpeg;base64,AA==",
+    });
+  });
+
+  it("rejects unrelated or malformed backup files", () => {
+    expect(decodeJournalBackup("{broken")).toBeNull();
+    expect(decodeJournalBackup(JSON.stringify({ unrelated: true }))).toBeNull();
+  });
+
 });
 
 describe("local trade journal store", () => {
