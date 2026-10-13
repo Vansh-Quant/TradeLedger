@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent, type ChangeEvent, type ReactNode } from "react";
-import { Download, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Download, FileDown, FileSpreadsheet, FileUp, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Panel, EmptyState } from "@/components/terminal/primitives";
 import { JournalAnalyticsPanel } from "@/components/JournalAnalyticsPanel";
@@ -8,6 +8,7 @@ import {
   decodeJournalEntries, decodeJournalBackup, encodeJournalEntries, summarizeJournal,
   type JournalEntry, type JournalOutcome, type JournalSide,
 } from "@/lib/journal-store";
+import { encodeJournalCsv } from "@/lib/journal-csv";
 
 export const Route = createFileRoute("/journal")({ component: JournalPage });
 
@@ -96,7 +97,10 @@ function JournalPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [setupFilter, setSetupFilter] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("");
   const [confluenceText, setConfluenceText] = useState("");
   const [screenshotName, setScreenshotName] = useState("");
   const [importInputKey, setImportInputKey] = useState(0);
@@ -116,8 +120,12 @@ function JournalPage() {
     const query = search.trim().toLowerCase();
     const matchesSearch = !query || [entry.symbol, entry.setup, entry.notes, entry.thesis, entry.mistake]
       .some((value) => value.toLowerCase().includes(query));
-    return matchesSearch && (!outcomeFilter || entry.outcome === outcomeFilter) && (!dateFilter || entry.date === dateFilter);
-  }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [entries, search, outcomeFilter, dateFilter]);
+    return matchesSearch && (!outcomeFilter || entry.outcome === outcomeFilter) &&
+      (!dateFrom || entry.date >= dateFrom) && (!dateTo || entry.date <= dateTo) &&
+      (!setupFilter || entry.setup === setupFilter) && (!sessionFilter || entry.session === sessionFilter);
+  }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [entries, search, outcomeFilter, dateFrom, dateTo, setupFilter, sessionFilter]);
+  const setupOptions = useMemo(() => [...new Set(entries.map((entry) => entry.setup.trim()).filter(Boolean))].sort(), [entries]);
+  const sessionOptions = useMemo(() => [...new Set(entries.map((entry) => entry.session.trim()).filter(Boolean))].sort(), [entries]);
 
   function persist(next: JournalEntry[]) {
     try {
@@ -219,6 +227,16 @@ function JournalPage() {
     URL.revokeObjectURL(url);
     toast.success("Journal backup exported.");
   }
+  function exportCsv() {
+    const blob = new Blob([encodeJournalCsv(entries)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "tradeledger-journal-" + new Date().toISOString().slice(0, 10) + ".csv";
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("CSV export downloaded. Chart screenshots are intentionally excluded.");
+  }
   async function importBackup(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -244,7 +262,8 @@ function JournalPage() {
         title="Trade Journal"
         subtitle="Capture the setup, execution, psychology and lesson behind every trade. Stored locally in this browser profile."
         action={<div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={exportBackup} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><Download className="size-3.5" /> Export</button>
+          <button type="button" onClick={exportBackup} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><Download className="size-3.5" /> JSON backup</button>
+          <button type="button" onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><FileSpreadsheet className="size-3.5" /> CSV</button>
           <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><FileUp className="size-3.5" /> Import<input key={importInputKey} type="file" accept="application/json,.json" onChange={importBackup} className="hidden" /></label>
           <button type="button" onClick={startNew} className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-xs font-semibold text-primary-foreground"><Plus className="size-3.5" /> Log trade</button>
         </div>}
@@ -306,8 +325,11 @@ function JournalPage() {
         <div className="flex flex-wrap gap-2 border-b p-2">
           <div className="relative min-w-40 flex-1"><Search className="absolute left-2 top-2.5 size-3.5 text-muted-foreground" /><input aria-label="Search journal" className={inputClass + " pl-7"} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search symbol, setup, thesis…" /></div>
           <select aria-label="Filter by outcome" className={selectClass + " w-36"} value={outcomeFilter} onChange={(e) => setOutcomeFilter(e.target.value)}><option value="">All outcomes</option>{outcomes.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-          <input aria-label="Filter by date" type="date" className={inputClass + " w-36"} value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-          {(search || outcomeFilter || dateFilter) && <button type="button" onClick={() => { setSearch(""); setOutcomeFilter(""); setDateFilter(""); }} className="h-9 rounded-sm border px-2 text-xs">Clear filters</button>}
+          <select aria-label="Filter by setup" className={selectClass + " w-36"} value={setupFilter} onChange={(e) => setSetupFilter(e.target.value)}><option value="">All setups</option>{setupOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          <select aria-label="Filter by session" className={selectClass + " w-36"} value={sessionFilter} onChange={(e) => setSessionFilter(e.target.value)}><option value="">All sessions</option>{sessionOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          <label className="flex items-center gap-1 text-[10px] text-muted-foreground">From<input aria-label="Filter from date" type="date" className={inputClass + " w-36"} value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} /></label>
+          <label className="flex items-center gap-1 text-[10px] text-muted-foreground">To<input aria-label="Filter to date" type="date" className={inputClass + " w-36"} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} /></label>
+          {(search || outcomeFilter || setupFilter || sessionFilter || dateFrom || dateTo) && <button type="button" onClick={() => { setSearch(""); setOutcomeFilter(""); setSetupFilter(""); setSessionFilter(""); setDateFrom(""); setDateTo(""); }} className="h-9 rounded-sm border px-2 text-xs">Clear filters</button>}
         </div>
         {!ready ? <div className="p-6 text-xs text-muted-foreground">Loading your local journal…</div>
           : filtered.length === 0 ? <EmptyState title="No journal entries yet" detail="Log your first trade. Your notes stay in this browser and are not sent to the TradeLedger API." />
