@@ -372,6 +372,19 @@ function JournalPage() {
     }
   }
 
+  if (import.meta.env.PROD && !isHostedJournalConfigured) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4">
+        <Panel title="Hosted journal is not configured">
+          <div className="space-y-2 p-4 text-xs text-muted-foreground">
+            <p>This production build requires Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the hosting environment, then redeploy.</p>
+            <p>No journal entries will be saved in local-only mode from this production page.</p>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   if (isHostedJournalConfigured && !authReady) {
     return <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">Restoring hosted journal session…</div>;
   }
