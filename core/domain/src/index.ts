@@ -26,6 +26,7 @@ export * from "./execution.js";
 export * from "./position.js";
 export * from "./portfolio.js";
 export * from "./market-data.js";
+export * from "./market-data-quality.js";
 export * from "./market-data-provider.js";
 export * from "./market-data-ingestion.js";
 
