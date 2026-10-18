@@ -117,7 +117,7 @@ export function decodeJournalBackup(raw: string): JournalEntry[] | null {
         ["be", "break-even", "breakeven", "break even"].includes(outcomeText) ? "BREAKEVEN" : "OPEN";
       const firstImage = Array.isArray(value["images"]) ? value["images"][0] : undefined;
       const imageData = typeof firstImage === "string" ? firstImage :
-        isRecord(firstImage) && typeof firstImage.data === "string" ? firstImage.data : undefined;
+        isRecord(firstImage) && typeof firstImage["data"] === "string" ? firstImage["data"] : undefined;
       const timestamp = typeof value["loggedAt"] === "string" ? value["loggedAt"] : new Date(0).toISOString();
       return {
         id: String(value["id"] ?? ("legacy-" + index)),
