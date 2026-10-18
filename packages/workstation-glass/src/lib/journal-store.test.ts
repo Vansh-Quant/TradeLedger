@@ -75,8 +75,8 @@ describe("summarizeJournal", () => {
       trade({ id: "second", date: "2026-10-02", pnl: -40, outcome: "LOSS" }),
     ];
     const result = summarizeJournal(trades);
-    expect(result.maxDrawdown).toBe(40);
-    expect(result.maxDrawdownPercent).toBe(40);
+    expect(result.maxDrawdown).toBe(70);
+    expect(result.maxDrawdownPercent).toBe(70);
     expect(summarizeJournal([...trades].reverse()).maxDrawdown).toBe(40);
   });
 
