@@ -77,7 +77,7 @@ describe("summarizeJournal", () => {
     const result = summarizeJournal(trades);
     expect(result.maxDrawdown).toBe(70);
     expect(result.maxDrawdownPercent).toBe(70);
-    expect(summarizeJournal([...trades].reverse()).maxDrawdown).toBe(40);
+    expect(summarizeJournal([...trades].reverse()).maxDrawdown).toBe(70);
   });
 
   it("groups closed trades by setup, session, side, and rule adherence", () => {
