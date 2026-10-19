@@ -16,6 +16,8 @@ import {
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
+  createQuote,
+  MarketDataStateBook,
   InMemoryExecutionEventStore,
 } from "../../core/domain/src/index.js";
 
@@ -44,6 +46,15 @@ function makeService(permissions: readonly string[] = [
   const orders = new InMemoryOrderStateStore();
   const contexts = new InMemoryTradingContext([makeContext()]);
   const executions = new InMemoryExecutionEventStore();
+  const marketData = new MarketDataStateBook(() => "2026-10-04T10:00:00Z");
+  marketData.ingest(createQuote({
+    instrumentId: "AAPL",
+    bid: 99.99,
+    bidSize: 100,
+    ask: 100.01,
+    askSize: 100,
+    observedAt: "2026-10-04T10:00:00Z",
+  }));
   const application = new TradingApplicationService(
     contexts,
     orders,
@@ -53,7 +64,7 @@ function makeService(permissions: readonly string[] = [
     undefined,
     new InMemoryAuditEventStore(),
     undefined,
-    undefined,
+    marketData,
     executions,
   );
   return { application, orders, contexts, executions };
