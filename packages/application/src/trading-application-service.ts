@@ -62,6 +62,12 @@ function isApplicationEventPort(value: unknown): value is ApplicationEventPort {
   return typeof value === "object" && value !== null && "publish" in value && "latestSequence" in value;
 }
 
+function isExecutionEventStore(value: unknown): value is import("@tradeledger/domain").ExecutionEventStore {
+  return typeof value === "object" && value !== null &&
+    "append" in value && "hasExecution" in value &&
+    "getByExecutionId" in value && "listByOrderId" in value;
+}
+
 function requirePositiveFinite(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new ValidationError(`${field} must be a finite positive number`);
@@ -71,6 +77,7 @@ function requirePositiveFinite(value: number, field: string): number {
 
 export class TradingApplicationService {
   private readonly events: ApplicationEventPort;
+  private readonly executions: import("@tradeledger/domain").ExecutionEventStore;
 
   constructor(
     private readonly context: TradingContextPort,
@@ -82,11 +89,12 @@ export class TradingApplicationService {
     private readonly audit: AuditEventPort = new InMemoryAuditEventStore(),
     private readonly transaction: ApplicationTransactionPort = new InMemoryApplicationTransaction(),
     private readonly marketData: MarketDataStatePort | undefined = undefined,
-    private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
+    executions?: import("@tradeledger/domain").ExecutionEventStore,
     events?: ApplicationEventPort,
     private readonly marketDataQualityPolicy: MarketDataQualityPolicy = Object.freeze({ maxAgeMs: 5_000, maxSpreadBps: 50, maxFutureSkewMs: 500 }),
   ) {
     this.events = events ?? (isApplicationEventPort(transaction) ? transaction : new InMemoryApplicationEventBus());
+    this.executions = executions ?? (isExecutionEventStore(transaction) ? transaction : new InMemoryExecutionEventStore());
   }
 
   subscribeToEvents(
