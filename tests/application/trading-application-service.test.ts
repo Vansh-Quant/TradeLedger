@@ -79,7 +79,7 @@ function service(
     undefined,
     events,
   );
-  return { application, orders, audit, events };
+  return { application, orders, audit, events, marketData };
 }
 
 function command() {
@@ -402,6 +402,38 @@ describe("trading application service", () => {
       orderId: submitted.order.id,
       idempotencyKey: "cancel-op-1",
     })).toThrowError("idempotency key conflicts");
+  });
+
+  it("fails closed when the submitted instrument has no quote and does not reserve buying power", () => {
+    const { application } = service();
+
+    const result = application.submitOrder({
+      ...command(),
+      instrumentId: "MSFT",
+    });
+
+    expect(result.admitted).toBe(false);
+    expect(result.reason).toContain("quote is missing");
+    expect(result.order.status).toBe("rejected");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+  });
+
+  it("rejects a quote whose spread exceeds the admission policy", () => {
+    const { application, marketData } = service();
+    marketData.accept("AAPL" as InstrumentId, createQuote({
+      instrumentId: "AAPL" as InstrumentId,
+      bid: 99,
+      bidSize: 10,
+      ask: 101,
+      askSize: 10,
+      observedAt: "2026-10-03T12:00:00.000Z",
+    }), "2026-10-03T12:00:00.000Z");
+
+    const result = application.submitOrder(command());
+
+    expect(result.admitted).toBe(false);
+    expect(result.reason).toContain("quote spread exceeds configured limit");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
   });
 
 });
