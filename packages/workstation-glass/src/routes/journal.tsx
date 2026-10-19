@@ -150,6 +150,7 @@ function JournalPage() {
     } finally {
       setReady(true);
     }
+    return undefined;
   }, []);
 
   useEffect(() => {
