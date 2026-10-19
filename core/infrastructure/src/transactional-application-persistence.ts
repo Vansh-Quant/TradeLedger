@@ -104,7 +104,7 @@ function validateMutation(value: unknown): MutationRecord {
 function validateApplicationEvent(value: unknown): ApplicationEvent {
   const raw = objectRecord(value, "applicationEvent");
   const type = nonEmpty(raw.type, "applicationEvent.type", 64);
-  if (!["order.submitted", "order.cancel.requested", "order.cancelled", "execution.recorded"].includes(type)) throw new PersistenceError("applicationEvent.type is invalid");
+  if (!["order.submitted", "order.rejected", "order.cancel.requested", "order.cancelled", "order.expired", "execution.recorded"].includes(type)) throw new PersistenceError("applicationEvent.type is invalid");
   const aggregateType = nonEmpty(raw.aggregateType, "applicationEvent.aggregateType", 32);
   if (aggregateType !== "order" && aggregateType !== "execution") throw new PersistenceError("applicationEvent.aggregateType is invalid");
   if (typeof raw.sequence !== "number" || !Number.isSafeInteger(raw.sequence) || raw.sequence <= 0) throw new PersistenceError("applicationEvent.sequence is invalid");

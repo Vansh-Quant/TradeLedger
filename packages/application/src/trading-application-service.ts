@@ -1,7 +1,7 @@
 import {
   createOrder,
   createExecution,
-  admitTradingOrder,
+  admitTradingOrderWithMarketData,
   processTradingExecution,
   InMemoryExecutionEventStore,
   requestTradingOrderCancellation,
@@ -9,6 +9,7 @@ import {
   expireTradingOrder,
   type AccountId,
   type InstrumentId,
+  type MarketDataQualityPolicy,
 } from "@tradeledger/domain";
 import type {
   ApplicationTransactionPort,
@@ -83,6 +84,7 @@ export class TradingApplicationService {
     private readonly marketData: MarketDataStatePort | undefined = undefined,
     private readonly executions: import("@tradeledger/domain").ExecutionEventStore = new InMemoryExecutionEventStore(),
     events?: ApplicationEventPort,
+    private readonly marketDataQualityPolicy: MarketDataQualityPolicy = Object.freeze({ maxAgeMs: 5_000, maxSpreadBps: 50, maxFutureSkewMs: 500 }),
   ) {
     this.events = events ?? (isApplicationEventPort(transaction) ? transaction : new InMemoryApplicationEventBus());
   }
@@ -191,7 +193,8 @@ export class TradingApplicationService {
       createdAt: this.clock.now(),
     });
 
-    const admission = admitTradingOrder({
+    const quote = this.marketData?.get(instrumentId)?.latestQuote;
+    const admission = admitTradingOrderWithMarketData({
       order,
       accountPortfolio: tradingContext.accountPortfolio,
       buyingPower: tradingContext.buyingPower,
@@ -201,6 +204,9 @@ export class TradingApplicationService {
       projectedGrossExposure: command.projectedGrossExposure,
       projectedNetExposure: command.projectedNetExposure,
       dailyLoss: command.dailyLoss,
+      quote,
+      now: this.clock.now(),
+      marketDataQualityPolicy: this.marketDataQualityPolicy,
     });
 
     this.orders.save(admission.state);
