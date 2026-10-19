@@ -341,7 +341,11 @@ export class TransactionalApplicationPersistence
       if (JSON.stringify(byExecutionId.execution) !== JSON.stringify(event.execution)) throw new PersistenceError("execution id already exists with different execution data");
       return;
     }
-    this.executions.push(createExecutionEvent(event));
+    this.executions.push(Object.freeze({
+      eventId: event.eventId,
+      execution: event.execution,
+      recordedAt: event.recordedAt,
+    }));
   }
 
   publish(event: ApplicationEvent): void {
@@ -380,21 +384,6 @@ export class TransactionalApplicationPersistence
       current.delete(subscriber);
       if (current.size === 0) this.subscribers.delete(accountId);
     };
-  }
-
-  append(event: ExecutionEvent): void {
-    if (!this.inTransaction) throw new PersistenceError("execution events must be appended inside a transaction");
-    const byEventId = this.executions.find((existing) => existing.eventId === event.eventId);
-    if (byEventId !== undefined) {
-      if (JSON.stringify(byEventId) !== JSON.stringify(event)) throw new PersistenceError("execution event id conflicts with existing data");
-      return;
-    }
-    const byExecutionId = this.executions.find((existing) => existing.execution.id === event.execution.id);
-    if (byExecutionId !== undefined) {
-      if (JSON.stringify(byExecutionId.execution) !== JSON.stringify(event.execution)) throw new PersistenceError("execution id already exists with different execution data");
-      return;
-    }
-    this.executions.push(createExecutionEvent(event));
   }
 
   hasExecution(executionId: string): boolean {
