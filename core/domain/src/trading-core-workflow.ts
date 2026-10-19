@@ -18,6 +18,8 @@ import {
   type OrderBuyingPowerReservation,
 } from "./order-buying-power-reservation.js";
 import type { RiskLimits } from "./risk-boundary.js";
+import { assessMarketDataQuality, type MarketDataQualityAssessment, type MarketDataQualityPolicy } from "./market-data-quality.js";
+import type { Quote } from "./market-data.js";
 
 export interface TradingCoreState {
   readonly order: Order;
@@ -42,6 +44,19 @@ export interface TradingCoreAdmissionResult {
   readonly admitted: boolean;
   readonly reason?: string;
   readonly state: TradingCoreState;
+}
+
+export interface TradingCoreMarketDataAdmissionInput extends TradingCoreAdmissionInput {
+  /** The current quote for this order's instrument. Missing data fails closed. */
+  readonly quote: Quote | null | undefined;
+  /** Caller-supplied clock for deterministic freshness evaluation. */
+  readonly now: string;
+  readonly marketDataQualityPolicy: MarketDataQualityPolicy;
+}
+
+export interface TradingCoreMarketDataAdmissionResult extends TradingCoreAdmissionResult {
+  readonly marketDataQuality: MarketDataQualityAssessment;
+  readonly qualityRejectionReason?: string;
 }
 
 export interface TradingCoreExecutionInput {
@@ -123,6 +138,55 @@ export function admitTradingOrder(
       reservation,
       reconciliation,
     }),
+  });
+}
+
+/**
+ * Fail-closed order admission that enforces market-data quality before risk
+ * admission or buying-power reservation. The caller provides the quote,
+ * evaluation time, and policy; no implicit clock or fallback price is used.
+ */
+export function admitTradingOrderWithMarketData(
+  input: TradingCoreMarketDataAdmissionInput,
+): TradingCoreMarketDataAdmissionResult {
+  const quality = assessMarketDataQuality(
+    input.quote,
+    input.now,
+    input.marketDataQualityPolicy,
+  );
+  const instrumentMismatch =
+    input.quote !== null &&
+    input.quote !== undefined &&
+    input.quote.instrumentId !== input.order.instrumentId;
+  const qualityRejectionReason = instrumentMismatch
+    ? "quote instrument does not match order instrument"
+    : quality.usable
+      ? undefined
+      : quality.reasons.join("; ");
+
+  if (qualityRejectionReason !== undefined) {
+    const rejectedOrder = transitionOrder(input.order, "rejected");
+    const reconciliation = createExecutionReconciliation(
+      rejectedOrder,
+      input.accountPortfolio,
+    );
+    return Object.freeze({
+      admitted: false,
+      reason: qualityRejectionReason,
+      qualityRejectionReason,
+      marketDataQuality: quality,
+      state: Object.freeze({
+        order: rejectedOrder,
+        buyingPower: input.buyingPower,
+        reconciliation,
+      }),
+    });
+  }
+
+  const result = admitTradingOrder(input);
+  return Object.freeze({
+    ...result,
+    marketDataQuality: quality,
   });
 }
 
