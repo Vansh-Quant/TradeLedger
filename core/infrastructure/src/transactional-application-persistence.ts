@@ -1,8 +1,12 @@
 import { openSync, closeSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  AccountId,
-  TradingCoreState,
+import {
+  createExecution,
+  createExecutionEvent,
+  type AccountId,
+  type ExecutionEvent,
+  type ExecutionEventStore,
+  type TradingCoreState,
 } from "@tradeledger/domain";
 import type {
   ApplicationTransactionPort,
@@ -31,6 +35,7 @@ interface ApplicationSnapshot {
   readonly mutations: MutationRecord[];
   readonly auditEvents: AuditEvent[];
   readonly applicationEvents: ApplicationEvent[];
+  readonly executions?: ExecutionEvent[];
 }
 
 function objectRecord(value: unknown, field: string): Record<string, unknown> {
@@ -163,6 +168,7 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
       })),
       auditEvents: value.auditEvents,
       applicationEvents: value.applicationEvents,
+      executions: value.executions ?? [],
     };
   },
   decode(value) {
@@ -180,6 +186,38 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
       throw new PersistenceError("applicationEvents must be an array");
     }
     const applicationEvents = (rawApplicationEvents ?? []).map(validateApplicationEvent);
+    const rawExecutions = raw.executions;
+    if (rawExecutions !== undefined && !Array.isArray(rawExecutions)) throw new PersistenceError("executions must be an array");
+    const executions = (rawExecutions ?? []).map((item) => {
+      const event = objectRecord(item, "executionEvent");
+      const executionRaw = objectRecord(event.execution, "executionEvent.execution");
+      try {
+        return createExecutionEvent({
+          eventId: nonEmpty(event.eventId, "executionEvent.eventId", 128),
+          recordedAt: timestamp(event.recordedAt, "executionEvent.recordedAt"),
+          execution: createExecution({
+            id: nonEmpty(executionRaw.id, "execution.id", 128),
+            orderId: nonEmpty(executionRaw.orderId, "execution.orderId", 128),
+            instrumentId: nonEmpty(executionRaw.instrumentId, "execution.instrumentId", 128) as import("@tradeledger/domain").InstrumentId,
+            side: nonEmpty(executionRaw.side, "execution.side", 16) as import("@tradeledger/domain").OrderSide,
+            quantity: typeof executionRaw.quantity === "number" ? executionRaw.quantity : Number.NaN,
+            price: typeof executionRaw.price === "number" ? executionRaw.price : Number.NaN,
+            executedAt: nonEmpty(executionRaw.executedAt, "execution.executedAt", 64),
+            commission: typeof executionRaw.commission === "number" ? executionRaw.commission : Number.NaN,
+          }),
+        });
+      } catch (error) {
+        throw new PersistenceError("execution event is invalid: " + (error instanceof Error ? error.message : "unknown error"));
+      }
+    });
+    const executionIds = new Set<string>();
+    const executionEventIds = new Set<string>();
+    for (const event of executions) {
+      if (executionIds.has(event.execution.id)) throw new PersistenceError("duplicate persisted execution id");
+      if (executionEventIds.has(event.eventId)) throw new PersistenceError("duplicate persisted execution event id");
+      executionIds.add(event.execution.id);
+      executionEventIds.add(event.eventId);
+    }
     const orderIds = new Set<string>();
     for (const state of orders) {
       if (orderIds.has(state.order.id)) throw new PersistenceError("duplicate persisted order id");
@@ -203,7 +241,7 @@ const snapshotCodec: JsonCodec<ApplicationSnapshot> = {
       if (mutationKeys.has(mutation.key)) throw new PersistenceError("duplicate persisted idempotency key");
       mutationKeys.add(mutation.key);
     }
-    return Object.freeze({ version: 1, orders, contexts, mutations, auditEvents, applicationEvents });
+    return Object.freeze({ version: 1, orders, contexts, mutations, auditEvents, applicationEvents, executions });
   },
 };
 
@@ -213,10 +251,11 @@ interface StateCopy {
   mutations: Map<string, MutationRecord>;
   auditEvents: AuditEvent[];
   applicationEvents: ApplicationEvent[];
+  executions: ExecutionEvent[];
 }
 
 export class TransactionalApplicationPersistence
-  implements ApplicationTransactionPort, OrderStatePort, TradingContextPort, MutationIdempotencyPort, AuditEventPort, ApplicationEventPort {
+  implements ApplicationTransactionPort, OrderStatePort, TradingContextPort, MutationIdempotencyPort, AuditEventPort, ApplicationEventPort, ExecutionEventStore {
   private readonly store: DurableJsonStore<ApplicationSnapshot>;
   private readonly lockPath: string;
   private orders = new Map<string, TradingCoreState>();
@@ -224,6 +263,7 @@ export class TransactionalApplicationPersistence
   private mutations = new Map<string, MutationRecord>();
   private auditEvents: AuditEvent[] = [];
   private applicationEvents: ApplicationEvent[] = [];
+  private executions: ExecutionEvent[] = [];
   private readonly subscribers = new Map<string, Set<(event: ApplicationEvent) => void>>();
   private pendingEvents: ApplicationEvent[] = [];
   private inTransaction = false;
@@ -283,8 +323,29 @@ export class TransactionalApplicationPersistence
     this.contexts.set(context.accountId, context);
   }
 
-  append(event: AuditEvent): void {
-    this.auditEvents.push(Object.freeze({ ...event }));
+  append(event: AuditEvent): void;
+  append(event: ExecutionEvent): void;
+  append(event: AuditEvent | ExecutionEvent): void {
+    if (!("execution" in event)) {
+      this.auditEvents.push(Object.freeze({ ...event }));
+      return;
+    }
+    if (!this.inTransaction) throw new PersistenceError("execution events must be appended inside a transaction");
+    const byEventId = this.executions.find((existing) => existing.eventId === event.eventId);
+    if (byEventId !== undefined) {
+      if (JSON.stringify(byEventId) !== JSON.stringify(event)) throw new PersistenceError("execution event id conflicts with existing data");
+      return;
+    }
+    const byExecutionId = this.executions.find((existing) => existing.execution.id === event.execution.id);
+    if (byExecutionId !== undefined) {
+      if (JSON.stringify(byExecutionId.execution) !== JSON.stringify(event.execution)) throw new PersistenceError("execution id already exists with different execution data");
+      return;
+    }
+    this.executions.push(Object.freeze({
+      eventId: event.eventId,
+      execution: event.execution,
+      recordedAt: event.recordedAt,
+    }));
   }
 
   publish(event: ApplicationEvent): void {
@@ -323,6 +384,21 @@ export class TransactionalApplicationPersistence
       current.delete(subscriber);
       if (current.size === 0) this.subscribers.delete(accountId);
     };
+  }
+
+  hasExecution(executionId: string): boolean {
+    if (!this.inTransaction) this.reload();
+    return this.executions.some((event) => event.execution.id === executionId);
+  }
+
+  getByExecutionId(executionId: string): ExecutionEvent | undefined {
+    if (!this.inTransaction) this.reload();
+    return this.executions.find((event) => event.execution.id === executionId);
+  }
+
+  listByOrderId(orderId: string): readonly ExecutionEvent[] {
+    if (!this.inTransaction) this.reload();
+    return Object.freeze(this.executions.filter((event) => event.execution.orderId === orderId).slice());
   }
 
   latestSequence(): number {
@@ -407,6 +483,7 @@ export class TransactionalApplicationPersistence
     this.mutations = new Map(snapshot?.mutations.map((mutation) => [mutation.key, mutation]) ?? []);
     this.auditEvents = [...(snapshot?.auditEvents ?? [])];
     this.applicationEvents = [...(snapshot?.applicationEvents ?? [])];
+    this.executions = [...(snapshot?.executions ?? [])];
   }
 
   private persist(): void {
@@ -417,6 +494,7 @@ export class TransactionalApplicationPersistence
       mutations: [...this.mutations.values()],
       auditEvents: this.auditEvents,
       applicationEvents: this.applicationEvents,
+      executions: this.executions,
     });
   }
 
@@ -427,6 +505,7 @@ export class TransactionalApplicationPersistence
       mutations: new Map(this.mutations),
       auditEvents: [...this.auditEvents],
       applicationEvents: [...this.applicationEvents],
+      executions: [...this.executions],
     };
   }
 
@@ -436,6 +515,7 @@ export class TransactionalApplicationPersistence
     this.mutations = before.mutations;
     this.auditEvents = before.auditEvents;
     this.applicationEvents = before.applicationEvents;
+    this.executions = before.executions;
   }
 
   private withLock<T>(operation: () => T): T {

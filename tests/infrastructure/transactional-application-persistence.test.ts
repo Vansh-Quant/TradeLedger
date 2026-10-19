@@ -11,6 +11,8 @@ import {
   createAccountPortfolio,
   createBuyingPower,
   createOrder,
+  createExecution,
+  createExecutionEvent,
   createPortfolio,
   createRiskLimits,
 } from "../../core/domain/src/index.js";
@@ -221,6 +223,38 @@ describe("transactional application persistence", () => {
     expect(reloaded.latestSequence()).toBe(1);
     expect(reloaded.listAfterSequence(0)).toHaveLength(1);
     expect(reloaded.listAfterSequence(0)[0]?.eventId).toBe("event-persist-1");
+  });
+
+  it("persists execution identity across adapter recreation", () => {
+    const directory = root();
+    const first = new TransactionalApplicationPersistence(directory);
+    const execution = createExecution({
+      id: "EXE-DURABLE-1",
+      orderId: "ORD-TX-1",
+      instrumentId: "AAPL" as never,
+      side: "buy",
+      quantity: 2,
+      price: 100,
+      executedAt: "2026-10-04T00:01:00.000Z",
+      commission: 0.5,
+    });
+    const event = createExecutionEvent({
+      eventId: "EXE-EVENT-DURABLE-1",
+      execution,
+      recordedAt: "2026-10-04T00:02:00.000Z",
+    });
+
+    first.execute(() => first.append(event));
+
+    const reloaded = new TransactionalApplicationPersistence(directory);
+    expect(reloaded.hasExecution("EXE-DURABLE-1")).toBe(true);
+    expect(reloaded.getByExecutionId("EXE-DURABLE-1")).toEqual(event);
+    expect(reloaded.listByOrderId("ORD-TX-1")).toEqual([event]);
+    expect(() => reloaded.execute(() => reloaded.append(createExecutionEvent({
+      eventId: "EXE-EVENT-DURABLE-2",
+      execution: { ...execution, quantity: 3 },
+      recordedAt: "2026-10-04T00:03:00.000Z",
+    })))).toThrow("execution id already exists with different execution data");
   });
 
   it("rolls back application events with the surrounding transaction", () => {
