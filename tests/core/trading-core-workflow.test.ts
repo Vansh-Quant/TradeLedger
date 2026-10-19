@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   InMemoryExecutionEventStore,
   admitTradingOrder,
+  admitTradingOrderWithMarketData,
+  createQuote,
   createAccount,
   createAccountPortfolio,
   createExecution,
@@ -12,6 +14,7 @@ import {
   requestTradingOrderCancellation,
   completeTradingOrderCancellation,
   type InstrumentId,
+  type MarketDataQualityPolicy,
 } from "../../core/domain/src/index.js";
 
 const account = createAccount({ id: "ACC-001", baseCurrency: "USD" });
@@ -255,3 +258,97 @@ describe("trading core workflow", () => {
     expect(cancelled.buyingPower.reservedCapacity).toBe(0);
     expect(cancelled.reservation?.remainingAmount).toBe(0);
   });
+
+
+const quotePolicy: MarketDataQualityPolicy = {
+  maxAgeMs: 2_000,
+  maxSpreadBps: 30,
+  maxFutureSkewMs: 250,
+};
+
+function makeMarketDataAdmission(
+  quote: Parameters<typeof admitTradingOrderWithMarketData>[0]["quote"],
+  now = "2026-10-01T10:00:01.000Z",
+  policy = quotePolicy,
+) {
+  return admitTradingOrderWithMarketData({
+    order: makeOrder(),
+    accountPortfolio: createAccountPortfolio(account, createPortfolio()),
+    buyingPower: { totalCapacity: 5_000, reservedCapacity: 0 },
+    riskLimits,
+    orderNotional: 1_000,
+    projectedPositionNotional: 1_000,
+    projectedGrossExposure: 1_000,
+    projectedNetExposure: 1_000,
+    dailyLoss: 0,
+    quote,
+    now,
+    marketDataQualityPolicy: policy,
+  });
+}
+
+function makeFreshQuote(overrides: Partial<Parameters<typeof createQuote>[0]> = {}) {
+  return createQuote({
+    instrumentId,
+    bid: 99.9,
+    bidSize: 10,
+    ask: 100.1,
+    askSize: 10,
+    observedAt: "2026-10-01T10:00:00.000Z",
+    source: "test-feed",
+    ...overrides,
+  });
+}
+
+describe("market-data-enforced trading admission", () => {
+  it("admits only when the matching quote is fresh and within spread policy", () => {
+    const result = makeMarketDataAdmission(makeFreshQuote());
+
+    expect(result.admitted).toBe(true);
+    expect(result.marketDataQuality.usable).toBe(true);
+    expect(result.state.order.status).toBe("acknowledged");
+    expect(result.state.buyingPower.reservedCapacity).toBe(1_000);
+  });
+
+  it("fails closed for missing quotes without reserving buying power", () => {
+    const result = makeMarketDataAdmission(null);
+
+    expect(result.admitted).toBe(false);
+    expect(result.marketDataQuality.status).toBe("missing");
+    expect(result.reason).toContain("quote is missing");
+    expect(result.state.order.status).toBe("rejected");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+  });
+
+  it("rejects stale quotes before order admission", () => {
+    const result = makeMarketDataAdmission(
+      makeFreshQuote(),
+      "2026-10-01T10:00:05.000Z",
+    );
+
+    expect(result.admitted).toBe(false);
+    expect(result.marketDataQuality.status).toBe("stale");
+    expect(result.state.order.status).toBe("rejected");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+  });
+
+  it("rejects quotes for a different instrument", () => {
+    const result = makeMarketDataAdmission(
+      makeFreshQuote({ instrumentId: "MSFT" as InstrumentId }),
+    );
+
+    expect(result.admitted).toBe(false);
+    expect(result.qualityRejectionReason).toBe("quote instrument does not match order instrument");
+    expect(result.state.order.status).toBe("rejected");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+  });
+
+  it("rejects a fresh quote with a spread outside policy", () => {
+    const result = makeMarketDataAdmission(makeFreshQuote({ bid: 99, ask: 101 }));
+
+    expect(result.admitted).toBe(false);
+    expect(result.marketDataQuality.status).toBe("wide-spread");
+    expect(result.state.order.status).toBe("rejected");
+    expect(result.state.buyingPower.reservedCapacity).toBe(0);
+  });
+});
