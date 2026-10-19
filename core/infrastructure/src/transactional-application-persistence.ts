@@ -323,8 +323,25 @@ export class TransactionalApplicationPersistence
     this.contexts.set(context.accountId, context);
   }
 
-  append(event: AuditEvent): void {
-    this.auditEvents.push(Object.freeze({ ...event }));
+  append(event: AuditEvent): void;
+  append(event: ExecutionEvent): void;
+  append(event: AuditEvent | ExecutionEvent): void {
+    if (!("execution" in event)) {
+      this.auditEvents.push(Object.freeze({ ...event }));
+      return;
+    }
+    if (!this.inTransaction) throw new PersistenceError("execution events must be appended inside a transaction");
+    const byEventId = this.executions.find((existing) => existing.eventId === event.eventId);
+    if (byEventId !== undefined) {
+      if (JSON.stringify(byEventId) !== JSON.stringify(event)) throw new PersistenceError("execution event id conflicts with existing data");
+      return;
+    }
+    const byExecutionId = this.executions.find((existing) => existing.execution.id === event.execution.id);
+    if (byExecutionId !== undefined) {
+      if (JSON.stringify(byExecutionId.execution) !== JSON.stringify(event.execution)) throw new PersistenceError("execution id already exists with different execution data");
+      return;
+    }
+    this.executions.push(createExecutionEvent(event));
   }
 
   publish(event: ApplicationEvent): void {
