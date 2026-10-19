@@ -16,10 +16,9 @@ import {
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
-  createQuote,
-  MarketDataStateBook,
   InMemoryExecutionEventStore,
 } from "../../core/domain/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 
 const principal: ApplicationPrincipal = { id: "execution-user", roles: ["trader"] };
 const account = createAccount({ id: "ACC-EXEC", baseCurrency: "USD" });
@@ -46,15 +45,17 @@ function makeService(permissions: readonly string[] = [
   const orders = new InMemoryOrderStateStore();
   const contexts = new InMemoryTradingContext([makeContext()]);
   const executions = new InMemoryExecutionEventStore();
-  const marketData = new MarketDataStateBook(() => "2026-10-04T10:00:00Z");
-  marketData.ingest(createQuote({
-    instrumentId: "AAPL",
+  const marketData = new InMemoryMarketDataStateStore();
+  const instrumentId = "AAPL" as import("@tradeledger/domain").InstrumentId;
+  marketData.accept(instrumentId, {
+    kind: "quote",
+    instrumentId,
     bid: 99.99,
     bidSize: 100,
     ask: 100.01,
     askSize: 100,
     observedAt: "2026-10-04T10:00:00Z",
-  }));
+  }, "2026-10-04T10:00:00Z");
   const application = new TradingApplicationService(
     contexts,
     orders,
