@@ -47,9 +47,9 @@ function application() {
     bidSize: 10,
     ask: 100.25,
     askSize: 12,
-    observedAt: "2026-10-04T09:30:00Z",
+    observedAt: "2026-10-03T12:00:00Z",
     source: "test-feed",
-  }), "2026-10-04T09:30:01Z");
+  }), "2026-10-03T12:00:01Z");
 
   return new TradingApplicationService(
     new InMemoryTradingContext([context]),
