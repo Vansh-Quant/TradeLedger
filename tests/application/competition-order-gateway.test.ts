@@ -14,13 +14,26 @@ import {
   createBuyingPower,
   createPortfolio,
   createRiskLimits,
+  createQuote,
 } from "@tradeledger/domain";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 
 const principal = { id: "competition-trader", roles: ["owner", "trader"] };
 
 describe("competition order gateway", () => {
   it("enforces competition authority before OMS admission", () => {
     const account = createAccount({ id: "CMP-0001", baseCurrency: "USD" });
+    const marketData = new InMemoryMarketDataStateStore();
+    const instrumentId = "AAPL" as import("@tradeledger/domain").InstrumentId;
+    marketData.accept(instrumentId, createQuote({
+      instrumentId,
+      bid: 99.99,
+      bidSize: 100,
+      ask: 100.01,
+      askSize: 100,
+      observedAt: "2026-10-08T12:00:00Z",
+    }), "2026-10-08T12:00:00Z");
+
     const trading = new TradingApplicationService(
       new InMemoryTradingContext([{
         accountId: account.id,
@@ -38,6 +51,10 @@ describe("competition order gateway", () => {
       new AllowListedAuthorization(["competition-trader:order.submit:CMP-0001"]),
       fixedOrderIdGenerator("ORD-COMP-0001"),
       fixedClock("2026-10-08T12:00:00Z"),
+      undefined,
+      undefined,
+      undefined,
+      marketData,
     );
 
     const competition = new CompetitionApplicationService(undefined, trading);
