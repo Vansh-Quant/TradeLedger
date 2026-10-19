@@ -16,8 +16,11 @@ import {
   createAccountPortfolio,
   createBuyingPower,
   createPortfolio,
+  createQuote,
   createRiskLimits,
+  type InstrumentId,
 } from "../../core/domain/src/index.js";
+import { InMemoryMarketDataStateStore } from "../../core/infrastructure/src/index.js";
 
 const principal: ApplicationPrincipal = {
   id: "user-1",
@@ -54,6 +57,15 @@ function service(
   const audit = new InMemoryAuditEventStore();
   const events = new InMemoryApplicationEventBus();
   const tradingContext = new InMemoryTradingContext([context]);
+  const marketData = new InMemoryMarketDataStateStore();
+  marketData.accept("AAPL" as InstrumentId, createQuote({
+    instrumentId: "AAPL" as InstrumentId,
+    bid: 100,
+    bidSize: 10,
+    ask: 100.25,
+    askSize: 10,
+    observedAt: "2026-10-03T12:00:00.000Z",
+  }), "2026-10-03T12:00:00.000Z");
   const application = new TradingApplicationService(
     tradingContext,
     orders,
@@ -63,7 +75,7 @@ function service(
     undefined,
     audit,
     undefined,
-    undefined,
+    marketData,
     undefined,
     events,
   );
