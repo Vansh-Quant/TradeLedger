@@ -16,10 +16,10 @@
     "test:glass": "npm run test --workspace packages/workstation-glass",
     "test:competition-load": "vitest run tests/load/competition-load.test.ts",
     "test:competition-concurrency": "vitest run tests/load/competition-concurrency.test.ts",
-    "test:competition": "vitest run tests/core/phase-6-competition.test.ts tests/application/competition-application.test.ts tests/application/competition-realtime-persistence.test.ts tests/application/competition-order-gateway.test.ts tests/api/competition-api.test.ts tests/load/competition-load.test.ts tests/load/competition-concurrency.test.ts tests/load/competition-stress.test.ts tests/load/competition-api-load.test.ts",
+    "test:competition": "vitest run tests/core/phase-6-competition.test.ts tests/application/competition-application.test.ts tests/application/competition-realtime-persistence.test.ts tests/application/competition-order-gateway.test.ts tests/api/competition-api.test.ts tests/load/competition-load.test.ts tests/load/competition-concurrency.test.ts tests/load/competition-stress.test.ts tests/load/competition-api-load.test.ts --pool=threads",
     "test:competition-storage": "vitest run tests/infrastructure/competition-segmented-log.test.ts tests/core/competition-leaderboard-update.test.ts tests/application/competition-realtime-persistence.test.ts",
     "test:competition-stress": "vitest run tests/load/competition-stress.test.ts",
-    "test:competition-api-load": "vitest run tests/load/competition-api-load.test.ts"
+    "test:competition-api-load": "vitest run tests/load/competition-api-load.test.ts --pool=threads"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

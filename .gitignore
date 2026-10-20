@@ -70,3 +70,6 @@ experiment-results/
 secrets/
 credentials/
 .freebuff/
+# Generated workstation build artifacts
+packages/workstation-glass/.output/
+packages/workstation-glass/.wrangler/

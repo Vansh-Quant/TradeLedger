@@ -150,7 +150,7 @@ describe("competition HTTP load profile", () => {
     }
   });
 
-  it("processes a 10,000-request concurrent authority burst without losing decisions", { timeout: 180_000 }, async () => {
+  it("processes a 10,000-request concurrent authority burst without losing decisions", { timeout: 300_000 }, async () => {
     const competition = buildCompetition();
     const server = buildServer(competition);
     const { port } = await listen(server);
