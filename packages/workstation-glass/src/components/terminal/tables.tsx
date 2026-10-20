@@ -19,7 +19,9 @@ export function PositionTable({ compact }: { compact?: boolean }) {
     ...(compact ? [] : [{ key: "e", header: "Exposure", align: "right" as const, cell: (p: Position) => (p.exposure == null ? "—" : money(p.exposure)) }]),
   ];
   return (
-    <QueryView q={q} empty={(d) => (d.positions ?? []).length === 0}>
+    <QueryView q={q} empty={(d) => (d.positions ?? []).length === 0}
+      emptyTitle="No open positions"
+      emptyDetail="The account context returned an empty position list. Values are not estimated in the browser.">
       {(d) => <DataTable rows={d.positions ?? []} columns={cols} rowKey={(p) => p.symbol} />}
     </QueryView>
   );
@@ -44,11 +46,15 @@ export function OrderTable({ compact, activeOnly }: { compact?: boolean; activeO
         key: "act", header: "Actions", align: "right" as const, cell: (o: Order) =>
           CANCELLABLE.has(String(o.status)) ? (
             <button
+              type="button"
               disabled={cancel.isPending}
-              onClick={() => cancel.mutate(o.orderId, {
-                onSuccess: () => toast.success(`Cancel requested for ${o.orderId}`),
-                onError: (e) => toast.error(e instanceof Error ? e.message : "Cancel failed"),
-              })}
+              onClick={() => {
+                if (!window.confirm(`Request cancellation of ${o.orderId}?`)) return;
+                cancel.mutate(o.orderId, {
+                  onSuccess: () => toast.success(`Cancel requested for ${o.orderId}`),
+                  onError: (e) => toast.error(e instanceof Error ? e.message : "Cancel failed"),
+                });
+              }}
               className="rounded-sm border border-negative/40 px-2 py-0.5 font-sans text-[11px] text-negative hover:bg-negative/10 disabled:opacity-50"
             >Cancel</button>
           ) : <span className="text-muted-foreground">—</span>,
@@ -56,7 +62,9 @@ export function OrderTable({ compact, activeOnly }: { compact?: boolean; activeO
     ]),
   ];
   return (
-    <QueryView q={q} empty={(d) => (activeOnly ? (d ?? []).filter((o) => CANCELLABLE.has(String(o.status))) : (d ?? [])).length === 0}>
+    <QueryView q={q} empty={(d) => (activeOnly ? (d ?? []).filter((o) => CANCELLABLE.has(String(o.status))) : (d ?? [])).length === 0}
+      emptyTitle={activeOnly ? "No active orders" : "No orders"}
+      emptyDetail={activeOnly ? "No working orders were returned for this account." : "The order list from the API is empty."}>
       {(d) => <DataTable rows={activeOnly ? (d ?? []).filter((o) => CANCELLABLE.has(String(o.status))) : (d ?? [])} columns={cols} rowKey={(o) => o.orderId} />}
     </QueryView>
   );
@@ -78,7 +86,9 @@ export function ExecutionTable({ compact }: { compact?: boolean }) {
     ]),
   ];
   return (
-    <QueryView q={q} empty={(d) => (d.executions ?? []).length === 0}>
+    <QueryView q={q} empty={(d) => (d.executions ?? []).length === 0}
+      emptyTitle="No executions"
+      emptyDetail="Account context did not include fills. The API records executions only after they are admitted; this table does not invent them.">
       {(d) => <DataTable rows={d.executions ?? []} columns={cols} rowKey={(e) => e.executionId} />}
     </QueryView>
   );

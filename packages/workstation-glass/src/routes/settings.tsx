@@ -17,7 +17,7 @@ export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
-const field = "mt-1 h-9 w-full rounded-sm border border-input bg-background/60 px-2 text-xs outline-none focus:border-primary num";
+const field = "field-control mt-1 num";
 
 function Settings() {
   const cfg = useApiConfig();
@@ -42,7 +42,7 @@ function Settings() {
             <span className="text-xs text-muted-foreground">
               Health: {!cfg.baseUrl ? "not configured" : health.isLoading ? "checking…" : health.data?.health ? "OK" : "unreachable"} · Ready: {health.data?.ready ? "yes" : "no"}
             </span>
-            <button className="h-8 rounded-sm bg-gradient-primary px-4 text-xs font-semibold text-primary-foreground">Save</button>
+            <button type="submit" className="h-8 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground">Save</button>
           </div>
           <p className="text-[10px] text-muted-foreground">
             Note: a backend on 127.0.0.1 is only reachable when this app runs on the same machine, and the API must allow this origin (CORS).

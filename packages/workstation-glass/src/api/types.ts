@@ -76,6 +76,52 @@ export interface AccountContext {
   raw: unknown;
 }
 
+export interface MarketDataQuote {
+  kind: "quote";
+  instrumentId: string;
+  bid: number;
+  bidSize: number;
+  ask: number;
+  askSize: number;
+  observedAt: string;
+  source?: string | undefined;
+}
+
+export interface MarketDataTrade {
+  kind: "trade";
+  instrumentId: string;
+  price: number;
+  quantity: number;
+  observedAt: string;
+  side?: "buy" | "sell" | undefined;
+  source?: string | undefined;
+}
+
+export interface MarketDataBar {
+  kind: "bar";
+  instrumentId: string;
+  timeframeSeconds: number;
+  startAt: string;
+  endAt: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  source?: string | undefined;
+}
+
+/** Mirrors the domain MarketDataState returned by GET /api/v1/market-data. */
+export interface MarketDataState {
+  instrumentId: string;
+  latestQuote?: MarketDataQuote | undefined;
+  latestTrade?: MarketDataTrade | undefined;
+  latestBar?: MarketDataBar | undefined;
+  lastSequence: number;
+  lastObservedAt: string;
+  lastReceivedAt: string;
+}
+
 export interface SubmitOrderIntent {
   accountId: string;
   symbol: string;

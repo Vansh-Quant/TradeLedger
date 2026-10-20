@@ -15,7 +15,7 @@ export const Route = createFileRoute("/executions")({
 function ExecutionsPage() {
   return (
     <div>
-      <PageHeader title="Executions" subtitle="Execution history with venue and fees." />
+      <PageHeader title="Executions" subtitle="Executions are recorded by POST /api/v1/executions, but the trading-context read does not include them and no executions list endpoint exists. This page shows only fills the account context actually returns." />
       <Panel title="Execution History" className="h-[calc(100vh-9rem)]"><ExecutionTable /></Panel>
     </div>
   );

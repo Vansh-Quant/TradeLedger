@@ -10,300 +10,374 @@ import {
   Power,
   ShieldAlert,
 } from "lucide-react";
-import { Panel, PageHeader, DataTable } from "@/components/terminal/primitives";
+import { Panel, PageHeader, DataTable, EmptyState, LoadingState } from "@/components/terminal/primitives";
 import { cn } from "@/lib/utils";
 import { api } from "@/api/client";
 import type { CompetitionSnapshot } from "@/api/types";
+import { amount, describeCompetition, type StatusTone } from "@/lib/competition-view";
 
 export const Route = createFileRoute("/competition")({
   head: () => ({
     meta: [
       { title: "Competition — TradeLedger" },
-      { name: "description", content: "Competition command center, authority control, leaderboard and participant monitoring." },
+      { name: "description", content: "Competition command center, authority control, leaderboard and audit trail." },
     ],
   }),
   component: CompetitionDashboard,
 });
 
-type ParticipantState = "ACTIVE" | "SUSPENDED" | "DISQUALIFIED";
-
-type Participant = {
-  rank: number;
-  id: string;
-  account: string;
-  state: ParticipantState;
-  pnl: number;
-  returnPct: number;
-  drawdown: number;
-  orders: number;
-  lastActivity: string;
+const TONE_TEXT: Record<StatusTone, string> = {
+  positive: "text-positive",
+  warning: "text-warning",
+  negative: "text-negative",
+  muted: "text-muted-foreground",
 };
 
-const initialParticipants: Participant[] = [
-  { rank: 1, id: "P-0042", account: "CMP-0042", state: "ACTIVE", pnl: 8420, returnPct: 8.42, drawdown: 1.8, orders: 184, lastActivity: "1s ago" },
-  { rank: 2, id: "P-0177", account: "CMP-0177", state: "ACTIVE", pnl: 7165, returnPct: 7.17, drawdown: 2.4, orders: 221, lastActivity: "2s ago" },
-  { rank: 3, id: "P-0091", account: "CMP-0091", state: "ACTIVE", pnl: 5930, returnPct: 5.93, drawdown: 3.1, orders: 166, lastActivity: "1s ago" },
-  { rank: 4, id: "P-0314", account: "CMP-0314", state: "ACTIVE", pnl: 4880, returnPct: 4.88, drawdown: 2.9, orders: 143, lastActivity: "4s ago" },
-  { rank: 5, id: "P-0088", account: "CMP-0088", state: "SUSPENDED", pnl: 3210, returnPct: 3.21, drawdown: 5.7, orders: 201, lastActivity: "38s ago" },
-  { rank: 6, id: "P-0250", account: "CMP-0250", state: "ACTIVE", pnl: 2940, returnPct: 2.94, drawdown: 4.2, orders: 119, lastActivity: "3s ago" },
-  { rank: 7, id: "P-0411", account: "CMP-0411", state: "ACTIVE", pnl: 1840, returnPct: 1.84, drawdown: 3.6, orders: 97, lastActivity: "5s ago" },
-  { rank: 8, id: "P-0067", account: "CMP-0067", state: "ACTIVE", pnl: 1120, returnPct: 1.12, drawdown: 1.5, orders: 83, lastActivity: "2s ago" },
-];
+const TONE_BORDER: Record<StatusTone, string> = {
+  positive: "border-positive/40 text-positive",
+  warning: "border-warning/40 text-warning",
+  negative: "border-negative/40 text-negative",
+  muted: "border-border text-muted-foreground",
+};
 
-const events: readonly [string, string, string, string, string][] = [
-  ["10:09:41", "ORDER_ACCEPTED", "P-0042", "AAPL BUY 25", "authority seq 18,421"],
-  ["10:09:39", "RISK_CHECK", "P-0177", "TSLA SELL 10", "passed"],
-  ["10:09:36", "PARTICIPANT_SUSPENDED", "P-0088", "CMP-0088", "risk officer"],
-  ["10:09:31", "EXECUTION", "P-0091", "NVDA BUY 15", "fill 15 @ 182.42"],
-  ["10:09:24", "ORDER_REJECTED", "P-0314", "MSFT BUY 500", "notional limit"],
-];
+const TONE_DOT: Record<StatusTone, string> = {
+  positive: "bg-positive",
+  warning: "bg-warning",
+  negative: "bg-negative",
+  muted: "bg-muted-foreground",
+};
 
-function Stat({ label, value, detail, tone = "normal" }: { label: string; value: string; detail: string; tone?: "normal" | "positive" | "warning" | "negative" }) {
+function Stat({ label, value, detail, tone = "muted" }: {
+  label: string; value: string; detail: string; tone?: StatusTone;
+}) {
   return (
     <div className="panel p-3">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 num text-xl font-semibold", tone === "positive" && "text-positive", tone === "warning" && "text-warning", tone === "negative" && "text-negative")}>{value}</div>
+      <div className="label-caps">{label}</div>
+      <div className={cn("num mt-1 text-xl font-semibold", value === "—" ? "text-muted-foreground" : TONE_TEXT[tone])}>{value}</div>
       <div className="mt-1 text-[10px] text-muted-foreground">{detail}</div>
     </div>
   );
 }
 
 function CompetitionDashboard() {
-  const [status, setStatus] = useState<"LIVE" | "PAUSED" | "HALTED">("LIVE");
-  const [tradingEnabled, setTradingEnabled] = useState(true);
-  const [emergencyHalt, setEmergencyHalt] = useState(false);
-  const [participants, setParticipants] = useState(initialParticipants);
   const [snapshot, setSnapshot] = useState<CompetitionSnapshot | null>(null);
-  const [backendError, setBackendError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
 
-  const refreshCompetition = async () => {
-    try {
-      const next = await api.competition();
-      setSnapshot(next);
-      setStatus(next.competition.state === "live" ? "LIVE" : next.competition.state === "halted" ? "HALTED" : "PAUSED");
-      setTradingEnabled(next.policy.tradingEnabled);
-      setEmergencyHalt(next.policy.emergencyHalt);
-      const byId = new Map(next.leaderboard.map((entry) => [entry.participantId, entry]));
-      setParticipants(next.competition.participants.map((participant) => {
-        const entry = byId.get(participant.participantId);
-        return {
-          rank: entry?.rank ?? 0,
-          id: participant.participantId,
-          account: participant.accountId,
-          state: participant.state.toUpperCase() as ParticipantState,
-          pnl: entry?.totalPnl ?? 0,
-          returnPct: entry?.returnPct ?? 0,
-          drawdown: 0,
-          orders: 0,
-          lastActivity: "backend",
-        };
-      }));
-      setBackendError(null);
-    } catch (cause) {
-      setBackendError(cause instanceof Error ? cause.message : "competition backend unavailable");
-    }
-  };
-
   useEffect(() => {
-    void refreshCompetition();
-    const timer = window.setInterval(() => void refreshCompetition(), 2000);
-    return () => window.clearInterval(timer);
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
   }, []);
 
-  const runControl = async (action: "start" | "pause" | "resume" | "complete" | "halt" | "suspend_participant" | "resume_participant", participantId?: string) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const next = await api.competition();
+        if (cancelled) return;
+        setSnapshot(next);
+        setLastUpdatedAt(Date.now());
+        setError(null);
+      } catch (cause) {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : "competition backend unavailable");
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const view = useMemo(
+    () => describeCompetition({ snapshot, error, lastUpdatedAt, now }),
+    [snapshot, error, lastUpdatedAt, now],
+  );
+
+  const runControl = async (
+    action: "start" | "pause" | "resume" | "complete" | "halt" | "suspend_participant" | "resume_participant",
+    participantId?: string,
+  ) => {
     if (!snapshot) return;
     setBusy(true);
     try {
       await api.competitionControl(action, snapshot.competition.version, participantId);
-      await refreshCompetition();
+      const next = await api.competition();
+      setSnapshot(next);
+      setLastUpdatedAt(Date.now());
+      setError(null);
     } catch (cause) {
-      setBackendError(cause instanceof Error ? cause.message : "competition control failed");
-    } finally { setBusy(false); }
+      setError(cause instanceof Error ? cause.message : "competition control failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const setTradingGate = async (enabled: boolean) => {
+    if (!enabled && !window.confirm("Disable the trading gate for every participant?")) return;
     setBusy(true);
-    try { await api.competitionPolicy({ tradingEnabled: enabled }); await refreshCompetition(); }
-    catch (cause) { setBackendError(cause instanceof Error ? cause.message : "policy update failed"); }
-    finally { setBusy(false); }
+    try {
+      await api.competitionPolicy({ tradingEnabled: enabled });
+      const next = await api.competition();
+      setSnapshot(next);
+      setLastUpdatedAt(Date.now());
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "policy update failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const setEmergencyGate = async (halt: boolean) => {
+    if (halt && !window.confirm("Engage the emergency halt? All competition trading will stop.")) return;
     setBusy(true);
-    try { await api.competitionPolicy({ emergencyHalt: halt }); await refreshCompetition(); }
-    catch (cause) { setBackendError(cause instanceof Error ? cause.message : "emergency control failed"); }
-    finally { setBusy(false); }
+    try {
+      await api.competitionPolicy({ emergencyHalt: halt });
+      const next = await api.competition();
+      setSnapshot(next);
+      setLastUpdatedAt(Date.now());
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "emergency control failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const active = useMemo(() => participants.filter((p) => p.state === "ACTIVE").length, [participants]);
-
-  const suspendTop = (id: string) => {
-    const participant = participants.find((p) => p.id === id);
-    if (!participant) return;
-    void runControl(participant.state === "SUSPENDED" ? "resume_participant" : "suspend_participant", id);
+  const toggleParticipant = (id: string, currentlySuspended: boolean) => {
+    void runControl(currentlySuspended ? "resume_participant" : "suspend_participant", id);
   };
 
-  const controlState = emergencyHalt ? "EMERGENCY HALT" : status;
+  const controlsDisabled = busy || snapshot === null;
 
   return (
     <div className="grid gap-3">
       <PageHeader
         title="Competition Control Center"
-        subtitle={snapshot ? `${snapshot.competition.config.id} · ${snapshot.competition.config.maxParticipants.toLocaleString()}-participant capacity · backend authority` : "Connecting to competition backend…"}
+        subtitle={
+          snapshot
+            ? `${snapshot.competition.config.id} · ${snapshot.competition.config.maxParticipants.toLocaleString()}-participant capacity · backend authority`
+            : "Awaiting the competition backend. Nothing is simulated on this page."
+        }
         action={
-          <div className={cn(
-            "flex items-center gap-2 rounded border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider",
-            emergencyHalt || status === "HALTED" ? "border-negative/40 text-negative" : status === "PAUSED" ? "border-warning/40 text-warning" : "border-positive/40 text-positive",
-          )}>
-            <span className={cn("size-1.5 rounded-full", emergencyHalt || status === "HALTED" ? "bg-negative" : status === "PAUSED" ? "bg-warning" : "bg-positive")} />
-            {controlState}
+          <div className={cn("flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider", TONE_BORDER[view.tone])}>
+            <span className={cn("size-1.5 rounded-full", TONE_DOT[view.tone])} />
+            {view.status}
           </div>
         }
       />
 
-      {backendError && <div className="rounded border border-negative/30 bg-negative/5 px-3 py-2 text-[10px] text-negative">{backendError}</div>}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-baseline gap-x-2 rounded-sm border border-negative/30 bg-negative/5 px-3 py-2 text-[11px] text-negative">
+          <span className="font-medium">{error}</span>
+          <span className="text-muted-foreground">
+            {snapshot ? "Showing the last authoritative snapshot below." : "No authoritative data is available."}
+          </span>
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Stat label="Participants" value={snapshot ? `${snapshot.competition.participants.length} / ${snapshot.competition.config.maxParticipants}` : "—"} detail="registered / capacity" />
-        <Stat label="Active" value={snapshot ? String(active) : "—"} detail="live traders" tone="positive" />
-        <Stat label="Orders / sec" value="142" detail="current burst" />
-        <Stat label="Orders / min" value="2,486" detail="rolling minute" />
-        <Stat label="Executions" value="18,421" detail="competition total" />
-        <Stat label="Gross P&L" value={snapshot ? `₹${snapshot.leaderboard.reduce((sum, x) => sum + x.totalPnl, 0).toLocaleString()}` : "—"} detail="competition service" tone="positive" />
-        <Stat label="Max DD" value="7.8%" detail="current leader" tone="warning" />
-        <Stat label="Audit events" value={snapshot ? String(snapshot.audit.length) : "—"} detail="authority audit" tone="normal" />
-      </div>
+      {!snapshot && !error && <Panel><LoadingState label="Connecting to competition backend" /></Panel>}
 
-      <div className="grid gap-3 xl:grid-cols-[1.65fr_1fr]">
-        <Panel title="Authority Control" action={<span className="num text-[10px] text-muted-foreground">policy v7 · seq 18,421</span>}>
-          <div className="grid gap-3 p-3 md:grid-cols-2">
-            <div className="rounded border bg-background/40 p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold">Competition Lifecycle</div>
-                  <div className="text-[10px] text-muted-foreground">All state transitions are version checked.</div>
+      {snapshot && (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+            <Stat label="Participants" value={view.registered == null ? "—" : `${view.registered} / ${view.capacity ?? "—"}`} detail="registered / capacity" />
+            <Stat label="Active" value={view.active == null ? "—" : String(view.active)} detail="participants in ACTIVE state" tone="positive" />
+            <Stat label="Gross P&L" value={amount(view.grossPnl, true)} detail="sum of leaderboard totals" tone={view.grossPnl != null && view.grossPnl < 0 ? "negative" : "positive"} />
+            <Stat label="Audit events" value={String(view.audit.length)} detail="returned by the authority" />
+            <Stat label="Trading gate" value={view.policy?.tradingEnabled ? "ENABLED" : "DISABLED"} detail="policy snapshot" tone={view.policy?.tradingEnabled ? "positive" : "warning"} />
+            <Stat label="Emergency halt" value={view.policy?.emergencyHalt ? "ENGAGED" : "RELEASED"} detail="policy snapshot" tone={view.policy?.emergencyHalt ? "negative" : "positive"} />
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-[1.65fr_1fr]">
+            <Panel
+              title="Authority Control"
+              action={
+                <span className="num text-[10px] text-muted-foreground">
+                  policy v{view.policy?.version ?? "—"} · seq {view.sequence ?? "—"}
+                </span>
+              }
+            >
+              <div className="grid gap-3 p-3 md:grid-cols-2">
+                <div className="rounded-sm border bg-background/40 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="type-section">Competition Lifecycle</div>
+                      <div className="type-meta">All state transitions are version checked.</div>
+                    </div>
+                    <Power className="size-4 text-primary" aria-hidden />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void runControl(view.status === "HALTED" ? "resume" : "start")} disabled={controlsDisabled} className="control-btn"><Play className="size-3" />Start / Resume</button>
+                    <button type="button" onClick={() => void runControl("pause")} disabled={controlsDisabled} className="control-btn"><CirclePause className="size-3" />Pause</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Halt the competition? Trading stops for every participant.")) void runControl("halt");
+                      }}
+                      disabled={controlsDisabled}
+                      className="control-btn danger"
+                    >
+                      <Ban className="size-3" />Halt
+                    </button>
+                  </div>
                 </div>
-                <Power className="size-4 text-primary" />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => void runControl(status === "HALTED" ? "resume" : "start")} disabled={busy} className="control-btn"><Play className="size-3" />Start / Resume</button>
-                <button onClick={() => void runControl("pause")} className="control-btn"><CirclePause className="size-3" />Pause</button>
-                <button onClick={() => void runControl("halt")} className="control-btn danger"><Ban className="size-3" />Halt</button>
-              </div>
-            </div>
 
-            <div className="rounded border bg-background/40 p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold">Trading Gate</div>
-                  <div className="text-[10px] text-muted-foreground">Applied before risk and OMS admission.</div>
+                <div className="rounded-sm border bg-background/40 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="type-section">Trading Gate</div>
+                      <div className="type-meta">Applied before risk and OMS admission.</div>
+                    </div>
+                    <ShieldAlert className="size-4 text-warning" aria-hidden />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => void setTradingGate(!view.policy?.tradingEnabled)} disabled={controlsDisabled} className={cn("control-btn", !view.policy?.tradingEnabled && "danger")}>
+                      {view.policy?.tradingEnabled ? <CheckCircle2 className="size-3" /> : <Ban className="size-3" />}
+                      Trading {view.policy?.tradingEnabled ? "Enabled" : "Disabled"}
+                    </button>
+                    <button type="button" onClick={() => void setEmergencyGate(!view.policy?.emergencyHalt)} disabled={controlsDisabled} className={cn("control-btn", view.policy?.emergencyHalt && "danger")}>
+                      <AlertTriangle className="size-3" />Emergency {view.policy?.emergencyHalt ? "Release" : "Halt"}
+                    </button>
+                  </div>
                 </div>
-                <ShieldAlert className="size-4 text-warning" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => void setTradingGate(!tradingEnabled)} disabled={busy} className={cn("control-btn", !tradingEnabled && "danger")}>
-                  {tradingEnabled ? <CheckCircle2 className="size-3" /> : <Ban className="size-3" />}
-                  Trading {tradingEnabled ? "Enabled" : "Disabled"}
-                </button>
-                <button onClick={() => void setEmergencyGate(!emergencyHalt)} disabled={busy} className={cn("control-btn", emergencyHalt && "danger")}>
-                  <AlertTriangle className="size-3" />Emergency {emergencyHalt ? "Release" : "Halt"}
-                </button>
-              </div>
-            </div>
 
-            <div className="rounded border bg-background/40 p-3 md:col-span-2">
-              <div className="grid grid-cols-2 gap-3 text-[11px] md:grid-cols-4">
-                <div><div className="text-muted-foreground">Max order notional</div><div className="num mt-1 font-semibold">₹50,000</div></div>
-                <div><div className="text-muted-foreground">Orders / participant / sec</div><div className="num mt-1 font-semibold">10</div></div>
-                <div><div className="text-muted-foreground">Allowed instruments</div><div className="num mt-1 font-semibold">24</div></div>
-                <div><div className="text-muted-foreground">Starting equity</div><div className="num mt-1 font-semibold">₹100,000</div></div>
-              </div>
-            </div>
-          </div>
-        </Panel>
-
-        <Panel title="System Integrity">
-          <div className="grid gap-2 p-3">
-            {[
-              ["Authority gate", "HEALTHY", true],
-              ["Risk engine", "HEALTHY", true],
-              ["OMS", "HEALTHY", true],
-              ["Execution bus", "HEALTHY", true],
-              ["Leaderboard", "SYNCED", true],
-              ["Audit sequence", "18,421", true],
-            ].map(([label, value, ok]) => (
-              <div key={String(label)} className="flex items-center justify-between rounded border bg-background/30 px-3 py-2">
-                <span className="text-[11px]">{label}</span>
-                <span className={cn("flex items-center gap-1.5 text-[10px] font-semibold", ok ? "text-positive" : "text-negative")}><span className="size-1.5 rounded-full bg-current" />{value}</span>
-              </div>
-            ))}
-            <div className="mt-1 rounded border border-warning/30 bg-warning/5 p-2 text-[10px] text-warning">
-              <div className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="size-3" />3 policy events require review</div>
-              <div className="mt-1 text-muted-foreground">No authority bypass detected.</div>
-            </div>
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid min-h-[520px] gap-3 xl:grid-cols-[1.8fr_1fr]">
-        <Panel title="Live Leaderboard" action={<div className="flex items-center gap-2 text-[10px] text-muted-foreground"><Activity className="size-3 text-positive" />streaming</div>}>
-          <DataTable
-            rows={participants}
-            rowKey={(p) => p.id}
-            columns={[
-              { key: "rank", header: "#", cell: (p) => <span className="font-semibold">{p.rank}</span> },
-              { key: "participant", header: "Participant", cell: (p) => <div><div className="font-semibold">{p.id}</div><div className="text-[9px] text-muted-foreground">{p.account}</div></div> },
-              { key: "state", header: "State", cell: (p) => <span className={cn("rounded border px-1.5 py-px text-[9px] font-semibold", p.state === "ACTIVE" ? "border-positive/40 text-positive" : "border-warning/40 text-warning")}>{p.state}</span> },
-              { key: "pnl", header: "Total P&L", align: "right", cell: (p) => <span className="text-positive">+₹{p.pnl.toLocaleString()}</span> },
-              { key: "return", header: "Return", align: "right", cell: (p) => <span>{p.returnPct.toFixed(2)}%</span> },
-              { key: "dd", header: "Drawdown", align: "right", cell: (p) => <span className={p.drawdown > 5 ? "text-warning" : ""}>{p.drawdown.toFixed(1)}%</span> },
-              { key: "orders", header: "Orders", align: "right", cell: (p) => p.orders },
-              { key: "activity", header: "Last activity", align: "right", cell: (p) => <span className="text-muted-foreground">{p.lastActivity}</span> },
-              { key: "control", header: "", align: "right", cell: (p) => <button onClick={() => suspendTop(p.id)} className="text-[9px] text-primary hover:underline">{p.state === "SUSPENDED" ? "Resume" : "Suspend"}</button> },
-            ]}
-          />
-        </Panel>
-
-        <Panel title="Authority Event Stream" action={<span className="num text-[10px] text-muted-foreground">LIVE</span>}>
-          <div className="h-full overflow-auto">
-            {events.map(([time, type, participant, subject, detail]) => (
-              <div key={time + type} className="border-b border-border/50 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="num text-[9px] text-muted-foreground">{time}</span>
-                  <span className={cn("rounded border px-1.5 py-px text-[8px] font-semibold", type.includes("REJECT") || type.includes("SUSPEND") ? "border-warning/40 text-warning" : "border-primary/30 text-primary")}>{type}</span>
+                <div className="rounded-sm border bg-background/40 p-3 md:col-span-2">
+                  <div className="grid grid-cols-2 gap-3 text-[11px] md:grid-cols-4">
+                    <div><div className="text-muted-foreground">Max order notional</div><div className="num mt-1 font-semibold">{amount(view.policy?.maxOrderNotional)}</div></div>
+                    <div><div className="text-muted-foreground">Orders / participant / sec</div><div className="num mt-1 font-semibold">{view.policy?.maxOrdersPerParticipantPerSecond ?? "—"}</div></div>
+                    <div><div className="text-muted-foreground">Allowed instruments</div><div className="num mt-1 font-semibold">{view.policy?.allowedInstruments ?? "—"}</div></div>
+                    <div><div className="text-muted-foreground">Starting equity</div><div className="num mt-1 font-semibold">{amount(view.policy?.startingEquity)}</div></div>
+                  </div>
                 </div>
-                <div className="mt-1 text-[10px] font-medium">{participant} · {subject}</div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">{detail}</div>
               </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
+            </Panel>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Panel title="Competition Metrics">
-          <div className="grid grid-cols-2 gap-2 p-3 text-[10px]">
-            <div className="rounded border p-2"><div className="text-muted-foreground">Accepted</div><div className="num mt-1 text-sm font-semibold">96.8%</div></div>
-            <div className="rounded border p-2"><div className="text-muted-foreground">Rejected</div><div className="num mt-1 text-sm font-semibold">3.2%</div></div>
-            <div className="rounded border p-2"><div className="text-muted-foreground">Avg latency</div><div className="num mt-1 text-sm font-semibold">18ms</div></div>
-            <div className="rounded border p-2"><div className="text-muted-foreground">Peak burst</div><div className="num mt-1 text-sm font-semibold">2,940/min</div></div>
+            <Panel title="Data Provenance">
+              <dl className="grid gap-2 p-3 text-[11px]">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Source</dt>
+                  <dd className="num">GET /api/v1/competition</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Snapshot state</dt>
+                  <dd className="num">{snapshot.competition.state}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Version / sequence</dt>
+                  <dd className="num">{view.version ?? "—"} / {view.sequence ?? "—"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Last successful read</dt>
+                  <dd className="num">{lastUpdatedAt == null ? "—" : new Date(lastUpdatedAt).toLocaleTimeString(undefined, { hour12: false })}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Freshness</dt>
+                  <dd className={cn("num", view.stale ? "text-warning" : "text-positive")}>{view.stale ? "STALE" : "CURRENT"}</dd>
+                </div>
+                <p className="mt-1 border-t pt-2 text-[10px] leading-4 text-muted-foreground">
+                  Every value on this page is read from the competition authority. This screen keeps no local participants,
+                  events or metrics, and does not estimate values the authority does not return.
+                </p>
+              </dl>
+            </Panel>
           </div>
-        </Panel>
-        <Panel title="Participant Operations">
-          <div className="space-y-2 p-3 text-[10px]">
-            <div className="flex items-center justify-between"><span>Active accounts</span><span className="num font-semibold">{active}</span></div>
-            <div className="flex items-center justify-between"><span>Suspended</span><span className="num font-semibold text-warning">{participants.filter((p) => p.state === "SUSPENDED").length}</span></div>
-            <div className="flex items-center justify-between"><span>Disqualified</span><span className="num font-semibold">0</span></div>
-            <div className="flex items-center justify-between"><span>Connectivity</span><span className="text-positive">99.99%</span></div>
+
+          <div className="grid min-h-[420px] gap-3 xl:grid-cols-[1.8fr_1fr]">
+            <Panel
+              title="Leaderboard"
+              action={<span className="num text-[10px] text-muted-foreground">{view.participants.length} participant(s)</span>}
+            >
+              {view.participants.length === 0 ? (
+                <EmptyState title="No participants" detail="The competition authority reports no registered participants." />
+              ) : (
+                <DataTable
+                  rows={view.participants}
+                  rowKey={(p) => p.id}
+                  columns={[
+                    { key: "rank", header: "#", align: "right", cell: (p) => <span className="num">{p.rank ?? "—"}</span> },
+                    { key: "participant", header: "Participant", cell: (p) => <div><div className="font-semibold">{p.id}</div><div className="text-[9px] text-muted-foreground">{p.account}</div></div> },
+                    {
+                      key: "state",
+                      header: "State",
+                      cell: (p) => (
+                        <span className={cn("rounded-sm border px-1.5 py-px text-[9px] font-semibold",
+                          p.state === "ACTIVE" ? "border-positive/40 text-positive"
+                            : p.state === "DISQUALIFIED" ? "border-negative/40 text-negative"
+                              : "border-warning/40 text-warning")}>{p.state}</span>
+                      ),
+                    },
+                    {
+                      key: "pnl",
+                      header: "Total P&L",
+                      align: "right",
+                      cell: (p) => <span className={p.totalPnl == null ? "text-muted-foreground" : p.totalPnl < 0 ? "text-negative" : "text-positive"}>{amount(p.totalPnl, true)}</span>,
+                    },
+                    { key: "return", header: "Return", align: "right", cell: (p) => <span className="num">{p.returnPct == null ? "—" : `${p.returnPct.toFixed(2)}%`}</span> },
+                    {
+                      key: "control",
+                      header: "",
+                      align: "right",
+                      cell: (p) => (
+                        <button
+                          type="button"
+                          disabled={controlsDisabled}
+                          onClick={() => toggleParticipant(p.id, p.state === "SUSPENDED")}
+                          className="text-[9px] text-primary hover:underline disabled:opacity-40"
+                        >
+                          {p.state === "SUSPENDED" ? "Resume" : "Suspend"}
+                        </button>
+                      ),
+                    },
+                  ]}
+                />
+              )}
+            </Panel>
+
+            <Panel title="Authority Audit" action={<span className="num text-[10px] text-muted-foreground">{view.audit.length} event(s)</span>}>
+              {view.audit.length === 0 ? (
+                <EmptyState title="No audit events" detail="The authority returned an empty audit trail for this competition." />
+              ) : (
+                <div className="h-full overflow-auto">
+                  {view.audit.map((entry) => (
+                    <div key={`${entry.sequence}-${entry.action}`} className="border-b border-border/50 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="num text-[9px] text-muted-foreground">seq {entry.sequence}</span>
+                        <span className={cn("rounded-sm border px-1.5 py-px text-[8px] font-semibold",
+                          entry.outcome.toUpperCase() === "APPLIED" ? "border-primary/30 text-primary" : "border-warning/40 text-warning")}>
+                          {entry.action}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[10px] font-medium">{entry.target}</div>
+                      <div className="mt-0.5 text-[9px] text-muted-foreground">
+                        {entry.outcome}
+                        {entry.reason ? ` · ${entry.reason}` : ""}
+                        {" · "}
+                        {entry.occurredAt}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
           </div>
-        </Panel>
-        <Panel title="Control Principle">
-          <div className="p-3 text-[10px] leading-5 text-muted-foreground">
-            Every order passes <span className="text-foreground">competition authority → participant state → instrument policy → rate/notional limits → risk → OMS</span>. UI controls are only command surfaces; authoritative enforcement remains in the deterministic domain layer.
-          </div>
-        </Panel>
-      </div>
+
+          <Panel title="Control Principle">
+            <div className="p-3 text-[10px] leading-5 text-muted-foreground">
+              Every order passes <span className="text-foreground">competition authority → participant state → instrument policy → rate/notional limits → risk → OMS</span>.
+              UI controls are only command surfaces; authoritative enforcement remains in the deterministic domain layer.
+              <span className="ml-1 inline-flex items-center gap-1 text-muted-foreground"><Activity className="size-3" /> polled every 2s</span>
+            </div>
+          </Panel>
+        </>
+      )}
     </div>
   );
 }
