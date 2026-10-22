@@ -24,7 +24,7 @@ describe("BiQuoteMarketDataProvider", () => {
     const provider = new BiQuoteMarketDataProvider({ fetcher });
     const bars = await provider.historical(XAUUSD, "bar", START, END);
     expect(bars).toHaveLength(2);
-    expect(bars.map((bar) => bar.startAt)).toEqual(["2026-10-01T00:00:00.000Z", "2026-10-01T01:00:00.000Z"]);
+    expect(bars.map((bar) => "startAt" in bar ? bar.startAt : undefined)).toEqual(["2026-10-01T00:00:00.000Z", "2026-10-01T01:00:00.000Z"]);
     expect(bars[0]).toMatchObject({ instrumentId: XAUUSD, timeframeSeconds: 3600, volume: 0, source: "biquote", close: 3805 });
     const url = new URL(String(fetcher.mock.calls[0]?.[0]));
     expect(url.pathname).toBe("/api/XAUUSD/ohlc");
