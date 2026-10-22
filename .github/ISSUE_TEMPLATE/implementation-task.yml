@@ -1,0 +1,67 @@
+name: Implementation task
+description: Define a bounded TradeLedger development chunk with testable acceptance criteria.
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep this task small enough for one reviewable pull request. Do not include secrets, broker credentials, or private trading data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended outcome
+      description: What problem should this task solve, and why?
+      placeholder: Describe the behavior or gap.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State what should change and what must remain untouched.
+      placeholder: |
+        In scope:
+        - ...
+
+        Out of scope:
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Write observable, verifiable conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and blockers
+      description: Link prerequisite issues, decisions, or contracts. Write "None" if there are none.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: List relevant tests, commands, and failure cases to cover.
+      placeholder: |
+        - npm run check
+        - ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checklist
+      options:
+        - label: This task does not require live broker access or live trades.
+          required: true
+        - label: This task does not require secrets or private trading data in GitHub.
+          required: true
+        - label: The task can be reviewed independently and will not be merged automatically.
+          required: true
