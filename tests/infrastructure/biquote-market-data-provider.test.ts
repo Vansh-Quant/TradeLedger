@@ -16,7 +16,7 @@ function envelope(bars: unknown[]) { return { symbol: "XAUUSD", interval: "1h", 
 
 describe("BiQuoteMarketDataProvider", () => {
   it("maps closed candles, sorts them, and preserves zero traded volume", async () => {
-    const fetcher = vi.fn(async () => response(envelope([
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => response(envelope([
       candle({ openTime: "2026-10-01T01:00:00Z" }),
       candle({ openTime: "2026-10-01T00:00:00Z", close: 3805 }),
       candle({ openTime: "2026-10-01T02:00:00Z", isOpen: true }),
