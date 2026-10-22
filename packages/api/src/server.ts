@@ -501,7 +501,7 @@ async function route(
     return;
   }
 
-  const historicalMarketData = /^\\/api\\/v1\\/market-data\\/([^/]+)\\/history$/.exec(path);
+  const historicalMarketData = /^\/api\/v1\/market-data\/([^/]+)\/history$/.exec(path);
   if (method === "GET" && historicalMarketData) {
     const query = Object.fromEntries(parsed.searchParams);
     const accountId = requiredString(query, "accountId");
