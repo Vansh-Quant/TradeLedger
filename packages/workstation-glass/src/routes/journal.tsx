@@ -9,6 +9,12 @@ import {
   type JournalEntry, type JournalOutcome, type JournalSide,
 } from "@/lib/journal-store";
 import { encodeJournalCsv } from "@/lib/journal-csv";
+import type { User } from "@supabase/supabase-js";
+import { isHostedJournalConfigured, supabase } from "@/lib/supabase-client";
+import {
+  deleteCloudJournalEntries, loadCloudJournalEntries, signInToJournal,
+  signOutOfJournal, signUpForJournal, upsertCloudJournalEntries,
+} from "@/lib/journal-cloud";
 
 export const Route = createFileRoute("/journal")({ component: JournalPage });
 
@@ -104,8 +110,39 @@ function JournalPage() {
   const [confluenceText, setConfluenceText] = useState("");
   const [screenshotName, setScreenshotName] = useState("");
   const [importInputKey, setImportInputKey] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(!isHostedJournalConfigured);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
   useEffect(() => {
+    if (isHostedJournalConfigured && supabase) {
+      let active = true;
+      void supabase.auth.getSession().then(({ data, error }) => {
+        if (!active) return;
+        if (error) toast.error("Could not restore your hosted journal session.");
+        setUser(data.session?.user ?? null);
+        setAuthReady(true);
+        if (!data.session) setReady(true);
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!active) return;
+        setUser(session?.user ?? null);
+        if (!session) {
+          setEntries([]);
+          setReady(true);
+        } else {
+          setReady(false);
+        }
+      });
+      return () => {
+        active = false;
+        subscription.unsubscribe();
+      };
+    }
+
     try {
       setEntries(decodeJournalEntries(window.localStorage.getItem(STORAGE_KEY)));
     } catch {
@@ -113,7 +150,26 @@ function JournalPage() {
     } finally {
       setReady(true);
     }
+    return undefined;
   }, []);
+
+  useEffect(() => {
+    if (!isHostedJournalConfigured) return;
+    if (!user) {
+      setEntries([]);
+      setReady(authReady);
+      return;
+    }
+    let active = true;
+    setReady(false);
+    void loadCloudJournalEntries()
+      .then((loaded) => { if (active) setEntries(loaded); })
+      .catch((error: unknown) => {
+        if (active) toast.error(error instanceof Error ? error.message : "Could not load hosted journal.");
+      })
+      .finally(() => { if (active) setReady(true); });
+    return () => { active = false; };
+  }, [user, authReady]);
 
   const stats = useMemo(() => summarizeJournal(entries), [entries]);
   const filtered = useMemo(() => entries.filter((entry) => {
@@ -127,13 +183,28 @@ function JournalPage() {
   const setupOptions = useMemo(() => [...new Set(entries.map((entry) => entry.setup.trim()).filter(Boolean))].sort(), [entries]);
   const sessionOptions = useMemo(() => [...new Set(entries.map((entry) => entry.session.trim()).filter(Boolean))].sort(), [entries]);
 
-  function persist(next: JournalEntry[]) {
+  async function persist(next: JournalEntry[]): Promise<boolean> {
     try {
-      window.localStorage.setItem(STORAGE_KEY, encodeJournalEntries(next));
+      if (isHostedJournalConfigured) {
+        if (!user) throw new Error("Sign in before changing your hosted journal.");
+        const nextIds = new Set(next.map((entry) => entry.id));
+        const previousIds = new Set(entries.map((entry) => entry.id));
+        const changed = next.filter((entry) => {
+          const previous = entries.find((item) => item.id === entry.id);
+          return !previous || JSON.stringify(previous) !== JSON.stringify(entry);
+        });
+        const removed = [...previousIds].filter((id) => !nextIds.has(id));
+        await upsertCloudJournalEntries(changed);
+        await deleteCloudJournalEntries(removed);
+      } else {
+        window.localStorage.setItem(STORAGE_KEY, encodeJournalEntries(next));
+      }
       setEntries(next);
       return true;
-    } catch {
-      toast.error("Could not save journal. Export a backup or remove the screenshot to free browser storage.");
+    } catch (error) {
+      toast.error(error instanceof Error
+        ? "Could not save journal: " + error.message
+        : "Could not save journal. Check your connection and try again.");
       return false;
     }
   }
@@ -162,7 +233,7 @@ function JournalPage() {
     setConfluenceText("");
     setScreenshotName("");
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const symbol = draft.symbol.trim().toUpperCase();
     if (!draft.date || !symbol) {
@@ -191,7 +262,7 @@ function JournalPage() {
     const next = existing
       ? entries.map((item) => item.id === existing.id ? entry : item)
       : [...entries, entry];
-    if (persist(next)) {
+    if (await persist(next)) {
       toast.success(existing ? "Journal entry updated." : "Trade journaled.");
       cancelForm();
     }
@@ -202,7 +273,7 @@ function JournalPage() {
     try {
       const screenshotData = await compressScreenshot(file);
       setField("screenshotData", screenshotData);
-      setScreenshotName(file.name + " · compressed for local storage");
+      setScreenshotName(file.name + " · compressed for journal storage");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Screenshot could not be added.");
     } finally {
@@ -213,9 +284,9 @@ function JournalPage() {
     setField("screenshotData", undefined);
     setScreenshotName("");
   }
-  function removeEntry(id: string) {
+  async function removeEntry(id: string) {
     if (!window.confirm("Delete this journal entry? This cannot be undone unless you have an export backup.")) return;
-    if (persist(entries.filter((entry) => entry.id !== id))) toast.success("Journal entry deleted.");
+    if (await persist(entries.filter((entry) => entry.id !== id))) toast.success("Journal entry deleted.");
   }
   function exportBackup() {
     const blob = new Blob([JSON.stringify({ format: "tradeledger-journal-v1", exportedAt: new Date().toISOString(), entries }, null, 2)], { type: "application/json" });
@@ -248,7 +319,7 @@ function JournalPage() {
       }
       const byId = new Map(entries.map((entry) => [entry.id, entry]));
       imported.forEach((entry) => byId.set(entry.id, entry));
-      if (persist([...byId.values()])) toast.success("Imported " + imported.length + " journal entries.");
+      if (await persist([...byId.values()])) toast.success("Imported " + imported.length + " journal entries.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not import this backup.");
     } finally {
@@ -257,12 +328,93 @@ function JournalPage() {
     }
   }
 
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    try {
+      if (authMode === "signin") {
+        await signInToJournal(authEmail.trim(), authPassword);
+        toast.success("Signed in to your hosted journal.");
+      } else {
+        const result = await signUpForJournal(authEmail.trim(), authPassword);
+        if (result.confirmationRequired) {
+          toast.success("Account created. Check your email to confirm it, then sign in.");
+          setAuthMode("signin");
+        } else {
+          toast.success("Account created.");
+        }
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Authentication failed.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function importLocalJournalToCloud() {
+    if (!isHostedJournalConfigured || !user) return;
+    try {
+      const localEntries = decodeJournalEntries(window.localStorage.getItem(STORAGE_KEY));
+      if (localEntries.length === 0) {
+        toast.message("No local TradeLedger journal entries found in this browser.");
+        return;
+      }
+      const cloudIds = new Set(entries.map((entry) => entry.id));
+      const localOnly = localEntries.filter((entry) => !cloudIds.has(entry.id));
+      if (localOnly.length === 0) {
+        toast.message("All local entry IDs already exist in your hosted journal.");
+        return;
+      }
+      await upsertCloudJournalEntries(localOnly);
+      setEntries(await loadCloudJournalEntries());
+      toast.success("Imported " + localOnly.length + " local entries to your hosted journal.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not import local journal entries.");
+    }
+  }
+
+  if (import.meta.env.PROD && !isHostedJournalConfigured) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4">
+        <Panel title="Hosted journal is not configured">
+          <div className="space-y-2 p-4 text-xs text-muted-foreground">
+            <p>This production build requires Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the hosting environment, then redeploy.</p>
+            <p>No journal entries will be saved in local-only mode from this production page.</p>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (isHostedJournalConfigured && !authReady) {
+    return <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">Restoring hosted journal session…</div>;
+  }
+
+  if (isHostedJournalConfigured && !user) {
+    return (
+      <div className="mx-auto flex min-h-[65vh] max-w-md items-center justify-center px-4">
+        <Panel title={authMode === "signin" ? "Sign in to Trade Journal" : "Create your journal account"}>
+          <form onSubmit={handleAuthSubmit} className="space-y-4 p-4">
+            <p className="text-xs text-muted-foreground">Your journal is hosted in Supabase and protected by your account. Sign in from any trusted device to access your entries.</p>
+            <Field label="Email" required><input className={inputClass} type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} required /></Field>
+            <Field label="Password" required><input className={inputClass} type="password" autoComplete={authMode === "signin" ? "current-password" : "new-password"} minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required /></Field>
+            <button type="submit" disabled={authBusy} className="h-9 w-full rounded-sm bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50">{authBusy ? "Please wait…" : authMode === "signin" ? "Sign in" : "Create account"}</button>
+            <button type="button" onClick={() => setAuthMode((mode) => mode === "signin" ? "signup" : "signin")} className="w-full text-xs text-muted-foreground underline">{authMode === "signin" ? "Need an account? Sign up" : "Already registered? Sign in"}</button>
+          </form>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <PageHeader
         title="Trade Journal"
-        subtitle="Capture the setup, execution, psychology and lesson behind every trade. Stored locally in this browser profile."
+        subtitle={isHostedJournalConfigured ? "Hosted personal journal · synced across your signed-in devices." : "Capture the setup, execution, psychology and lesson behind every trade. Local-only mode is active."}
         action={<div className="flex flex-wrap items-center gap-2">
+          {isHostedJournalConfigured && user && <span className="max-w-44 truncate text-[10px] text-muted-foreground">{user.email}</span>}
+          {isHostedJournalConfigured && user && <button type="button" onClick={() => void signOutOfJournal().catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Sign out failed."))} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent">Sign out</button>}
+          {isHostedJournalConfigured && user && <button type="button" onClick={() => void importLocalJournalToCloud()} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent">Import browser journal to cloud</button>}
           <button type="button" onClick={exportBackup} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><Download className="size-3.5" /> JSON backup</button>
           <button type="button" onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><FileSpreadsheet className="size-3.5" /> CSV</button>
           <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 text-xs hover:bg-accent"><FileUp className="size-3.5" /> Import<input key={importInputKey} type="file" accept="application/json,.json" onChange={importBackup} className="hidden" /></label>
@@ -332,8 +484,8 @@ function JournalPage() {
           <label className="flex items-center gap-1 text-[10px] text-muted-foreground">To<input aria-label="Filter to date" type="date" className={inputClass + " w-36"} value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} /></label>
           {(search || outcomeFilter || setupFilter || sessionFilter || dateFrom || dateTo) && <button type="button" onClick={() => { setSearch(""); setOutcomeFilter(""); setSetupFilter(""); setSessionFilter(""); setDateFrom(""); setDateTo(""); }} className="h-9 rounded-sm border px-2 text-xs">Clear filters</button>}
         </div>
-        {!ready ? <div className="p-6 text-xs text-muted-foreground">Loading your local journal…</div>
-          : filtered.length === 0 ? <EmptyState title="No journal entries yet" detail="Log your first trade. Your notes stay in this browser and are not sent to the TradeLedger API." />
+        {!ready ? <div className="p-6 text-xs text-muted-foreground">Loading {isHostedJournalConfigured ? "your hosted journal…" : "your local journal…"}</div>
+          : filtered.length === 0 ? <EmptyState title="No journal entries yet" detail={isHostedJournalConfigured ? "Log your first trade. It will be stored in your authenticated Supabase journal." : "Log your first trade. This local-only journal is not synced across devices."} />
           : <div className="overflow-auto">
             <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-panel-2"><tr>
@@ -368,7 +520,7 @@ function JournalPage() {
             </details>)}
           </div>}
       </Panel>
-      <p className="text-[10px] text-muted-foreground">Local-first storage: entries remain in this browser profile and are not sent to the API or committed to Git. Browser storage is not encrypted or synced; use a trusted device and export backups regularly.</p>
+      <p className="text-[10px] text-muted-foreground">{isHostedJournalConfigured ? "Hosted storage: journal entries are stored in your authenticated Supabase account. Keep regular JSON backups and sign out on shared devices." : "Local-only storage: entries remain in this browser profile and are not synced or encrypted. Set up Supabase for hosted access, and export backups regularly."}</p>
     </div>
   );
 }
