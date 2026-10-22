@@ -159,17 +159,120 @@ export function decodeJournalBackup(raw: string): JournalEntry[] | null {
   return entries.length === payload.length ? entries : null;
 }
 
-export function summarizeJournal(entries: readonly JournalEntry[]) {
+export interface JournalBreakdown {
+  key: string;
+  trades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  netPnl: number;
+  expectancy: number;
+}
+
+export interface JournalAnalytics {
+  total: number;
+  closed: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  winRate: number;
+  pnl: number;
+  grossProfit: number;
+  grossLoss: number;
+  profitFactor: number | null;
+  expectancy: number;
+  averageWin: number | null;
+  averageLoss: number | null;
+  averageR: number | null;
+  maxDrawdown: number;
+  maxDrawdownPercent: number | null;
+  bySetup: JournalBreakdown[];
+  bySession: JournalBreakdown[];
+  bySide: JournalBreakdown[];
+  byRuleAdherence: JournalBreakdown[];
+}
+
+const validMetric = (value: number | null): value is number =>
+  value !== null && Number.isFinite(value);
+
+function breakdownJournal(entries: readonly JournalEntry[], keyOf: (entry: JournalEntry) => string): JournalBreakdown[] {
+  const groups = new Map<string, JournalEntry[]>();
+  for (const entry of entries) {
+    if (entry.outcome === "OPEN") continue;
+    const key = keyOf(entry).trim() || "Unspecified";
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+  return [...groups.entries()].map(([key, group]) => {
+    const wins = group.filter((entry) => entry.outcome === "WIN").length;
+    const losses = group.filter((entry) => entry.outcome === "LOSS").length;
+    const netPnl = group.reduce((sum, entry) => sum + (validMetric(entry.pnl) ? entry.pnl : 0), 0);
+    return {
+      key,
+      trades: group.length,
+      wins,
+      losses,
+      winRate: group.length === 0 ? 0 : (wins / group.length) * 100,
+      netPnl,
+      expectancy: group.length === 0 ? 0 : netPnl / group.length,
+    };
+  }).sort((a, b) => b.netPnl - a.netPnl || a.key.localeCompare(b.key));
+}
+
+/**
+ * Produces deterministic journal metrics. Only closed trades contribute to
+ * outcome statistics; OPEN trades do not affect P&L, expectancy or drawdown.
+ * Drawdown follows trade date then creation timestamp, never input-array order.
+ */
+export function summarizeJournal(entries: readonly JournalEntry[]): JournalAnalytics {
   const closed = entries.filter((entry) => entry.outcome !== "OPEN");
-  const wins = closed.filter((entry) => entry.outcome === "WIN").length;
-  const pnl = entries.reduce((sum, entry) => sum + (entry.pnl ?? 0), 0);
-  const rValues = closed.map((entry) => entry.rMultiple).filter((value): value is number => value !== null);
+  const wins = closed.filter((entry) => entry.outcome === "WIN");
+  const losses = closed.filter((entry) => entry.outcome === "LOSS");
+  const breakeven = closed.filter((entry) => entry.outcome === "BREAKEVEN");
+  const pnlOf = (entry: JournalEntry) => validMetric(entry.pnl) ? entry.pnl : 0;
+  const pnl = closed.reduce((sum, entry) => sum + pnlOf(entry), 0);
+  const grossProfit = wins.reduce((sum, entry) => sum + Math.max(0, pnlOf(entry)), 0);
+  const grossLoss = Math.abs(losses.reduce((sum, entry) => sum + Math.min(0, pnlOf(entry)), 0));
+  const winPnls = wins.map(pnlOf).filter((value) => value > 0);
+  const lossPnls = losses.map(pnlOf).filter((value) => value < 0);
+  const rValues = closed.map((entry) => entry.rMultiple).filter(validMetric);
+  const ordered = [...closed].sort((a, b) =>
+    a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+  );
+  let cumulative = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+  let maxDrawdownPercent: number | null = null;
+  for (const entry of ordered) {
+    cumulative += pnlOf(entry);
+    peak = Math.max(peak, cumulative);
+    const drawdown = peak - cumulative;
+    if (drawdown > maxDrawdown) {
+      maxDrawdown = drawdown;
+      maxDrawdownPercent = peak > 0 ? (drawdown / peak) * 100 : null;
+    }
+  }
   return {
     total: entries.length,
     closed: closed.length,
-    wins,
-    winRate: closed.length === 0 ? 0 : (wins / closed.length) * 100,
+    wins: wins.length,
+    losses: losses.length,
+    breakeven: breakeven.length,
+    winRate: closed.length === 0 ? 0 : (wins.length / closed.length) * 100,
     pnl,
+    grossProfit,
+    grossLoss,
+    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : 0,
+    expectancy: closed.length === 0 ? 0 : pnl / closed.length,
+    averageWin: winPnls.length === 0 ? null : winPnls.reduce((sum, value) => sum + value, 0) / winPnls.length,
+    averageLoss: lossPnls.length === 0 ? null : lossPnls.reduce((sum, value) => sum + value, 0) / lossPnls.length,
     averageR: rValues.length === 0 ? null : rValues.reduce((sum, value) => sum + value, 0) / rValues.length,
+    maxDrawdown,
+    maxDrawdownPercent,
+    bySetup: breakdownJournal(closed, (entry) => entry.setup),
+    bySession: breakdownJournal(closed, (entry) => entry.session),
+    bySide: breakdownJournal(closed, (entry) => entry.side),
+    byRuleAdherence: breakdownJournal(closed, (entry) => entry.ruleAdherence),
   };
 }
