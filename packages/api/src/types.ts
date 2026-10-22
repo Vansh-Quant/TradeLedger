@@ -1,5 +1,6 @@
 import type { ApplicationPrincipal, TradingApplicationService, CompetitionApplicationService } from "@tradeledger/application";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
+import type { MarketDataProvider } from "@tradeledger/domain";
 
 export interface ApiRequest {
   readonly method: string;
@@ -16,6 +17,8 @@ export interface RateLimitPolicy {
 
 export interface ApiDependencies {
   readonly application: TradingApplicationService;
+  /** Optional provider for authenticated historical candle retrieval. */
+  readonly historicalMarketDataProvider?: MarketDataProvider;
   readonly authenticate: (request: ApiRequest) => Promise<ApplicationPrincipal>;
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;

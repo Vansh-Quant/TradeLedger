@@ -6,7 +6,7 @@ import {
   TradingApplicationService,
   CompetitionApplicationService,
 } from "@tradeledger/application";
-import { InMemoryMarketDataStateStore } from "../../../core/infrastructure/src/index.js";
+import { BiQuoteMarketDataProvider, InMemoryMarketDataStateStore } from "../../../core/infrastructure/src/index.js";
 import { createQuote, type InstrumentId } from "@tradeledger/domain";
 import {
   createAccount,
@@ -191,6 +191,7 @@ try {
 const server = createHttpApi(
   {
     application,
+    historicalMarketDataProvider: new BiQuoteMarketDataProvider({ interval: "1h", limit: 1000 }),
     competition: competitionApplication,
     workstationDemoData,
     authenticate: staticBearerAuthenticator(
