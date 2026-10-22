@@ -101,6 +101,7 @@ function JournalPage() {
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -235,6 +236,8 @@ function JournalPage() {
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Guard against a double submit creating two entries with different ids.
+    if (saving) return;
     const symbol = draft.symbol.trim().toUpperCase();
     if (!draft.date || !symbol) {
       toast.error("Date and symbol are required.");
@@ -262,9 +265,14 @@ function JournalPage() {
     const next = existing
       ? entries.map((item) => item.id === existing.id ? entry : item)
       : [...entries, entry];
-    if (await persist(next)) {
-      toast.success(existing ? "Journal entry updated." : "Trade journaled.");
-      cancelForm();
+    setSaving(true);
+    try {
+      if (await persist(next)) {
+        toast.success(existing ? "Journal entry updated." : "Trade journaled.");
+        cancelForm();
+      }
+    } finally {
+      setSaving(false);
     }
   }
   async function handleScreenshot(event: ChangeEvent<HTMLInputElement>) {
@@ -468,8 +476,10 @@ function JournalPage() {
             </Field>
           </div>
           <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-            <button type="button" onClick={cancelForm} className="h-8 rounded-sm border px-3 text-xs">Cancel</button>
-            <button type="submit" className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-xs font-semibold text-primary-foreground"><Save className="size-3.5" /> {editingId ? "Save changes" : "Save journal entry"}</button>
+            <button type="button" onClick={cancelForm} disabled={saving} className="h-8 rounded-sm border px-3 text-xs disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving} className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+              <Save className="size-3.5" /> {saving ? "Saving…" : editingId ? "Save changes" : "Save journal entry"}
+            </button>
           </div>
         </form>
       </Panel>}
