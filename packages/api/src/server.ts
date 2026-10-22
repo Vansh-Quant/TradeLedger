@@ -501,6 +501,26 @@ async function route(
     return;
   }
 
+  const historicalMarketData = /^\/api\/v1\/market-data\/([^/]+)\/history$/.exec(path);
+  if (method === "GET" && historicalMarketData) {
+    const query = Object.fromEntries(parsed.searchParams);
+    const accountId = requiredString(query, "accountId");
+    const startAt = requiredString(query, "startAt");
+    const endAt = requiredString(query, "endAt");
+    // Reuse the application authorization boundary before accessing provider data.
+    deps.application.listMarketData({ principal, accountId });
+    if (deps.historicalMarketDataProvider === undefined) {
+      send(response, id, 503, {
+        error: { code: "MARKET_DATA_PROVIDER_UNAVAILABLE", message: "historical market-data provider is not configured" },
+      }, corsOrigin);
+      return;
+    }
+    const instrumentId = decodeOrderId(historicalMarketData) as import("@tradeledger/domain").InstrumentId;
+    const bars = await deps.historicalMarketDataProvider.historical(instrumentId, "bar", startAt, endAt);
+    send(response, id, 200, { instrumentId, provider: deps.historicalMarketDataProvider.providerId, bars }, corsOrigin);
+    return;
+  }
+
   const marketDataInstrument = /^\/api\/v1\/market-data\/([^/]+)$/.exec(path);
   if (method === "GET" && marketDataInstrument) {
     const result = deps.application.getMarketData({
