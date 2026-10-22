@@ -5,6 +5,7 @@ import type { AccountContext, OrderType, Side, TimeInForce } from "@/api/types";
 import { isConfigured, useApiConfig } from "@/api/config";
 import { useAccountContext, useSubmitOrder, useWorkstationDemo } from "@/hooks/use-tradeledger";
 import { money, UNAVAILABLE, tone } from "@/lib/format";
+import { orderTypeRequiresPricing } from "@/lib/order-admission";
 import { cn } from "@/lib/utils";
 import { QueryView } from "./primitives";
 
@@ -13,15 +14,13 @@ export function MetricCard({ label, value, sub, valueTone, icon }: {
 }) {
   const unavailable = value === UNAVAILABLE;
   return (
-    <div className="panel panel-hover relative overflow-hidden p-3">
-      <div className="pointer-events-none absolute -right-8 -top-10 size-28 rounded-full bg-primary/10 blur-2xl" />
+    <div className="panel p-3">
       <div className="flex items-start justify-between">
         <span className="label-caps">{label}</span>
-        {icon && <span className="grid size-7 place-items-center rounded-md border border-primary/25 bg-linear-to-b from-primary/25 to-primary/5 text-primary shadow-[inset_0_1px_0_oklch(1_0_0/0.12)]">{icon}</span>}
+        {icon && <span className="text-muted-foreground">{icon}</span>}
       </div>
-      <div className={cn("num mt-1.5 text-xl font-semibold", unavailable ? "text-sm font-normal text-muted-foreground" : valueTone)}>{value}</div>
-      <div className="mt-1 h-4 text-[11px] text-muted-foreground">{sub}</div>
-      <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-gradient-primary opacity-40" />
+      <div className={cn("num mt-1.5 text-lg font-semibold", unavailable ? "text-sm font-normal text-muted-foreground" : valueTone)}>{value}</div>
+      {sub ? <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div> : null}
     </div>
   );
 }
@@ -42,20 +41,22 @@ export function Sparkline({ data, className }: { data?: number[]; className?: st
 export function TradingChart({ symbol }: { symbol: string }) {
   const tfs = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
   const demo = useWorkstationDemo();
-  const series = demo.data?.chart.candles ?? [];
+  // Only plot the fixture series when it belongs to the selected instrument.
+  // Showing one symbol's candles under another symbol's header would mislabel data.
+  const series = symbol !== "" && demo.data?.chart.symbol === symbol ? demo.data.chart.candles : [];
   const last = series[series.length - 1];
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-10 items-center gap-3 border-b px-3">
         <span className="text-base font-semibold">{symbol || demo.data?.chart.symbol || "—"}</span>
         <span className="text-xs text-positive">{last == null ? "No quote" : last.toFixed(2)}</span>
-        <div className="ml-auto flex gap-0.5">{tfs.map((t) => <span key={t} className={cn("rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground", t === "15m" && "bg-primary/20 text-primary")}>{t}</span>)}</div>
+        <div className="ml-auto flex gap-0.5" aria-hidden>{tfs.map((t) => <span key={t} className={cn("rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground", t === "15m" && "bg-accent text-foreground")}>{t}</span>)}</div>
       </div>
       <div className="relative flex-1 overflow-hidden" style={{ backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "60px 40px" }}>
         {series.length > 1 ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full p-8">
           <polyline points={series.map((v,i)=>`${(i/(series.length-1))*100},${90-((v-Math.min(...series))/((Math.max(...series)-Math.min(...series))||1))*75}`).join(" ")} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
         </svg> : <div className="absolute inset-0 grid place-items-center"><CandlestickChart className="size-8 text-primary/70" /></div>}
-        <div className="absolute bottom-2 left-3 text-[10px] text-muted-foreground">DEMO FEED · deterministic validation data</div>
+        <div className="absolute bottom-2 left-3 text-[10px] text-warning">Development fixture · GET /api/v1/workstation/demo · not a live market feed</div>
       </div>
     </div>
   );
@@ -79,21 +80,21 @@ export function Watchlist({ selected, onSelect }: { selected: string; onSelect: 
       <div className="flex-1 overflow-auto">
         {extra.map((s) => <WatchRow key={s} symbol={s} active={selected === s} onClick={() => onSelect(s)} />)}
         {demo.data?.marketData.map((m) => (
-          <WatchRow key={m.symbol} symbol={m.symbol} last={m.last} active={selected === m.symbol} onClick={() => onSelect(m.symbol)} />
+          <WatchRow key={m.symbol} symbol={m.symbol} last={m.last} active={selected === m.symbol} onClick={() => onSelect(m.symbol)} fixture />
         ))}
         {q.data?.positions.filter((p) => !demo.data?.marketData.some((m) => m.symbol === p.symbol)).map((p) => (
           <WatchRow key={p.symbol} symbol={p.symbol} last={p.marketPrice} active={selected === p.symbol} onClick={() => onSelect(p.symbol)} />
         ))}
         {!demo.data && !q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load instruments.</p>}
       </div>
-      <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Change, volume and market status require a market-data feed.</p>
+      <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Watchlist last prices marked DEMO come from the workstation demo payload, not a live feed.</p>
     </div>
   );
 }
-function WatchRow({ symbol, last, active, onClick }: { symbol: string; last?: number | undefined; active: boolean; onClick: () => void }) {
+function WatchRow({ symbol, last, active, onClick, fixture }: { symbol: string; last?: number | undefined; active: boolean; onClick: () => void; fixture?: boolean }) {
   return (
-    <button onClick={onClick} className={cn("num grid w-full grid-cols-[1fr_auto_auto] gap-x-3 border-l-2 border-transparent px-3 py-1.5 text-left text-xs hover:bg-accent/40", active && "border-primary bg-accent/50")}>
-      <span className="font-sans font-semibold">{symbol}</span>
+    <button type="button" onClick={onClick} className={cn("num grid w-full grid-cols-[1fr_auto_auto] gap-x-3 border-l-2 border-transparent px-3 py-1.5 text-left text-xs hover:bg-accent/40", active && "border-primary bg-accent/50")}>
+      <span className="font-sans font-semibold">{symbol}{fixture ? <span className="ml-1 font-normal text-[9px] text-warning">DEMO</span> : null}</span>
       <span className="text-right">{last?.toFixed(2) ?? "—"}</span>
       <span className="text-right text-muted-foreground">—</span>
     </button>
@@ -104,19 +105,22 @@ const TYPES: { v: OrderType; l: string }[] = [
   { v: "MARKET", l: "Market" }, { v: "LIMIT", l: "Limit" }, { v: "STOP", l: "Stop" }, { v: "STOP_LIMIT", l: "Stop-Limit" },
 ];
 const TIFS: TimeInForce[] = ["DAY", "GTC", "IOC", "FOK"];
-const field = "h-8 w-full rounded-sm border border-input bg-background/60 px-2 text-xs outline-none focus:border-primary num";
+const field = "field-control num";
 
 export function OrderTicket({ symbol, onSymbol }: { symbol: string; onSymbol: (s: string) => void }) {
   const cfg = useApiConfig();
   const submit = useSubmitOrder();
   const [side, setSide] = useState<Side>("BUY");
-  const [type, setType] = useState<OrderType>("MARKET");
+  const [type, setType] = useState<OrderType>("LIMIT");
   const [quantity, setQuantity] = useState("");
   const [limit, setLimit] = useState("");
   const [stop, setStop] = useState("");
   const [tif, setTif] = useState<TimeInForce>("DAY");
   const needLimit = type === "LIMIT" || type === "STOP_LIMIT";
   const needStop = type === "STOP" || type === "STOP_LIMIT";
+  // Admission derives order notional from an authoritative limit price. Until a
+  // pricing source exists, market and stop orders cannot be admitted at all.
+  const awaitingPricing = orderTypeRequiresPricing(type);
 
   const onSubmit = (e: FormEvent): void => {
     e.preventDefault();
@@ -153,7 +157,11 @@ export function OrderTicket({ symbol, onSymbol }: { symbol: string; onSymbol: (s
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[11px] text-muted-foreground">Order Type
           <select value={type} onChange={(e) => setType(e.target.value as OrderType)} className={cn(field, "mt-1")}>
-            {TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+            {TYPES.map((t) => (
+              <option key={t.v} value={t.v} disabled={orderTypeRequiresPricing(t.v)}>
+                {t.l}{orderTypeRequiresPricing(t.v) ? " (requires pricing)" : ""}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-[11px] text-muted-foreground">Time In Force
@@ -180,10 +188,16 @@ export function OrderTicket({ symbol, onSymbol }: { symbol: string; onSymbol: (s
           </label>
         </div>
       )}
+      {awaitingPricing && (
+        <p role="status" className="border border-warning/35 bg-warning/8 px-2 py-1.5 text-[10px] leading-snug text-warning">
+          Market and stop orders need authoritative pricing for admission. The backend does not provide it yet, so this
+          order type cannot be submitted. Use a limit or stop-limit order.
+        </p>
+      )}
       <p className="text-[10px] leading-snug text-muted-foreground">Risk and admission are validated by the TradeLedger backend. No estimates are computed client-side.</p>
-      <button disabled={!isConfigured(cfg) || submit.isPending}
-        className="h-9 rounded-sm bg-gradient-primary text-sm font-semibold text-primary-foreground glow-primary disabled:opacity-40">
-        {submit.isPending ? "Submitting…" : isConfigured(cfg) ? "Submit Order" : "Connect API to trade"}
+      <button type="submit" disabled={!isConfigured(cfg) || submit.isPending || awaitingPricing}
+        className="h-8 rounded-sm bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-40">
+        {submit.isPending ? "Submitting…" : awaitingPricing ? "Order type unavailable" : isConfigured(cfg) ? "Submit Order" : "Connect API to trade"}
       </button>
     </form>
   );
@@ -192,7 +206,7 @@ export function OrderTicket({ symbol, onSymbol }: { symbol: string; onSymbol: (s
 export function RiskGauge({ label, value, limit }: { label: string; value?: number | undefined; limit?: number | undefined }) {
   const ratio = value != null && limit ? Math.min(Math.abs(value) / limit, 1) : undefined;
   const r = 30, c = 2 * Math.PI * r;
-  const color = ratio == null ? "var(--muted)" : ratio > 0.85 ? "var(--negative)" : ratio > 0.6 ? "var(--warning)" : "var(--magenta)";
+  const color = ratio == null ? "var(--muted)" : ratio > 0.85 ? "var(--negative)" : ratio > 0.6 ? "var(--warning)" : "var(--primary)";
   return (
     <div className="flex flex-col items-center gap-1 p-2 text-center">
       <svg viewBox="0 0 80 80" className="size-20 -rotate-90">

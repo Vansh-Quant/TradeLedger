@@ -1,21 +1,20 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import { isConfigured, useApiConfig } from "@/api/config";
 import { useAccountContext, useHealth, useOrders } from "@/hooks/use-tradeledger";
 import { cn } from "@/lib/utils";
-import { NAV } from "./nav";
+import { NAV, NAV_GROUPS } from "./nav";
 
 function Logo() {
   return (
     <Link to="/" className="flex items-center gap-2.5">
-      <svg viewBox="0 0 32 32" className="size-8">
-        <defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stopColor="var(--primary)" /><stop offset="1" stopColor="var(--magenta)" /></linearGradient></defs>
-        <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="url(#lg)" strokeWidth="2.5" />
-        <path d="M16 9 23 16 16 23 9 16Z" fill="url(#lg)" />
+      <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
+        <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="var(--primary)" strokeWidth="2" />
+        <path d="M16 9 23 16 16 23 9 16Z" fill="var(--primary)" />
       </svg>
       <div className="leading-none">
         <div className="text-[15px] font-bold tracking-tight">TradeLedger</div>
@@ -53,15 +52,22 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       {open && <div className="fixed inset-0 z-30 bg-background/70 lg:hidden" onClick={onClose} />}
       <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-52 flex-col border-r bg-background/95 backdrop-blur transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
         <div className="flex h-14 items-center px-4"><Logo /></div>
-        <nav className="flex-1 space-y-0.5 overflow-auto px-2 py-2">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <Link key={to} to={to} onClick={onClose} activeOptions={{ exact: to === "/" }}
-              className="relative flex items-center gap-3 rounded-md px-3 py-2 text-[13px] text-muted-foreground transition-all hover:bg-accent/40 hover:text-foreground"
-              activeProps={{ className: "!text-foreground bg-linear-to-r from-primary/25 to-primary/5 shadow-[inset_0_1px_0_oklch(1_0_0/0.08),inset_2px_0_0_var(--primary)] [&>svg]:text-primary" }}>
-              <Icon className="size-4" />
-              <span>{label}</span>
-              {label === "JARVIS" && <span className="ml-auto rounded-sm bg-primary/25 px-1 text-[9px] font-semibold text-primary">AI</span>}
-            </Link>
+        <nav className="flex-1 overflow-auto px-2 pb-2" aria-label="Primary">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="pt-1.5">
+              <div className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">{group.label}</div>
+              <div className="space-y-0.5">
+                {group.items.map(({ to, label, icon: Icon }) => (
+                  <Link key={to} to={to} onClick={onClose} activeOptions={{ exact: to === "/" }}
+                    className="relative flex items-center gap-3 rounded-sm px-3 py-1.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                    activeProps={{ className: "!text-foreground bg-accent shadow-[inset_2px_0_0_var(--primary)] [&>svg]:text-primary" }}>
+                    <Icon className="size-4" aria-hidden />
+                    <span>{label}</span>
+                    {label === "JARVIS" && <span className="ml-auto rounded-sm border border-primary/40 px-1 text-[9px] font-semibold text-primary">AI</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <SystemStatus />
@@ -74,11 +80,11 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 function ConnectionPill() {
   const cfg = useApiConfig();
   const h = useHealth();
-  const state = !isConfigured(cfg) ? "OFFLINE" : h.isLoading ? "CONNECTING" : h.data?.health ? "LIVE" : "DISCONNECTED";
+  const state = !isConfigured(cfg) ? "OFFLINE" : h.isLoading ? "CONNECTING" : h.data?.health ? "CONNECTED" : "UNREACHABLE";
   return (
     <Link to="/settings" className={cn("flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[10px] font-semibold tracking-wider",
-      state === "LIVE" ? "border-positive/40 text-positive" : state === "CONNECTING" ? "border-warning/40 text-warning" : "border-negative/40 text-negative")}>
-      <span className={cn("size-1.5 rounded-full", state === "LIVE" ? "bg-positive" : state === "CONNECTING" ? "bg-warning" : "bg-negative")} />
+      state === "CONNECTED" ? "border-positive/40 text-positive" : state === "CONNECTING" ? "border-warning/40 text-warning" : "border-negative/40 text-negative")}>
+      <span className={cn("size-1.5 rounded-full", state === "CONNECTED" ? "bg-positive" : state === "CONNECTING" ? "bg-warning" : "bg-negative")} />
       {state}
     </Link>
   );
@@ -155,19 +161,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/60 px-3 backdrop-blur">
-          <button className="lg:hidden" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Menu className="size-5" /></button>
-          <button onClick={() => setCmd(true)} className="panel flex h-9 w-full max-w-lg items-center gap-2 px-3 text-xs text-muted-foreground hover:border-primary/60">
-            <Search className="size-4" />
-            <span className="truncate">Search instruments, strategies, or commands…</span>
-            <kbd className="num ml-auto rounded-sm border bg-secondary px-1.5 text-[10px]">Ctrl K</kbd>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/60 px-3 backdrop-blur">
+          <button type="button" className="shrink-0 lg:hidden" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Menu className="size-5" /></button>
+          <button type="button" onClick={() => setCmd(true)} className="panel flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 px-3 text-xs text-muted-foreground hover:border-primary/60">
+            <Search className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Search pages or commands…</span>
+            <kbd className="num ml-auto hidden shrink-0 rounded-sm border bg-secondary px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
           </button>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <Clock />
             <ConnectionPill />
-            <Bell className="size-4 text-muted-foreground" />
             <div className="hidden items-center gap-2 sm:flex">
-              <div className="grid size-8 place-items-center rounded-full border border-primary/60 bg-primary/20 text-xs font-semibold">{(cfg.accountId || "?").slice(0, 1)}</div>
+              <div className="grid size-7 place-items-center rounded-sm border bg-secondary text-xs font-semibold">{(cfg.accountId || "?").slice(0, 1)}</div>
               <div className="leading-tight">
                 <div className="num text-xs font-medium">{cfg.accountId || "No account"}</div>
                 <div className="text-[10px] text-muted-foreground">Account</div>

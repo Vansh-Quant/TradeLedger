@@ -38,11 +38,11 @@ function Dashboard() {
         <MetricCard label="Net Exposure" value={money(c?.netExposure, true)} icon={<Scale className="size-4" />} />
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_280px]">
-        <Panel title={`Open Positions${c ? ` (${c.positions.length})` : ""}`} action={<ViewAll to="/positions" />} className="h-72"><PositionTable compact /></Panel>
-        <Panel title={`Active Orders${active != null ? ` (${active})` : ""}`} action={<ViewAll to="/orders" />} className="h-72"><OrderTable compact activeOnly /></Panel>
-        <Panel title="Recent Executions" action={<ViewAll to="/executions" />} className="h-72"><ExecutionTable compact /></Panel>
-        <Panel title="JARVIS AI" className="h-72 xl:row-span-2 xl:h-auto"><JarvisPanel /></Panel>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px]">
+        <Panel title={`Open Positions${c ? ` (${c.positions.length})` : ""}`} action={<ViewAll to="/positions" />} className="h-64 sm:h-72"><PositionTable compact /></Panel>
+        <Panel title={`Active Orders${active != null ? ` (${active})` : ""}`} action={<ViewAll to="/orders" />} className="h-64 sm:h-72"><OrderTable compact activeOnly /></Panel>
+        <Panel title="Recent Executions" action={<ViewAll to="/executions" />} className="h-64 sm:h-72"><ExecutionTable compact /></Panel>
+        <Panel title="JARVIS" className="h-72 xl:row-span-2 xl:h-auto"><JarvisPanel compact /></Panel>
         <Panel title="Risk Metrics" action={<ViewAll to="/risk" />} className="xl:col-span-2">
           <div className="grid grid-cols-3">
             <RiskGauge label="Gross Exposure" value={c?.grossExposure} limit={c?.limits.maxGrossExposure} />

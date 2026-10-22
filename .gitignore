@@ -34,6 +34,8 @@ Thumbs.db
 logs/
 
 # Local databases and runtime state
+.tradeledger-data/
+tradeledger-data/
 *.sqlite
 *.sqlite3
 *.db

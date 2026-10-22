@@ -15,7 +15,7 @@ export const Route = createFileRoute("/orders")({
 function OrdersPage() {
   return (
     <div>
-      <PageHeader title="Orders" subtitle="Order management with lifecycle status and cancellation." />
+      <PageHeader title="Orders" subtitle="Live order list from GET /api/v1/accounts/{accountId}/orders. Cancellation posts to the existing order action API." />
       <Panel title="All Orders" className="h-[calc(100vh-9rem)]"><OrderTable /></Panel>
     </div>
   );

@@ -27,11 +27,10 @@ function Risk() {
           return (
             <div className="grid gap-3">
               <Panel title="Utilisation">
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4">
                   <RiskGauge label="Gross Exposure" value={c.grossExposure} limit={c.limits.maxGrossExposure} />
                   <RiskGauge label="Net Exposure" value={c.netExposure} limit={c.limits.maxNetExposure} />
-                  <RiskGauge label="Position Concentration" value={largest} limit={c.limits.maxPositionNotional} />
-                  <RiskGauge label="Buying Power Utilization" value={c.grossExposure} limit={c.totalEquity} />
+                  <RiskGauge label="Largest position exposure" value={largest} limit={c.limits.maxPositionNotional} />
                   <RiskGauge label="Daily Loss" value={c.dailyLoss} limit={c.limits.maxDailyLoss} />
                 </div>
               </Panel>
@@ -43,6 +42,8 @@ function Risk() {
                     ["Gross Exposure Limit", c.limits.maxGrossExposure],
                     ["Net Exposure Limit", c.limits.maxNetExposure],
                     ["Daily Loss Limit", c.limits.maxDailyLoss],
+                    ["Buying Power (reported)", c.buyingPower],
+                    ["Cash (reported)", c.cash],
                   ] as const).map(([k, v]) => (
                     <div key={k} className="flex justify-between py-2 sm:pr-6">
                       <dt className="text-muted-foreground">{k}</dt>

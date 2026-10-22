@@ -15,7 +15,7 @@ export const Route = createFileRoute("/positions")({
 function PositionsPage() {
   return (
     <div>
-      <PageHeader title="Positions" subtitle="Open positions as reported by the TradeLedger backend." />
+      <PageHeader title="Positions" subtitle="Open positions from GET /api/v1/accounts/{accountId}/context. Missing prices and P&L render as Unavailable." />
       <Panel title="Open Positions" className="h-[calc(100vh-9rem)]"><PositionTable /></Panel>
     </div>
   );

@@ -19,15 +19,26 @@ export function useHealth() {
   });
 }
 
+/** Live account context only. Empty accounts stay empty; demo fixtures are never substituted. */
+export function loadLiveAccountContext(accountId: string) {
+  return api.accountContext(accountId);
+}
+
+/** Live order list only. An empty blotter is a valid backend result. */
+export function loadLiveOrders(accountId: string) {
+  return api.orders(accountId);
+}
+
+/** Authoritative market-data states only. Empty means nothing was ingested. */
+export function loadMarketData(accountId: string) {
+  return api.marketData(accountId);
+}
+
 export function useAccountContext() {
   const cfg = useApiConfig();
   return useQuery({
     queryKey: ["context", cfg.baseUrl, cfg.accountId, cfg.token],
-    queryFn: async () => {
-      const live = await api.accountContext(cfg.accountId);
-      if (live.totalEquity != null || live.positions.length > 0) return live;
-      return (await api.workstationDemo(cfg.accountId)).context;
-    },
+    queryFn: () => loadLiveAccountContext(cfg.accountId),
     enabled: isConfigured(cfg) && typeof window !== "undefined",
     refetchInterval: REFRESH,
     retry: 1,
@@ -50,10 +61,18 @@ export function useOrders() {
   const cfg = useApiConfig();
   return useQuery({
     queryKey: ["orders", cfg.baseUrl, cfg.accountId, cfg.token],
-    queryFn: async () => {
-      const live = await api.orders(cfg.accountId);
-      return live.length > 0 ? live : (await api.workstationDemo(cfg.accountId)).orders;
-    },
+    queryFn: () => loadLiveOrders(cfg.accountId),
+    enabled: isConfigured(cfg),
+    refetchInterval: REFRESH,
+    retry: 1,
+  });
+}
+
+export function useMarketData() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["market-data", cfg.baseUrl, cfg.accountId, cfg.token],
+    queryFn: () => loadMarketData(cfg.accountId),
     enabled: isConfigured(cfg),
     refetchInterval: REFRESH,
     retry: 1,
