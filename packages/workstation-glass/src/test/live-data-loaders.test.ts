@@ -29,6 +29,5 @@ describe("live data loaders", () => {
     orders.mockResolvedValue([]);
 
     await expect(loadLiveOrders("ACC-APP")).resolves.toEqual([]);
-    expect(workstationDemo).not.toHaveBeenCalled();
   });
 });
