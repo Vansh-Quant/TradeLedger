@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { CandlestickChart, Search } from "lucide-react";
 import type { AccountContext, OrderType, Side, TimeInForce } from "@/api/types";
 import { isConfigured, useApiConfig } from "@/api/config";
-import { useAccountContext, useSubmitOrder, useWorkstationDemo } from "@/hooks/use-tradeledger";
+import { useAccountContext, useSubmitOrder } from "@/hooks/use-tradeledger";
 import { money, UNAVAILABLE, tone } from "@/lib/format";
 import { orderTypeRequiresPricing } from "@/lib/order-admission";
 import { cn } from "@/lib/utils";
@@ -40,23 +40,42 @@ export function Sparkline({ data, className }: { data?: number[]; className?: st
 /** Chart surface awaiting a market-data provider. Never renders synthetic prices. */
 export function TradingChart({ symbol }: { symbol: string }) {
   const tfs = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
-  const demo = useWorkstationDemo();
-  // Only plot the fixture series when it belongs to the selected instrument.
-  // Showing one symbol's candles under another symbol's header would mislabel data.
-  const series = symbol !== "" && demo.data?.chart.symbol === symbol ? demo.data.chart.candles : [];
-  const last = series[series.length - 1];
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-10 items-center gap-3 border-b px-3">
-        <span className="text-base font-semibold">{symbol || demo.data?.chart.symbol || "—"}</span>
-        <span className="text-xs text-positive">{last == null ? "No quote" : last.toFixed(2)}</span>
-        <div className="ml-auto flex gap-0.5" aria-hidden>{tfs.map((t) => <span key={t} className={cn("rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground", t === "15m" && "bg-accent text-foreground")}>{t}</span>)}</div>
+        <span className="text-base font-semibold">{symbol || "—"}</span>
+        <span className="text-xs text-muted-foreground">No live quote</span>
+        <div className="ml-auto flex gap-0.5" aria-hidden>
+          {tfs.map((t) => (
+            <span
+              key={t}
+              className={cn(
+                "rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground",
+                t === "15m" && "bg-accent text-foreground",
+              )}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="relative flex-1 overflow-hidden" style={{ backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "60px 40px" }}>
-        {series.length > 1 ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full p-8">
-          <polyline points={series.map((v,i)=>`${(i/(series.length-1))*100},${90-((v-Math.min(...series))/((Math.max(...series)-Math.min(...series))||1))*75}`).join(" ")} fill="none" stroke="var(--primary)" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
-        </svg> : <div className="absolute inset-0 grid place-items-center"><CandlestickChart className="size-8 text-primary/70" /></div>}
-        <div className="absolute bottom-2 left-3 text-[10px] text-warning">Development fixture · GET /api/v1/workstation/demo · not a live market feed</div>
+      <div
+        className="relative flex-1 overflow-hidden"
+        style={{
+          backgroundImage:
+            "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+          backgroundSize: "60px 40px",
+        }}
+      >
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <CandlestickChart className="size-8 text-primary/70" />
+            <p className="text-xs text-muted-foreground">
+              Historical or live market data is not connected yet.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -65,7 +84,6 @@ export function TradingChart({ symbol }: { symbol: string }) {
 /** Watchlist built from symbols the account actually holds. */
 export function Watchlist({ selected, onSelect }: { selected: string; onSelect: (s: string) => void }) {
   const q = useAccountContext();
-  const demo = useWorkstationDemo();
   const [add, setAdd] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
   return (
@@ -79,15 +97,12 @@ export function Watchlist({ selected, onSelect }: { selected: string; onSelect: 
       </div>
       <div className="flex-1 overflow-auto">
         {extra.map((s) => <WatchRow key={s} symbol={s} active={selected === s} onClick={() => onSelect(s)} />)}
-        {demo.data?.marketData.map((m) => (
-          <WatchRow key={m.symbol} symbol={m.symbol} last={m.last} active={selected === m.symbol} onClick={() => onSelect(m.symbol)} fixture />
-        ))}
-        {q.data?.positions.filter((p) => !demo.data?.marketData.some((m) => m.symbol === p.symbol)).map((p) => (
+        {q.data?.positions.map((p) => (
           <WatchRow key={p.symbol} symbol={p.symbol} last={p.marketPrice} active={selected === p.symbol} onClick={() => onSelect(p.symbol)} />
         ))}
-        {!demo.data && !q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load instruments.</p>}
+        {!q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load account instruments.</p>}
       </div>
-      <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Watchlist last prices marked DEMO come from the workstation demo payload, not a live feed.</p>
+      <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Prices are shown only when supplied by the connected account API.</p>
     </div>
   );
 }
