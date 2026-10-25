@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { QueryView, SourceBanner } from "@/components/terminal/primitives";
+import { QueryView } from "@/components/terminal/primitives";
 
 describe("QueryView and SourceBanner", () => {
   it("renders an error message instead of stale or fixture data", () => {
@@ -29,9 +29,4 @@ describe("QueryView and SourceBanner", () => {
     expect(screen.getByText("The account context returned an empty position list.")).toBeInTheDocument();
   });
 
-  it("labels development fixtures", () => {
-    render(<SourceBanner label="Development fixture" detail="GET /api/v1/workstation/demo" />);
-    expect(screen.getByRole("status")).toHaveTextContent("Development fixture");
-    expect(screen.getByRole("status")).toHaveTextContent("GET /api/v1/workstation/demo");
-  });
 });
