@@ -1,9 +1,9 @@
 import { getApiConfig } from "./config";
 import {
-  normalizeAccountContext, normalizeMarketDataStates, normalizeOrders, toSubmitOrderBody, unwrapData,
+  normalizeAccountContext, normalizeMarketDataStates, normalizeOrders, toSubmitOrderBody,
 } from "./normalize";
 import {
-  ApiError, type CompetitionSnapshot, type SubmitOrderIntent, type WorkstationDemoData,
+  ApiError, type CompetitionSnapshot, type SubmitOrderIntent,
 } from "./types";
 
 // Single entry point for all TradeLedger HTTP communication.
@@ -38,17 +38,6 @@ async function request<T>(path: string, init: RequestInit & { idempotent?: boole
 export const api = {
   health: () => request<unknown>("/health"),
   ready: () => request<unknown>("/ready"),
-  workstationDemo: async (accountId: string) => {
-    const raw = await request<unknown>(
-      `/api/v1/workstation/demo?accountId=${encodeURIComponent(accountId)}`,
-    );
-    const demo = unwrapData(raw) as WorkstationDemoData;
-
-    return {
-      ...demo,
-      context: normalizeAccountContext(demo.context, accountId),
-    };
-  },
   accountContext: async (accountId: string) =>
     normalizeAccountContext(
       await request<unknown>(`/api/v1/accounts/${encodeURIComponent(accountId)}/context`),
