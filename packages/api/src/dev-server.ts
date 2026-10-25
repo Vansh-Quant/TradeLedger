@@ -30,39 +30,14 @@ const context = {
     maxDailyLoss: 5_000,
   }),
 };
-const competitionContexts = Array.from({ length: 8 }, (_, index) => {
-  const participantAccount = createAccount({ id: `CMP-${String(index + 1).padStart(4, "0")}`, baseCurrency: "USD" });
-  return {
-    accountId: participantAccount.id,
-    accountPortfolio: createAccountPortfolio(participantAccount, createPortfolio()),
-    buyingPower: createBuyingPower(100_000),
-    riskLimits: createRiskLimits({
-      maxOrderNotional: 50_000,
-      maxPositionNotional: 100_000,
-      maxGrossExposure: 200_000,
-      maxNetExposure: 150_000,
-      maxDailyLoss: 5_000,
-    }),
-  };
-});
-
 const principal = { id: "dev-user", roles: ["trader", "owner"] };
 const marketData = new InMemoryMarketDataStateStore();
 
 const application = new TradingApplicationService(
-  new InMemoryTradingContext([context, ...competitionContexts]),
+  new InMemoryTradingContext([context]),
   new InMemoryOrderStateStore(),
   new AllowListedAuthorization([
     "dev-user:order.read:ACC-APP",
-    ...competitionContexts.flatMap((entry) => [
-      `dev-user:order.read:${entry.accountId}`,
-      `dev-user:order.submit:${entry.accountId}`,
-      `dev-user:order.cancel:${entry.accountId}`,
-      `dev-user:order.expire:${entry.accountId}`,
-      `dev-user:market-data.read:${entry.accountId}`,
-      `dev-user:execution.record:${entry.accountId}`,
-      `dev-user:event-stream.read:${entry.accountId}`,
-    ]),
     "dev-user:order.submit:ACC-APP",
     "dev-user:order.cancel:ACC-APP",
     "dev-user:order.expire:ACC-APP",
@@ -81,39 +56,8 @@ const application = new TradingApplicationService(
 const competitionPersistence = new DurableCompetitionPersistence(process.env.TRADELEDGER_DATA_DIR ?? ".tradeledger-data");
 const competitionApplication = new CompetitionApplicationService(competitionPersistence, application);
 
-try {
-  competitionApplication.get(principal);
-} catch {
-  competitionApplication.create({
-    principal,
-    config: {
-      id: "CMP-2026-01",
-      name: "TradeLedger Quant Competition",
-      maxParticipants: 1000,
-      allowedInstruments: ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "META", "GOOGL", "AMD"],
-      maxOrderNotional: 50_000,
-      maxOrdersPerParticipantPerSecond: 10,
-      startingEquity: 100_000,
-    },
-  });
-
-  for (let index = 1; index <= 8; index += 1) {
-    const participantId = `P-${String(index).padStart(4, "0")}`;
-    competitionApplication.register({
-      principal,
-      participantId,
-      accountId: `CMP-${String(index).padStart(4, "0")}`,
-    });
-  }
-
-  const prepared = competitionApplication.prepare(principal, "dev-competition-prepare");
-  competitionApplication.control({
-    principal,
-    action: "start",
-    expectedVersion: prepared.competition.version,
-    requestId: "dev-competition-start",
-  });
-}
+// Development server does not seed synthetic competition participants or orders.
+// Existing persisted competition state is left untouched.
 
 const server = createHttpApi(
   {
