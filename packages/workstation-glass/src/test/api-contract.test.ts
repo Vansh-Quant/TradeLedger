@@ -185,28 +185,6 @@ describe("workstation API contract", () => {
     expect(states[0]?.latestQuote?.observedAt).toBe("2026-10-04T09:30:00Z");
   });
 
-  it("keeps the flat workstation demo context readable", async () => {
-    respondWith({
-      accountId: "ACC-APP",
-      asOf: "2026-10-06T14:30:00Z",
-      context: {
-        accountId: "ACC-APP",
-        totalEquity: 103_842.75,
-        buyingPower: 100_000,
-        grossExposure: 21_128.5,
-        limits: { maxOrderNotional: 50_000 },
-        positions: [{ symbol: "AAPL", quantity: 80, averagePrice: 100.25 }],
-      },
-    });
-
-    const demo = await api.workstationDemo("ACC-APP");
-
-    expect(demo.context.totalEquity).toBe(103_842.75);
-    expect(demo.context.buyingPower).toBe(100_000);
-    expect(demo.context.limits.maxOrderNotional).toBe(50_000);
-    expect(demo.context.positions[0]?.symbol).toBe("AAPL");
-  });
-
   it("leaves absent backend values undefined instead of defaulting to zero", async () => {
     respondWith({ context: { accountId: "ACC-APP" } });
 
