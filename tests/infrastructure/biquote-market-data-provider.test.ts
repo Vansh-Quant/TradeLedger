@@ -31,6 +31,18 @@ describe("BiQuoteMarketDataProvider", () => {
     expect(url.searchParams.get("from")).toBe(START);
     expect(url.searchParams.get("to")).toBe(END);
   });
+  it.each(["EURUSD", "XAUUSD", "USDJPY"] as const)("requests historical bars for %s without changing its instrument identity", async (symbol) => {
+    const instrument = symbol as InstrumentId;
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => response({
+      symbol, interval: "1h", bars: [candle()],
+    }));
+    const provider = new BiQuoteMarketDataProvider({ fetcher });
+    const bars = await provider.historical(instrument, "bar", START, END);
+
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toMatchObject({ instrumentId: instrument, source: "biquote", timeframeSeconds: 3600 });
+    expect(new URL(String(fetcher.mock.calls[0]?.[0])).pathname).toBe(`/api/${symbol}/ohlc`);
+  });
   it("rejects unsupported kinds and invalid date ranges", async () => {
     const p = new BiQuoteMarketDataProvider({ fetcher: vi.fn(async () => response({})) });
     await expect(p.historical(XAUUSD, "quote", START, END)).rejects.toThrow('does not support kind "quote"');
