@@ -42,6 +42,22 @@ export interface MarketDataProviderHealth {
   readonly message?: string;
 }
 
+/**
+ * Optional extension for providers that can serve history at an explicit
+ * candle interval. The API layer only uses it when the client requests an
+ * interval; plain `historical` keeps its provider-default behaviour.
+ */
+export interface IntervalHistoricalProvider {
+  readonly supportedIntervals: readonly string[];
+  historicalWithInterval(
+    instrumentId: InstrumentId,
+    kind: MarketDataKind,
+    interval: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<readonly MarketDataPoint[]>;
+}
+
 function nonEmpty(value: string, field: string): string {
   const normalized = value.trim();
   if (normalized.length === 0) {

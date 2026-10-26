@@ -1,6 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { ApplicationPrincipal } from "@tradeledger/application";
 import type { ControlAction } from "@tradeledger/domain";
+import {
+  BAR_AGGREGATION_TARGETS, STRATEGY_SPECS, STRATEGY_SPEC_KINDS,
+  aggregateDailyBars, alignAggregationRange, isBarAggregationTarget,
+  runResearchBacktest, validateStrategySpec,
+  type Bar, type InstrumentId, type IntervalHistoricalProvider, type MarketDataPoint,
+} from "@tradeledger/domain";
 import { AuthorizationError, ValidationError } from "@tradeledger/application";
 import { mapError } from "./errors.js";
 import { DEFAULT_MAX_BODY_BYTES, FixedWindowRateLimiter } from "./security.js";
@@ -128,6 +134,86 @@ function idempotencyKey(request: IncomingMessage): string {
 function principalOrThrow(principal: ApplicationPrincipal | undefined): ApplicationPrincipal {
   if (principal === undefined) throw new AuthorizationError();
   return principal;
+}
+
+/** Narrows a provider to the optional explicit-interval extension. */
+function asIntervalProvider(provider: import("@tradeledger/domain").MarketDataProvider):
+  (import("@tradeledger/domain").MarketDataProvider & IntervalHistoricalProvider) | undefined {
+  const candidate = provider as Partial<IntervalHistoricalProvider>;
+  return typeof candidate.historicalWithInterval === "function" && Array.isArray(candidate.supportedIntervals)
+    ? provider as import("@tradeledger/domain").MarketDataProvider & IntervalHistoricalProvider
+    : undefined;
+}
+
+function providerIntervals(provider: import("@tradeledger/domain").MarketDataProvider): readonly string[] {
+  return asIntervalProvider(provider)?.supportedIntervals ?? [];
+}
+
+/**
+ * Loads bars for an explicit chart interval. Native provider intervals are
+ * requested directly; `1w`/`1M` are calendar-aggregated from native daily
+ * bars (never from intraday data). Throws `ValidationError` for intervals the
+ * configured provider cannot serve, so the client gets an honest 400 with the
+ * list of valid intervals instead of silently repeated candles.
+ */
+async function loadHistoryBars(
+  provider: import("@tradeledger/domain").MarketDataProvider,
+  instrumentId: InstrumentId,
+  interval: string,
+  startAt: string,
+  endAt: string,
+): Promise<{ readonly bars: readonly Bar[]; readonly sourceInterval: string; readonly aggregated: boolean }> {
+  const intervalProvider = asIntervalProvider(provider);
+  const native = intervalProvider?.supportedIntervals ?? [];
+  const asBars = (points: readonly MarketDataPoint[]): readonly Bar[] =>
+    points.filter((point): point is Bar => point.kind === "bar");
+
+  const startMs = Date.parse(startAt);
+  const endMs = Date.parse(endAt);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    throw new ValidationError("startAt and endAt must be valid timestamps with endAt after startAt");
+  }
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+
+  if (native.includes(interval)) {
+    if (intervalProvider === undefined) {
+      throw new ValidationError(`the configured provider cannot serve an explicit interval "${interval}"`);
+    }
+    const bars = await intervalProvider.historicalWithInterval(instrumentId, "bar", interval, startIso, endIso);
+    return { bars: asBars(bars), sourceInterval: interval, aggregated: false };
+  }
+
+  if (isBarAggregationTarget(interval)) {
+    if (intervalProvider === undefined || !native.includes("1d")) {
+      throw new ValidationError(`the configured provider cannot aggregate "${interval}" because native daily bars are unavailable`);
+    }
+    const { fetchFrom, alignedFrom } = alignAggregationRange(interval, startIso, endIso);
+    const daily = await intervalProvider.historicalWithInterval(instrumentId, "bar", "1d", fetchFrom, endIso);
+    const alignedMs = Date.parse(alignedFrom);
+    const bars = aggregateDailyBars(daily.filter((point): point is Bar => point.kind === "bar"), interval).filter((bar) => {
+      const start = Date.parse(bar.startAt);
+      return start >= alignedMs && start < endMs;
+    });
+    return { bars, sourceInterval: "1d", aggregated: true };
+  }
+
+  throw new ValidationError(
+    `interval "${interval}" is not supported; valid intervals: ${[...native, ...BAR_AGGREGATION_TARGETS].join(", ")}`,
+  );
+}
+
+function coverageOf(bars: readonly Bar[], requestedFrom: string, requestedTo: string): Record<string, unknown> {
+  if (bars.length === 0) {
+    return { requestedFrom, requestedTo, returnedFrom: null, returnedTo: null, count: 0 };
+  }
+  return {
+    requestedFrom,
+    requestedTo,
+    returnedFrom: bars[0]!.startAt,
+    returnedTo: bars[bars.length - 1]!.endAt,
+    count: bars.length,
+  };
 }
 
 function decodeOrderId(match: RegExpExecArray): string {
@@ -347,6 +433,113 @@ async function route(
     }
   }
 
+  // Research / backtesting: declarative strategy specs executed against real
+  // historical bars. No submitted code is ever evaluated.
+  if (method === "GET" && path === "/api/v1/research/strategies") {
+    // Static capability metadata: authentication is enough to read it.
+    send(response, id, 200, { strategies: STRATEGY_SPECS, kinds: STRATEGY_SPEC_KINDS }, corsOrigin);
+    return;
+  }
+
+  const researchList = path === "/api/v1/research/backtests";
+  const researchRunMatch = /^\/api\/v1\/research\/backtests\/([^/]+)$/.exec(path);
+  if (researchList || researchRunMatch !== null) {
+    const store = deps.researchRuns;
+    if (store === undefined) {
+      send(response, id, 503, {
+        error: { code: "RESEARCH_UNAVAILABLE", message: "research persistence is not configured on this server" },
+      }, corsOrigin);
+      return;
+    }
+
+    if (method === "GET" && researchList) {
+      const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
+      deps.application.authorizeResearchRun({ principal, accountId });
+      const runs = store.list()
+        .filter((run) => run.accountId === accountId)
+        .sort((left, right) => (left.createdAt < right.createdAt ? 1 : -1));
+      send(response, id, 200, { runs }, corsOrigin);
+      return;
+    }
+
+    if (method === "POST" && researchList) {
+      const body = await readJson(request, maxBodyBytes);
+      const accountId = requiredString(body, "accountId");
+      deps.application.authorizeResearchRun({ principal, accountId });
+      const instrumentId = requiredString(body, "instrumentId");
+      const interval = requiredString(body, "interval");
+      const startAt = requiredString(body, "startAt");
+      const endAt = requiredString(body, "endAt");
+      const initialCapital = optionalNumber(body, "initialCapital") ?? 100_000;
+      const quantity = optionalNumber(body, "quantity") ?? 1;
+      const commissionPerTrade = optionalNumber(body, "commissionPerTrade") ?? 0;
+      const slippageBps = optionalNumber(body, "slippageBps") ?? 0;
+      if (!(initialCapital > 0)) throw new ValidationError("initialCapital must be a positive number");
+      if (!(quantity > 0)) throw new ValidationError("quantity must be a positive number");
+      if (commissionPerTrade < 0) throw new ValidationError("commissionPerTrade must not be negative");
+      if (slippageBps < 0) throw new ValidationError("slippageBps must not be negative");
+      if (!Number.isFinite(Date.parse(startAt)) || !Number.isFinite(Date.parse(endAt)) || Date.parse(endAt) <= Date.parse(startAt)) {
+        throw new ValidationError("startAt and endAt must be valid timestamps with endAt after startAt");
+      }
+      let spec;
+      try {
+        spec = validateStrategySpec(body.strategy);
+      } catch (error) {
+        throw new ValidationError(error instanceof Error ? error.message : "strategy specification is invalid");
+      }
+      if (deps.historicalMarketDataProvider === undefined) {
+        send(response, id, 503, {
+          error: { code: "MARKET_DATA_PROVIDER_UNAVAILABLE", message: "historical market-data provider is not configured" },
+        }, corsOrigin);
+        return;
+      }
+      const loaded = await loadHistoryBars(deps.historicalMarketDataProvider, instrumentId as InstrumentId, interval, startAt, endAt);
+      if (loaded.bars.length === 0) {
+        throw new ValidationError(`provider returned no historical bars for ${instrumentId} at interval "${interval}" in the requested range`);
+      }
+      let run;
+      try {
+        run = runResearchBacktest({
+          runId: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          accountId,
+          instrumentId,
+          interval,
+          requestedFrom: startAt,
+          requestedTo: endAt,
+          spec,
+          bars: loaded.bars,
+          initialCapital,
+          quantity,
+          commissionPerTrade,
+          slippageBps,
+        });
+      } catch (error) {
+        throw new ValidationError(error instanceof Error ? error.message : "backtest could not be executed");
+      }
+      if (body.save === true) store.save(run);
+      send(response, id, 201, run, corsOrigin);
+      return;
+    }
+
+    if (method === "GET" && researchRunMatch) {
+      const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
+      deps.application.authorizeResearchRun({ principal, accountId });
+      const runId = decodeOrderId(researchRunMatch);
+      if (!/^[A-Za-z0-9._-]{1,128}$/.test(runId)) {
+        send(response, id, 404, { error: { code: "NOT_FOUND", message: "research run not found" } }, corsOrigin);
+        return;
+      }
+      const run = store.get(runId);
+      if (run === undefined || run.accountId !== accountId) {
+        send(response, id, 404, { error: { code: "NOT_FOUND", message: "research run not found" } }, corsOrigin);
+        return;
+      }
+      send(response, id, 200, run, corsOrigin);
+      return;
+    }
+  }
+
   const eventStream = path === "/api/v1/events";
   if (method === "GET" && eventStream) {
     const accountId = requiredString(Object.fromEntries(parsed.searchParams), "accountId");
@@ -507,9 +700,97 @@ async function route(
       }, corsOrigin);
       return;
     }
-    const instrumentId = decodeOrderId(historicalMarketData) as import("@tradeledger/domain").InstrumentId;
-    const bars = await deps.historicalMarketDataProvider.historical(instrumentId, "bar", startAt, endAt);
-    send(response, id, 200, { instrumentId, provider: deps.historicalMarketDataProvider.providerId, bars }, corsOrigin);
+    const provider = deps.historicalMarketDataProvider;
+    const instrumentId = decodeOrderId(historicalMarketData) as InstrumentId;
+    const interval = typeof query.interval === "string" ? query.interval.trim() : "";
+    if (interval === "") {
+      // Legacy path: provider-default interval, unchanged contract.
+      const bars = await provider.historical(instrumentId, "bar", startAt, endAt);
+      send(response, id, 200, { instrumentId, provider: provider.providerId, bars }, corsOrigin);
+      return;
+    }
+    const loaded = await loadHistoryBars(provider, instrumentId, interval, startAt, endAt);
+    send(response, id, 200, {
+      instrumentId,
+      provider: provider.providerId,
+      interval,
+      sourceInterval: loaded.sourceInterval,
+      aggregated: loaded.aggregated,
+      bars: loaded.bars,
+      coverage: coverageOf(loaded.bars, startAt, endAt),
+    }, corsOrigin);
+    return;
+  }
+
+  // Instrument search: provider-backed resolution, never an invented symbol.
+  const marketDataResolve = /^\/api\/v1\/market-data\/([^/]+)\/resolve$/.exec(path);
+  if (method === "GET" && marketDataResolve) {
+    const query = Object.fromEntries(parsed.searchParams);
+    const accountId = requiredString(query, "accountId");
+    deps.application.listMarketData({ principal, accountId });
+    if (deps.historicalMarketDataProvider === undefined) {
+      send(response, id, 503, {
+        error: { code: "MARKET_DATA_PROVIDER_UNAVAILABLE", message: "historical market-data provider is not configured" },
+      }, corsOrigin);
+      return;
+    }
+    const provider = deps.historicalMarketDataProvider;
+    const symbol = decodeOrderId(marketDataResolve).trim().toUpperCase();
+    if (!/^[A-Z0-9._-]+$/.test(symbol)) {
+      throw new ValidationError("symbol must contain only letters, digits, dot, underscore or dash");
+    }
+    const probeWindowMs = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const probeInterval = providerIntervals(provider).includes("1d") ? "1d" : providerIntervals(provider)[0];
+    let supported: boolean;
+    let detail: string;
+    let latestBar: Bar | undefined;
+    let intervalUsed = probeInterval ?? "default";
+    try {
+      if (probeInterval === undefined) {
+        const bars = await provider.historical(symbol as InstrumentId, "bar", new Date(now - probeWindowMs).toISOString(), new Date(now).toISOString());
+        supported = bars.length > 0;
+        latestBar = bars.filter((bar): bar is Bar => bar.kind === "bar").at(-1);
+      } else {
+        const loaded = await loadHistoryBars(provider, symbol as InstrumentId, probeInterval,
+          new Date(now - probeWindowMs).toISOString(), new Date(now).toISOString());
+        supported = loaded.bars.length > 0;
+        latestBar = loaded.bars.at(-1);
+        intervalUsed = loaded.sourceInterval;
+      }
+      detail = supported
+        ? `provider returned data for interval ${intervalUsed} within the last 7 days`
+        : "provider returned no data for this symbol in the last 7 days; it is not tradable through this provider";
+    } catch (error) {
+      send(response, id, 503, {
+        error: { code: "MARKET_DATA_PROVIDER_ERROR", message: error instanceof Error ? error.message : "provider probe failed" },
+      }, corsOrigin);
+      return;
+    }
+    send(response, id, 200, {
+      symbol,
+      provider: provider.providerId,
+      interval: intervalUsed,
+      supported,
+      detail,
+      ...(latestBar === undefined ? {} : { latestBar }),
+    }, corsOrigin);
+    return;
+  }
+
+  // Provider + ingestion health behind the same authorization boundary.
+  if (method === "GET" && path === "/api/v1/market-data/status") {
+    const query = Object.fromEntries(parsed.searchParams);
+    const accountId = requiredString(query, "accountId");
+    deps.application.listMarketData({ principal, accountId });
+    const provider = deps.historicalMarketDataProvider;
+    const health = provider === undefined
+      ? { providerId: "unconfigured", healthy: false, checkedAt: new Date().toISOString(), message: "historical market-data provider is not configured" }
+      : await provider.health();
+    send(response, id, 200, {
+      provider: health,
+      ingestion: deps.marketDataIngestionStatus?.() ?? null,
+    }, corsOrigin);
     return;
   }
 

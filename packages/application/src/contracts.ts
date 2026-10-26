@@ -14,6 +14,7 @@ export type ApplicationAction =
   | "order.expire"
   | "order.read"
   | "market-data.read"
+  | "research.run"
   | "execution.record"
   | "event-stream.read";
 

@@ -463,6 +463,17 @@ export class TradingApplicationService {
     return this.marketData?.get(instrumentId);
   }
 
+  /**
+   * Research and backtesting reuse the same authorization boundary as every
+   * other capability-scoped query: no research route runs without an explicit
+   * `research.run` grant for the target account.
+   */
+  authorizeResearchRun(query: { readonly principal: ApplicationPrincipal; readonly accountId: string }): string {
+    const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
+    this.authorization.authorize(query.principal, "research.run", accountId);
+    return accountId;
+  }
+
   getOrder(query: GetOrderQuery): GetOrderResult {
     const accountId = requireNonEmpty(query.accountId, "accountId") as AccountId;
     const orderId = requireNonEmpty(query.orderId, "orderId");

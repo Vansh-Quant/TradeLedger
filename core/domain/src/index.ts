@@ -89,6 +89,7 @@ export * from "./research-cache.js";
 
 export * from "./strategy-combinators.js";
 export * from "./research-lab.js";
+export * from "./research-backtest.js";
 export * from "./oos-validation.js";
 
 export * from "./portfolio-analytics.js";

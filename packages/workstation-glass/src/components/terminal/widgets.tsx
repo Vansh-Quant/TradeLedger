@@ -1,13 +1,20 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CandlestickChart, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { api } from "@/api/client";
 import type { AccountContext, OrderType, Side, TimeInForce } from "@/api/types";
 import { isConfigured, useApiConfig } from "@/api/config";
 import { useAccountContext, useSubmitOrder } from "@/hooks/use-tradeledger";
 import { money, UNAVAILABLE, tone } from "@/lib/format";
+import { normalizeSymbolQuery } from "@/lib/chart-view";
 import { orderTypeRequiresPricing } from "@/lib/order-admission";
 import { cn } from "@/lib/utils";
 import { QueryView } from "./primitives";
+
+// The historical chart lives in its own module; re-exported here so the
+// Trading workspace keeps importing it from the widgets barrel.
+export { TradingChart } from "./chart";
 
 export function MetricCard({ label, value, sub, valueTone, icon }: {
   label: string; value: string; sub?: ReactNode; valueTone?: string; icon?: ReactNode;
@@ -37,72 +44,71 @@ export function Sparkline({ data, className }: { data?: number[]; className?: st
   );
 }
 
-/** Chart surface awaiting a market-data provider. Never renders synthetic prices. */
-export function TradingChart({ symbol }: { symbol: string }) {
-  const tfs = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-10 items-center gap-3 border-b px-3">
-        <span className="text-base font-semibold">{symbol || "—"}</span>
-        <span className="text-xs text-muted-foreground">No live quote</span>
-        <div className="ml-auto flex gap-0.5" aria-hidden>
-          {tfs.map((t) => (
-            <span
-              key={t}
-              className={cn(
-                "rounded-sm px-2 py-0.5 text-[11px] text-muted-foreground",
-                t === "15m" && "bg-accent text-foreground",
-              )}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div
-        className="relative flex-1 overflow-hidden"
-        style={{
-          backgroundImage:
-            "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
-          backgroundSize: "60px 40px",
-        }}
-      >
-        <div className="absolute inset-0 grid place-items-center">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <CandlestickChart className="size-8 text-primary/70" />
-            <p className="text-xs text-muted-foreground">
-              Historical or live market data is not connected yet.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Watchlist built from symbols the account actually holds. */
+/** Watchlist: account positions plus provider-verified searched symbols. */
 export function Watchlist({ selected, onSelect }: { selected: string; onSelect: (s: string) => void }) {
+  const cfg = useApiConfig();
   const q = useAccountContext();
   const [add, setAdd] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
+  const [lastCloses, setLastCloses] = useState<Record<string, number>>({});
+
+  const resolve = useMutation({
+    mutationFn: (symbol: string) => api.resolveInstrument(cfg.accountId, symbol),
+    onSuccess: (result, symbol) => {
+      if (!result.supported) {
+        toast.error(`${symbol} is not supported — ${result.detail}`);
+        return;
+      }
+      setExtra((current) => (current.includes(symbol) ? current : [...current, symbol]));
+      if (result.latestBar) {
+        setLastCloses((current) => ({ ...current, [symbol]: result.latestBar!.close }));
+      }
+      onSelect(symbol);
+      setAdd("");
+      toast.success(`${symbol} verified — ${result.detail}`);
+    },
+    onError: (error, symbol) => {
+      toast.error(`${symbol}: ${error instanceof Error ? error.message : "provider lookup failed"}`);
+    },
+  });
+
+  const onSubmit = (e: FormEvent): void => {
+    e.preventDefault();
+    const symbol = normalizeSymbolQuery(add);
+    if (!symbol) return;
+    if (!isConfigured(cfg)) {
+      toast.error("Connect the API in Settings to look up instruments");
+      return;
+    }
+    if (resolve.isPending) return;
+    resolve.mutate(symbol);
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <form className="flex items-center gap-2 border-b px-3 py-2" onSubmit={(e) => { e.preventDefault(); const s = add.trim().toUpperCase(); if (s) { setExtra((x) => [...new Set([...x, s])]); onSelect(s); setAdd(""); } }}>
+      <form className="flex items-center gap-2 border-b px-3 py-2" onSubmit={onSubmit}>
         <Search className="size-3.5 text-muted-foreground" />
-        <input value={add} onChange={(e) => setAdd(e.target.value)} placeholder="Add symbol" className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground" />
+        <input
+          value={add}
+          onChange={(e) => setAdd(e.target.value)}
+          placeholder={resolve.isPending ? "Checking provider…" : "Search symbol (e.g. XAUUSD)"}
+          className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+        />
       </form>
       <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 px-3 py-1.5 text-[11px] text-muted-foreground">
         <span>Symbol</span><span className="text-right">Last</span><span className="text-right">Chg</span>
       </div>
       <div className="flex-1 overflow-auto">
-        {extra.map((s) => <WatchRow key={s} symbol={s} active={selected === s} onClick={() => onSelect(s)} />)}
+        {extra.map((s) => <WatchRow key={s} symbol={s} last={lastCloses[s]} active={selected === s} onClick={() => onSelect(s)} />)}
         {q.data?.positions.map((p) => (
           <WatchRow key={p.symbol} symbol={p.symbol} last={p.marketPrice} active={selected === p.symbol} onClick={() => onSelect(p.symbol)} />
         ))}
         {!q.data && extra.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">Connect the API to load account instruments.</p>}
       </div>
-      <p className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Prices are shown only when supplied by the connected account API.</p>
+      <p className="border-t px-3 py-1.5 text-[10px] leading-snug text-muted-foreground">
+        Searched symbols are verified against the connected provider; unsupported symbols are rejected instead of added.
+        Prices appear only when the backend supplies them.
+      </p>
     </div>
   );
 }

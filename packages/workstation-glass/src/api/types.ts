@@ -133,6 +133,141 @@ export interface SubmitOrderIntent {
   timeInForce: TimeInForce;
 }
 
+/** GET /api/v1/market-data/{symbol}/history */
+export interface HistoryCoverage {
+  requestedFrom?: string | undefined;
+  requestedTo?: string | undefined;
+  returnedFrom?: string | null;
+  returnedTo?: string | null;
+  count: number;
+}
+
+export interface MarketDataHistory {
+  instrumentId: string;
+  provider: string;
+  interval?: string | undefined;
+  sourceInterval?: string | undefined;
+  aggregated?: boolean | undefined;
+  bars: MarketDataBar[];
+  coverage?: HistoryCoverage | undefined;
+}
+
+/** GET /api/v1/market-data/{symbol}/resolve */
+export interface InstrumentResolve {
+  symbol: string;
+  provider: string;
+  interval: string;
+  supported: boolean;
+  detail: string;
+  latestBar?: MarketDataBar | undefined;
+}
+
+/** GET /api/v1/market-data/status */
+export interface MarketDataIngestionStatus {
+  providerId: string;
+  polling: boolean;
+  instruments: string[];
+  barInterval: string;
+  barPollIntervalMs: number;
+  quotePollIntervalMs: number;
+  lastPollAt?: string | undefined;
+  lastAcceptedAt?: string | undefined;
+  lastErrorAt?: string | undefined;
+  lastError?: string | undefined;
+  acceptedPoints: number;
+  skippedPoints: number;
+  quoteUnavailable: string[];
+}
+
+export interface MarketDataStatus {
+  provider: { providerId: string; healthy: boolean; checkedAt: string; message?: string | undefined };
+  ingestion: MarketDataIngestionStatus | null;
+}
+
+/** Research / backtesting contract (GET+POST /api/v1/research/*) */
+export interface StrategyParameterSpec {
+  key: string;
+  label: string;
+  help: string;
+  default: number;
+  min: number;
+  max: number;
+  integer: boolean;
+}
+
+export interface StrategySpecDefinition {
+  kind: string;
+  name: string;
+  description: string;
+  parameters: StrategyParameterSpec[];
+}
+
+export interface StrategyCatalog {
+  strategies: StrategySpecDefinition[];
+  kinds: string[];
+}
+
+export interface ResearchMetrics {
+  netPnl: number;
+  returnPct: number;
+  maxDrawdownPct: number;
+  winRatePct: number;
+  profitFactor: number;
+  tradeCount: number;
+  sharpeLike: number;
+}
+
+export interface ResearchTrade {
+  entryAt: string;
+  exitAt: string;
+  side: "long" | "short";
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  pnl: number;
+}
+
+export interface ResearchRun {
+  runId: string;
+  createdAt: string;
+  accountId: string;
+  instrumentId: string;
+  interval: string;
+  requested: { from: string; to: string };
+  dataRange: { from: string; to: string; count: number; source?: string | undefined };
+  strategy: { kind: string; name: string; version: number; parameters: Record<string, number> };
+  assumptions: {
+    initialCapital: number;
+    quantity: number;
+    commissionPerTrade: number;
+    slippageBps: number;
+    execution: "next-bar-open";
+  };
+  report: {
+    strategyId: string;
+    performance: ResearchMetrics;
+    validation: { passed: boolean; failures: string[] };
+    robustness: { tradeCount: number; positiveTradePct: number; worstTrade: number; bestTrade: number };
+  };
+  equityCurve: { at: string; equity: number }[];
+  trades: ResearchTrade[];
+  warnings: string[];
+}
+
+export interface BacktestRequest {
+  accountId: string;
+  instrumentId: string;
+  interval: string;
+  startAt: string;
+  endAt: string;
+  strategy: { kind: string; parameters?: Record<string, number> };
+  initialCapital?: number;
+  quantity?: number;
+  commissionPerTrade?: number;
+  slippageBps?: number;
+  save?: boolean;
+}
+
 export class ApiError extends Error {
   constructor(message: string, public status: number, public body?: unknown) {
     super(message);
