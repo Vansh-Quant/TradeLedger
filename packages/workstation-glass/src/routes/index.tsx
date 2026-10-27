@@ -29,7 +29,7 @@ function Dashboard() {
   const active = orders.data?.filter((o) => ["CREATED", "SUBMITTED", "ACKNOWLEDGED", "PARTIALLY_FILLED"].includes(String(o.status))).length;
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6 [&>*]:min-w-0">
         <MetricCard label="Total Equity" value={money(c?.totalEquity)} icon={<Wallet className="size-4" />} />
         <MetricCard label="Buying Power" value={money(c?.buyingPower)} icon={<Briefcase className="size-4" />} sub={c?.buyingPower != null && "Available for new positions"} />
         <MetricCard label="Daily P&L" value={money(c?.dailyPnl, true)} valueTone={tone(c?.dailyPnl)} icon={<TrendingUp className="size-4" />} />
@@ -39,18 +39,18 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px]">
-        <Panel title={`Open Positions${c ? ` (${c.positions.length})` : ""}`} action={<ViewAll to="/positions" />} className="h-64 sm:h-72"><PositionTable compact /></Panel>
-        <Panel title={`Active Orders${active != null ? ` (${active})` : ""}`} action={<ViewAll to="/orders" />} className="h-64 sm:h-72"><OrderTable compact activeOnly /></Panel>
-        <Panel title="Recent Executions" action={<ViewAll to="/executions" />} className="h-64 sm:h-72"><ExecutionTable compact /></Panel>
-        <Panel title="JARVIS" className="h-72 xl:row-span-2 xl:h-auto"><JarvisPanel compact /></Panel>
-        <Panel title="Risk Metrics" action={<ViewAll to="/risk" />} className="xl:col-span-2">
-          <div className="grid grid-cols-3">
+        <Panel title={`Open Positions${c ? ` (${c.positions.length})` : ""}`} action={<ViewAll to="/positions" />} className="min-w-0 lg:h-72"><PositionTable compact /></Panel>
+        <Panel title={`Active Orders${active != null ? ` (${active})` : ""}`} action={<ViewAll to="/orders" />} className="min-w-0 lg:h-72"><OrderTable compact activeOnly /></Panel>
+        <Panel title="Recent Executions" action={<ViewAll to="/executions" />} className="min-w-0 lg:h-72"><ExecutionTable compact /></Panel>
+        <Panel title="JARVIS" className="min-w-0 lg:h-72 xl:row-span-2 xl:h-auto"><JarvisPanel compact /></Panel>
+        <Panel title="Risk Metrics" action={<ViewAll to="/risk" />} className="min-w-0 xl:col-span-2">
+          <div className="grid h-full grid-cols-1 items-center gap-2 sm:grid-cols-3">
             <RiskGauge label="Gross Exposure" value={c?.grossExposure} limit={c?.limits.maxGrossExposure} />
             <RiskGauge label="Net Exposure" value={c?.netExposure} limit={c?.limits.maxNetExposure} />
             <RiskGauge label="Daily Loss" value={c?.dailyLoss} limit={c?.limits.maxDailyLoss} />
           </div>
         </Panel>
-        <Panel title="Account Summary"><AccountSummary /></Panel>
+        <Panel title="Account Summary" className="min-w-0"><AccountSummary /></Panel>
       </div>
       {!c && <p className="text-center text-[11px] text-muted-foreground">Values show "{UNAVAILABLE}" until the backend provides them.</p>}
     </div>

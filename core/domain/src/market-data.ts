@@ -9,9 +9,11 @@ export type MarketDataKind = (typeof MARKET_DATA_KINDS)[number];
 export interface QuoteInput {
   readonly instrumentId: InstrumentId;
   readonly bid: number;
-  readonly bidSize: number;
+  /** Optional: not every venue publishes depth. Absent means "unknown", never zero. */
+  readonly bidSize?: number;
   readonly ask: number;
-  readonly askSize: number;
+  /** Optional: not every venue publishes depth. Absent means "unknown", never zero. */
+  readonly askSize?: number;
   readonly observedAt: string;
   readonly source?: string;
 }
@@ -20,9 +22,11 @@ export interface Quote {
   readonly kind: "quote";
   readonly instrumentId: InstrumentId;
   readonly bid: number;
-  readonly bidSize: number;
+  /** Absent when the venue does not publish depth. */
+  readonly bidSize?: number;
   readonly ask: number;
-  readonly askSize: number;
+  /** Absent when the venue does not publish depth. */
+  readonly askSize?: number;
   readonly observedAt: string;
   readonly source?: string;
 }
@@ -135,9 +139,10 @@ export function createQuote(input: QuoteInput): Quote {
     kind: "quote",
     instrumentId: input.instrumentId,
     bid,
-    bidSize: requireFinitePositive(input.bidSize, "bidSize"),
+    // Depth is only asserted when the venue actually provided it.
+    ...(input.bidSize === undefined ? {} : { bidSize: requireFinitePositive(input.bidSize, "bidSize") }),
     ask,
-    askSize: requireFinitePositive(input.askSize, "askSize"),
+    ...(input.askSize === undefined ? {} : { askSize: requireFinitePositive(input.askSize, "askSize") }),
     observedAt: requireTimestamp(input.observedAt, "observedAt"),
     ...(source === undefined ? {} : { source }),
   };
@@ -224,4 +229,151 @@ export function spread(quote: Quote): number {
 
 export function isMarketDataPoint(value: MarketDataPoint): boolean {
   return value.kind === "quote" || value.kind === "trade" || value.kind === "bar";
+}
+
+/**
+ * Calendar aggregation of closed daily bars into longer periods.
+ *
+ * Aggregation only ever moves to a *longer* period, and only along calendar
+ * boundaries (UTC weeks start Monday, UTC months start on the 1st), so no
+ * lower-timeframe candles are ever derived from higher-timeframe data and no
+ * candle straddles two calendar periods.
+ */
+export const BAR_AGGREGATION_TARGETS = ["1w", "1M"] as const;
+export type BarAggregationTarget = (typeof BAR_AGGREGATION_TARGETS)[number];
+
+const DAY_MS = 86_400_000;
+const WEEK_MS = 7 * DAY_MS;
+
+export function isBarAggregationTarget(value: string): value is BarAggregationTarget {
+  return (BAR_AGGREGATION_TARGETS as readonly string[]).includes(value);
+}
+
+function utcWeekStart(ms: number): number {
+  const date = new Date(ms);
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysSinceMonday);
+}
+
+function utcMonthStart(ms: number): number {
+  const date = new Date(ms);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+function utcNextMonthStart(ms: number): number {
+  const date = new Date(ms);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+}
+
+function parseTimestamp(value: string, field: string): number {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) throw new Error(field + " must be a valid timestamp");
+  return parsed;
+}
+
+function assertTarget(target: string): asserts target is BarAggregationTarget {
+  if (!isBarAggregationTarget(target)) {
+    throw new Error(`aggregation target "${target}" is invalid; valid targets are ${BAR_AGGREGATION_TARGETS.join(", ")}`);
+  }
+}
+
+/**
+ * Aligns a requested window down to whole calendar periods of `target` so an
+ * aggregation never presents a partial period as a complete candle.
+ * `fetchFrom` is the aligned instant the upstream history must be read from.
+ */
+export function alignAggregationRange(
+  target: string,
+  startAt: string,
+  endAt: string,
+): { readonly fetchFrom: string; readonly alignedFrom: string } {
+  assertTarget(target);
+  const startMs = parseTimestamp(startAt, "startAt");
+  const endMs = parseTimestamp(endAt, "endAt");
+  if (endMs <= startMs) throw new Error("endAt must be after startAt");
+  const aligned = target === "1w" ? utcWeekStart(startMs) : utcMonthStart(startMs);
+  return Object.freeze({ fetchFrom: new Date(aligned).toISOString(), alignedFrom: new Date(aligned).toISOString() });
+}
+
+interface AggregationGroup {
+  boundary: number;
+  endMs: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  source?: string;
+}
+
+/**
+ * Aggregates strictly chronological closed daily bars into calendar-aligned
+ * weekly (`1w`) or monthly (`1M`) bars. The first group never claims a period
+ * that starts before the first available source bar.
+ */
+export function aggregateDailyBars(
+  bars: readonly Bar[],
+  target: string,
+): readonly Bar[] {
+  assertTarget(target);
+  if (bars.length === 0) return Object.freeze([]);
+
+  const instrumentId = bars[0]!.instrumentId;
+  const firstSourceMs = parseTimestamp(bars[0]!.startAt, "startAt");
+  const groups: AggregationGroup[] = [];
+  let previousStartMs = Number.NEGATIVE_INFINITY;
+
+  for (const bar of bars) {
+    if (bar.instrumentId !== instrumentId) {
+      throw new Error("cannot aggregate bars from different instruments");
+    }
+    if (bar.timeframeSeconds !== 86_400) {
+      throw new Error("only daily bars can be aggregated into weekly or monthly bars");
+    }
+    const startMs = parseTimestamp(bar.startAt, "startAt");
+    if (startMs <= previousStartMs) {
+      throw new Error("bars must be strictly chronological and free of duplicates before aggregation");
+    }
+    previousStartMs = startMs;
+
+    const boundary = target === "1w" ? utcWeekStart(startMs) : utcMonthStart(startMs);
+    const endMs = target === "1w" ? boundary + WEEK_MS : utcNextMonthStart(boundary);
+    const current = groups[groups.length - 1];
+    if (current === undefined || current.boundary !== boundary) {
+      groups.push({
+        boundary,
+        endMs,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+        ...(bar.source === undefined ? {} : { source: bar.source }),
+      });
+    } else {
+      current.high = Math.max(current.high, bar.high);
+      current.low = Math.min(current.low, bar.low);
+      current.close = bar.close;
+      current.volume += bar.volume;
+    }
+  }
+
+  const aggregated = groups.map((group) => {
+    const startMs = Math.max(group.boundary, firstSourceMs);
+    const timeframeSeconds = Math.round((group.endMs - startMs) / 1000);
+    return createBar({
+      instrumentId,
+      timeframeSeconds,
+      startAt: new Date(startMs).toISOString(),
+      endAt: new Date(group.endMs).toISOString(),
+      open: group.open,
+      high: group.high,
+      low: group.low,
+      close: group.close,
+      volume: group.volume,
+      ...(group.source === undefined ? {} : { source: group.source }),
+    });
+  });
+
+  return Object.freeze(aggregated);
 }

@@ -1,6 +1,6 @@
 import type { ApplicationPrincipal, TradingApplicationService, CompetitionApplicationService } from "@tradeledger/application";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
-import type { MarketDataProvider } from "@tradeledger/domain";
+import type { MarketDataProvider, ResearchBacktestRun } from "@tradeledger/domain";
 
 export interface ApiRequest {
   readonly method: string;
@@ -15,6 +15,13 @@ export interface RateLimitPolicy {
   readonly maxRequests: number;
 }
 
+/** Persistence port for saved research runs (backtests). */
+export interface ResearchRunStore {
+  save(run: ResearchBacktestRun): void;
+  list(): readonly ResearchBacktestRun[];
+  get(runId: string): ResearchBacktestRun | undefined;
+}
+
 export interface ApiDependencies {
   readonly application: TradingApplicationService;
   /** Optional provider for authenticated historical candle retrieval. */
@@ -22,15 +29,15 @@ export interface ApiDependencies {
   readonly authenticate: (request: ApiRequest) => Promise<ApplicationPrincipal>;
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
-  /** Development-only fixture data for exercising the complete workstation UI. */
-  readonly workstationDemoData?: (accountId: string) => unknown;
   readonly competition?: CompetitionApplicationService;
+  /** Live ingestion snapshot reported by `GET /api/v1/market-data/status`. */
+  readonly marketDataIngestionStatus?: () => unknown;
+  /** Saved research runs for the backtesting API. */
+  readonly researchRuns?: ResearchRunStore;
 }
 
 export interface ApiServerOptions {
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
   readonly corsOrigins?: readonly string[];
-  /** Optional development-only workstation fixture provider. */
-  readonly workstationDemoData?: (accountId: string) => unknown;
 }

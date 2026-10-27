@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { isConfigured, useApiConfig } from "@/api/config";
-import type { SubmitOrderIntent } from "@/api/types";
+import type { BacktestRequest, SubmitOrderIntent } from "@/api/types";
 
 const REFRESH = 5000;
 
@@ -45,18 +45,6 @@ export function useAccountContext() {
   });
 }
 
-export function useWorkstationDemo() {
-  const cfg = useApiConfig();
-  return useQuery({
-    queryKey: ["workstation-demo", cfg.baseUrl, cfg.accountId, cfg.token],
-    queryFn: () => api.workstationDemo(cfg.accountId),
-    enabled: isConfigured(cfg),
-    staleTime: 1000,
-    refetchInterval: REFRESH,
-    retry: 1,
-  });
-}
-
 export function useOrders() {
   const cfg = useApiConfig();
   return useQuery({
@@ -76,6 +64,50 @@ export function useMarketData() {
     enabled: isConfigured(cfg),
     refetchInterval: REFRESH,
     retry: 1,
+  });
+}
+
+/** Provider health plus ingestion state for the Market Data page. */
+export function useMarketDataStatus() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["market-data-status", cfg.baseUrl, cfg.accountId, cfg.token],
+    queryFn: () => api.marketDataStatus(cfg.accountId),
+    enabled: isConfigured(cfg),
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+}
+
+/** Declarative strategy catalog served by the backend. */
+export function useStrategyCatalog() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["strategy-catalog", cfg.baseUrl, cfg.token],
+    queryFn: () => api.strategyCatalog(),
+    enabled: !!cfg.baseUrl && !!cfg.token,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+/** Saved research runs for the signed-in account. */
+export function useBacktestRuns() {
+  const cfg = useApiConfig();
+  return useQuery({
+    queryKey: ["backtest-runs", cfg.baseUrl, cfg.accountId, cfg.token],
+    queryFn: () => api.listBacktests(cfg.accountId),
+    enabled: isConfigured(cfg),
+    retry: 1,
+  });
+}
+
+/** Executes a backtest; pass a signal to cancel the run in flight. */
+export function useRunBacktest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ body, signal }: { body: BacktestRequest; signal?: AbortSignal }) => api.runBacktest(body, signal),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["backtest-runs"] }),
   });
 }
 

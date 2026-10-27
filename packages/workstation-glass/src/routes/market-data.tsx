@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useMarketData } from "@/hooks/use-tradeledger";
+import { useMarketData, useMarketDataStatus } from "@/hooks/use-tradeledger";
 import { price, time } from "@/lib/format";
 import { describeMarketData, formatAge } from "@/lib/market-data-view";
 import { PageHeader, Panel, QueryView, DataTable, type Column } from "@/components/terminal/primitives";
@@ -35,6 +35,7 @@ const DOT: Record<string, string> = {
 
 function MarketDataPage() {
   const q = useMarketData();
+  const status = useMarketDataStatus();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -99,7 +100,9 @@ function MarketDataPage() {
         </div>
       </div>
 
-      <Panel title="Ingested State" className="h-[calc(100vh-11rem)]">
+      <ProviderStatusStrip statusQuery={status} now={now} />
+
+      <Panel title="Ingested State" className="min-h-40 lg:max-h-[calc(100vh-14rem)]">
         <QueryView
           q={q}
           empty={() => view.rows.length === 0}
@@ -114,6 +117,55 @@ function MarketDataPage() {
         LIVE requires a successful read and an observation no older than 30 seconds. Older observations are labelled STALE.
         A vendor feed adapter must populate this state through the backend ingestion boundary; the workstation never writes prices.
       </p>
+    </div>
+  );
+}
+
+function ProviderStatusStrip({ statusQuery, now }: {
+  statusQuery: ReturnType<typeof useMarketDataStatus>;
+  now: number;
+}) {
+  const data = statusQuery.data;
+  const ingestion = data?.ingestion ?? null;
+  const cells: Array<{ label: string; value: string; tone?: string | undefined }> = [
+    {
+      label: "Provider",
+      value: data
+        ? `${data.provider.providerId} · ${data.provider.healthy ? "healthy" : "unhealthy"}${data.provider.message ? ` · ${data.provider.message}` : ""}`
+        : statusQuery.error instanceof Error ? statusQuery.error.message : "checking…",
+      tone: data ? (data.provider.healthy ? "text-positive" : "text-negative") : undefined,
+    },
+    {
+      label: "Ingestion",
+      value: ingestion === null
+        ? (data ? "not configured" : "…")
+        : `${ingestion.polling ? "polling" : "stopped"} ${ingestion.barInterval} bars · ${ingestion.instruments.join(", ")}`
+          + (ingestion.lastPollAt ? ` · last poll ${formatAge(now - Date.parse(ingestion.lastPollAt))} ago` : ""),
+      tone: ingestion?.polling ? "text-positive" : undefined,
+    },
+    {
+      label: "Accepted / skipped",
+      value: ingestion === null ? "—" : `${ingestion.acceptedPoints} accepted · ${ingestion.skippedPoints} skipped`
+        + (ingestion.quoteUnavailable.length > 0 ? ` · no quotes: ${ingestion.quoteUnavailable.join(", ")}` : ""),
+    },
+  ];
+  const lastError = ingestion?.lastError;
+
+  return (
+    <div className="mb-3 border border-border bg-panel px-3 py-2 text-[11px]">
+      <div className="grid gap-2 sm:grid-cols-3">
+        {cells.map((cell) => (
+          <div key={cell.label} className="flex flex-col gap-0.5">
+            <span className="label-caps">{cell.label}</span>
+            <span className={cn("num leading-snug", cell.tone)}>{cell.value}</span>
+          </div>
+        ))}
+      </div>
+      {lastError ? (
+        <p className="mt-1.5 border border-negative/35 bg-negative/8 px-2 py-1 text-[10px] leading-snug text-negative">
+          Ingestion error {ingestion?.lastErrorAt ? `at ${time(ingestion.lastErrorAt)}` : ""}: {lastError}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -80,7 +80,16 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 function ConnectionPill() {
   const cfg = useApiConfig();
   const h = useHealth();
-  const state = !isConfigured(cfg) ? "OFFLINE" : h.isLoading ? "CONNECTING" : h.data?.health ? "CONNECTED" : "UNREACHABLE";
+  // The server renders before the health query resolves, while the client's
+  // first render starts from the loading state. Holding the pill at
+  // "CONNECTING" until hydration keeps both renders byte-identical; without
+  // this React regenerates the whole shell on mount and logs a hydration error.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
+  const state = !hydrated ? "CONNECTING"
+    : !isConfigured(cfg) ? "OFFLINE"
+      : h.isLoading ? "CONNECTING"
+        : h.data?.health ? "CONNECTED" : "UNREACHABLE";
   return (
     <Link to="/settings" className={cn("flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[10px] font-semibold tracking-wider",
       state === "CONNECTED" ? "border-positive/40 text-positive" : state === "CONNECTING" ? "border-warning/40 text-warning" : "border-negative/40 text-negative")}>

@@ -9,3 +9,4 @@ export * from "./competition-persistence.js";
 export * from "./segmented-log.js";
 export * from "./competition-event-log.js";
 export * from "./biquote-market-data-provider.js";
+export * from "./biquote-polling-ingestion.js";
