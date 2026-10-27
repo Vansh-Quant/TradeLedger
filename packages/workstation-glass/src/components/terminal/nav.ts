@@ -6,7 +6,7 @@ import {
 export type NavPath =
   | "/" | "/trading" | "/orders" | "/positions" | "/executions"
   | "/risk" | "/competition"
-  | "/journal" | "/research" | "/strategies" | "/market-data" | "/analytics"
+  | "/journal" | "/research" | "/strategies" | "/backtesting" | "/market-data" | "/analytics"
   | "/jarvis" | "/settings";
 
 export interface NavItem {
@@ -33,10 +33,12 @@ const CONTROL: readonly NavItem[] = [
   { to: "/competition", label: "Competition", icon: Trophy },
 ];
 
+// Research and Strategies are one workspace now (Research / Library / Builder /
+// Experiments tabs), so they share a single entry; Backtesting keeps its own.
 const RESEARCH: readonly NavItem[] = [
   { to: "/journal", label: "Journal", icon: BookOpen },
   { to: "/research", label: "Research", icon: FlaskConical },
-  { to: "/strategies", label: "Strategies", icon: Boxes },
+  { to: "/backtesting", label: "Backtesting", icon: Boxes },
   { to: "/market-data", label: "Market Data", icon: Activity },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
 ];

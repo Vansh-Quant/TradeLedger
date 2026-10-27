@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { daysAgoIso, isoDay, todayIso, validateSpec } from "@/lib/research-view";
-import type { StrategyCatalog } from "@/api/types";
+import {
+  DEFAULT_SPEC, compareRuns, daysAgoIso, filterRuns, isoDay, specJsonFor, todayIso, validateSpec,
+} from "@/lib/research-view";
+import type { ResearchRun, StrategyCatalog } from "@/api/types";
 
 const catalog: StrategyCatalog = {
   kinds: ["sma_crossover", "rsi_reversion"],
@@ -94,5 +96,126 @@ describe("research date helpers", () => {
     const now = Date.parse("2026-10-20T12:00:00Z");
     expect(daysAgoIso(365, now)).toBe("2025-10-20");
     expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+/** Minimal persisted-run fixture: only the fields the search/compare logic reads. */
+function makeRun(overrides: Partial<ResearchRun> = {}): ResearchRun {
+  const base: ResearchRun = {
+    runId: "run-aaaa-1111",
+    createdAt: "2026-10-01T09:30:00.000Z",
+    accountId: "ACC-APP",
+    instrumentId: "EURUSD",
+    interval: "1d",
+    requested: { from: "2025-10-01T00:00:00.000Z", to: "2026-10-01T00:00:00.000Z" },
+    dataRange: { from: "2025-10-01", to: "2026-09-30", count: 250, source: "biquote" },
+    strategy: { kind: "sma_crossover", name: "SMA crossover", version: 1, parameters: { fast: 10, slow: 30 } },
+    assumptions: {
+      initialCapital: 100_000,
+      quantity: 1,
+      commissionPerTrade: 0,
+      slippageBps: 0,
+      execution: "next-bar-open",
+    },
+    report: {
+      strategyId: "sma_crossover",
+      performance: {
+        netPnl: 1_000,
+        returnPct: 0.01,
+        maxDrawdownPct: 0.02,
+        winRatePct: 0.55,
+        profitFactor: 1.4,
+        tradeCount: 20,
+        sharpeLike: 0.9,
+      },
+      validation: { passed: true, failures: [] },
+      robustness: { tradeCount: 20, positiveTradePct: 55, worstTrade: -200, bestTrade: 400 },
+    },
+    equityCurve: [{ at: "2026-10-01", equity: 101_000 }],
+    trades: [],
+    warnings: [],
+  };
+  return { ...base, ...overrides };
+}
+
+describe("filterRuns", () => {
+  const runs = [
+    makeRun(),
+    makeRun({ runId: "run-bbbb-2222", instrumentId: "XAUUSD", interval: "1h", createdAt: "2026-10-05T09:30:00.000Z" }),
+    makeRun({ runId: "run-cccc-3333", strategy: { kind: "rsi_reversion", name: "RSI reversion", version: 2, parameters: { oversold: 30, overbought: 70 } } }),
+  ];
+
+  it("keeps every run for an empty query", () => {
+    expect(filterRuns(runs, "   ")).toHaveLength(3);
+  });
+
+  it("matches symbol, timeframe, strategy and date terms together", () => {
+    expect(filterRuns(runs, "xauusd").map((r) => r.runId)).toEqual(["run-bbbb-2222"]);
+    expect(filterRuns(runs, "1h xauusd").map((r) => r.runId)).toEqual(["run-bbbb-2222"]);
+    expect(filterRuns(runs, "rsi_reversion v2").map((r) => r.runId)).toEqual(["run-cccc-3333"]);
+    expect(filterRuns(runs, "2026-10-05").map((r) => r.runId)).toEqual(["run-bbbb-2222"]);
+  });
+
+  it("returns nothing when no run matches", () => {
+    expect(filterRuns(runs, "nas100")).toEqual([]);
+  });
+});
+
+describe("compareRuns", () => {
+  it("treats identical runs as comparable", () => {
+    const verdict = compareRuns(makeRun(), makeRun());
+    expect(verdict.comparable).toBe(true);
+    expect(verdict.blocking).toEqual([]);
+  });
+
+  it("blocks comparison when strategy, market or assumptions differ", () => {
+    const verdict = compareRuns(
+      makeRun(),
+      makeRun({
+        runId: "run-dddd-4444",
+        instrumentId: "XAUUSD",
+        interval: "4h",
+        strategy: { kind: "sma_crossover", name: "SMA crossover", version: 2, parameters: { fast: 10, slow: 30 } },
+        assumptions: { ...makeRun().assumptions, slippageBps: 2 },
+      }),
+    );
+    expect(verdict.comparable).toBe(false);
+    expect(verdict.blocking.join(" ")).toContain("strategy version differs");
+    expect(verdict.blocking.join(" ")).toContain("instrument differs");
+    expect(verdict.blocking.join(" ")).toContain("timeframe differs");
+    expect(verdict.blocking.join(" ")).toContain("slippage (bps) differs");
+  });
+
+  it("reports coverage differences as notes without blocking", () => {
+    const verdict = compareRuns(
+      makeRun(),
+      makeRun({ runId: "run-eeee-5555", dataRange: { from: "2025-11-01", to: "2026-09-30", count: 220, source: "biquote" } }),
+    );
+    expect(verdict.comparable).toBe(true);
+    expect(verdict.notes.join(" ")).toContain("executed coverage differs");
+  });
+
+  it("blocks comparison when the executed data ranges never overlap", () => {
+    const verdict = compareRuns(
+      makeRun(),
+      makeRun({
+        runId: "run-ffff-6666",
+        dataRange: { from: "2020-01-01", to: "2020-12-31", count: 250, source: "biquote" },
+      }),
+    );
+    expect(verdict.comparable).toBe(false);
+    expect(verdict.blocking.join(" ")).toContain("do not overlap");
+  });
+});
+
+describe("spec helpers", () => {
+  it("emits a valid default starter specification", () => {
+    expect(validateSpec(DEFAULT_SPEC, catalog).error).toBeNull();
+  });
+
+  it("renders a catalog entry with its documented defaults", () => {
+    const text = specJsonFor(catalog.strategies[0]!);
+    expect(JSON.parse(text)).toEqual({ kind: "sma_crossover", parameters: { fast: 10, slow: 30 } });
+    expect(validateSpec(text, catalog).error).toBeNull();
   });
 });

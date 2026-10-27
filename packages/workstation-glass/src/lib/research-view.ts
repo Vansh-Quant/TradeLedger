@@ -1,4 +1,4 @@
-import type { StrategyCatalog } from "@/api/types";
+import type { ResearchRun, StrategyCatalog, StrategySpecDefinition } from "@/api/types";
 
 /** Date helpers shared by the Research workspace. */
 export function isoDay(day: string, end = false): string {
@@ -11,6 +11,105 @@ export function todayIso(): string {
 
 export function daysAgoIso(days: number, nowMs = Date.now()): string {
   return new Date(nowMs - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Starter specification opened in the Builder when the URL carries none. */
+export const DEFAULT_SPEC = JSON.stringify(
+  { kind: "sma_crossover", parameters: { fast: 10, slow: 30 } },
+  null,
+  2,
+);
+
+/** Specification text a catalog entry represents, using its documented defaults. */
+export function specJsonFor(definition: StrategySpecDefinition): string {
+  return JSON.stringify(
+    {
+      kind: definition.kind,
+      parameters: Object.fromEntries(definition.parameters.map((p) => [p.key, p.default])),
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * Searchable text for a persisted run. Every field is one the backend actually
+ * recorded — nothing is inferred.
+ */
+export function runSearchText(run: ResearchRun): string {
+  return [
+    run.runId,
+    run.createdAt.slice(0, 10),
+    run.instrumentId,
+    run.interval,
+    run.strategy.kind,
+    run.strategy.name,
+    `v${run.strategy.version}`,
+    run.dataRange.source ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+/** Whitespace-separated AND search over persisted runs; empty query keeps all. */
+export function filterRuns(runs: readonly ResearchRun[], query: string): ResearchRun[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return [...runs];
+  return runs.filter((run) => {
+    const haystack = runSearchText(run);
+    return terms.every((term) => haystack.includes(term));
+  });
+}
+
+export interface RunComparison {
+  /** Differences that make a side-by-side result misleading. */
+  readonly blocking: readonly string[];
+  /** Differences worth stating even when the runs are comparable. */
+  readonly notes: readonly string[];
+  readonly comparable: boolean;
+}
+
+/**
+ * Decides whether two persisted runs may be compared honestly. Strategy,
+ * version, market, timeframe and execution assumptions must match; coverage and
+ * date-range differences are reported but do not block the comparison.
+ */
+export function compareRuns(a: ResearchRun, b: ResearchRun): RunComparison {
+  const blocking: string[] = [];
+  const notes: string[] = [];
+  if (a.strategy.kind !== b.strategy.kind) {
+    blocking.push(`strategy differs: ${a.strategy.kind} vs ${b.strategy.kind}`);
+  }
+  if (a.strategy.version !== b.strategy.version) {
+    blocking.push(`strategy version differs: v${a.strategy.version} vs v${b.strategy.version}`);
+  }
+  if (a.instrumentId !== b.instrumentId) {
+    blocking.push(`instrument differs: ${a.instrumentId} vs ${b.instrumentId}`);
+  }
+  if (a.interval !== b.interval) {
+    blocking.push(`timeframe differs: ${a.interval} vs ${b.interval}`);
+  }
+  const assumptionPairs: Array<[string, number, number]> = [
+    ["initial capital", a.assumptions.initialCapital, b.assumptions.initialCapital],
+    ["quantity", a.assumptions.quantity, b.assumptions.quantity],
+    ["fee per trade", a.assumptions.commissionPerTrade, b.assumptions.commissionPerTrade],
+    ["slippage (bps)", a.assumptions.slippageBps, b.assumptions.slippageBps],
+  ];
+  for (const [label, left, right] of assumptionPairs) {
+    if (left !== right) blocking.push(`${label} differs: ${left} vs ${right}`);
+  }
+  if (JSON.stringify(a.strategy.parameters) !== JSON.stringify(b.strategy.parameters)) {
+    blocking.push("strategy parameters differ");
+  }
+  if (a.requested.from !== b.requested.from || a.requested.to !== b.requested.to) {
+    notes.push(`requested window differs: ${a.requested.from} → ${a.requested.to} vs ${b.requested.from} → ${b.requested.to}`);
+  }
+  if (a.dataRange.from !== b.dataRange.from || a.dataRange.to !== b.dataRange.to) {
+    notes.push(`executed coverage differs: ${a.dataRange.count} bars vs ${b.dataRange.count} bars`);
+  }
+  const overlaps = a.dataRange.from <= b.dataRange.to && b.dataRange.from <= a.dataRange.to;
+  if (!overlaps) blocking.push("executed data ranges do not overlap");
+  return { blocking, notes, comparable: blocking.length === 0 };
 }
 
 /**

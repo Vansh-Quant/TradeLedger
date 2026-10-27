@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as BacktestingRouteImport } from './routes/backtesting'
 import { Route as CompetitionRouteImport } from './routes/competition'
 import { Route as ExecutionsRouteImport } from './routes/executions'
 import { Route as JarvisRouteImport } from './routes/jarvis'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BacktestingRoute = BacktestingRouteImport.update({
+  id: '/backtesting',
+  path: '/backtesting',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompetitionRoute = CompetitionRouteImport.update({
@@ -98,6 +104,7 @@ const TradingRoute = TradingRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/backtesting': typeof BacktestingRoute
   '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/backtesting': typeof BacktestingRoute
   '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/backtesting': typeof BacktestingRoute
   '/competition': typeof CompetitionRoute
   '/executions': typeof ExecutionsRoute
   '/jarvis': typeof JarvisRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analytics'
+    | '/backtesting'
     | '/competition'
     | '/executions'
     | '/jarvis'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/analytics'
+    | '/backtesting'
     | '/competition'
     | '/executions'
     | '/jarvis'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/analytics'
+    | '/backtesting'
     | '/competition'
     | '/executions'
     | '/jarvis'
@@ -198,6 +210,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  BacktestingRoute: typeof BacktestingRoute
   CompetitionRoute: typeof CompetitionRoute
   ExecutionsRoute: typeof ExecutionsRoute
   JarvisRoute: typeof JarvisRoute
@@ -226,6 +239,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/analytics'
       preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backtesting': {
+      id: '/backtesting'
+      path: '/backtesting'
+      fullPath: '/backtesting'
+      preLoaderRoute: typeof BacktestingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/competition': {
@@ -318,6 +338,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
+  BacktestingRoute: BacktestingRoute,
   CompetitionRoute: CompetitionRoute,
   ExecutionsRoute: ExecutionsRoute,
   JarvisRoute: JarvisRoute,
