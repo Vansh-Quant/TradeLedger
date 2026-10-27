@@ -25,14 +25,15 @@ function Trading() {
   const setSymbol = (s: string) => navigate({ search: { symbol: s || undefined }, replace: true });
   const [tab, setTab] = useState<"positions" | "orders" | "executions">("positions");
   return (
-    <div className="grid gap-3 lg:h-[calc(100vh-5rem)] lg:grid-rows-[1fr_260px]">
-      <div className="grid min-h-0 gap-3 lg:grid-cols-[230px_1fr_290px]">
-        <Panel title="Watchlist" className="h-80 lg:h-auto"><Watchlist selected={symbol} onSelect={setSymbol} /></Panel>
-        <Panel className="h-96 lg:h-auto"><TradingChart symbol={symbol} /></Panel>
-        <Panel title="Order Ticket" bodyClassName="overflow-auto"><OrderTicket symbol={symbol} onSymbol={setSymbol} /></Panel>
+    <div className="grid gap-3 lg:h-[calc(100vh-5rem)] lg:grid-rows-[1fr_264px]">
+      <div className="grid min-h-0 gap-3 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
+        <Panel title="Watchlist" className="h-80 min-w-0 lg:h-auto"><Watchlist selected={symbol} onSelect={setSymbol} /></Panel>
+        {/* The chart carries its own compact toolbar as the panel header row. */}
+        <Panel className="h-96 min-w-0 lg:h-auto" bodyClassName="min-h-0"><TradingChart symbol={symbol} /></Panel>
+        <Panel title="Order Ticket" className="min-w-0" bodyClassName="overflow-auto"><OrderTicket symbol={symbol} onSymbol={setSymbol} /></Panel>
       </div>
       <Panel
-        className="h-72 lg:h-auto"
+        className="h-72 min-w-0 lg:h-auto"
         title={
           <div className="flex gap-1">
             {(["positions", "orders", "executions"] as const).map((t) => (

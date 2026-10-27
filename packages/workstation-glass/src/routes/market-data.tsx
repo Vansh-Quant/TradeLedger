@@ -102,7 +102,7 @@ function MarketDataPage() {
 
       <ProviderStatusStrip statusQuery={status} now={now} />
 
-      <Panel title="Ingested State" className="h-[calc(100vh-11rem)]">
+      <Panel title="Ingested State" className="min-h-40 lg:max-h-[calc(100vh-14rem)]">
         <QueryView
           q={q}
           empty={() => view.rows.length === 0}
