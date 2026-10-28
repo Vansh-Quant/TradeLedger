@@ -112,9 +112,12 @@ In the Supabase dashboard (Authentication → Providers/Email, URL configuration
 ## 4. Production build
 
 ```bash
-# 1. Frontend (static + SSR server output)
+# 1. Frontend (production build: nitro/Cloudflare-Workers-compatible server + assets)
 npm run build --workspace packages/workstation-glass
-#    → packages/workstation-glass/.output/  (nitro/wrangler-compatible)
+#    → packages/workstation-glass/.output/
+#      .output/server/index.mjs      Worker fetch handler
+#      .output/server/wrangler.json  Worker config (nodejs_compat, ASSETS binding)
+#      .output/public/               static assets
 
 # 2. API bundle (self-contained ESM, workspace sources bundled)
 npm run api:build
@@ -123,6 +126,21 @@ npm run api:build
 # 3. Security/SEO assets
 npm run seo:sitemap -- --site https://your-domain.example   # writes public/sitemap.xml + stamps robots.txt
 ```
+
+**Important:** `.output/server/index.mjs` is a Workers-style fetch handler —
+it exports the app and does **not** call `listen()`, so plain
+`node .output/server/index.mjs` exits immediately without serving (the
+pre-existing `start:node` script is misleading for the current build preset).
+Preview the production build with:
+
+```bash
+npm run preview:nitro --workspace packages/workstation-glass   # nitro/wrangler local preview
+```
+
+and deploy it to a Workers-compatible host with wrangler using
+`.output/server/wrangler.json` (or a host that runs nitro's worker output).
+Verify whichever provider against its current limits before relying on it —
+that selection is an open task (IMPLEMENTATION_REPORT §6).
 
 Run the API in production:
 
@@ -141,7 +159,7 @@ The process **refuses to start** without `SUPABASE_URL`, `API_HOST` and `CORS_OR
 
 Requirements that any host must satisfy:
 
-- **Frontend:** serves the nitro/SSR output from `packages/workstation-glass/.output` (Node-compatible runtime) or at minimum the static client build; HTTPS at the edge.
+- **Frontend:** a Workers-compatible runtime for the nitro output in `packages/workstation-glass/.output` (wrangler.json: `nodejs_compat`, `ASSETS` binding serving `.output/public`), HTTPS at the edge.
 - **API:** a persistent Node 22 service with a writable volume for `TRADELEDGER_DATA_DIR` (competition/research JSON) and an advertised port/bind address from the environment.
 - **Both:** custom domain + TLS, log drain for the JSON stdout, health-check endpoints `/health` and `/ready`.
 - **Single API replica only** until rate limiting and trading state are externalized (see SECURITY_REVIEW §4 risks 1–2). Duplicate replicas would each run their own BiQuote poller and in-memory state.

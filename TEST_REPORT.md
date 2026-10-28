@@ -18,7 +18,10 @@ Exit codes captured with `PIPESTATUS` where output was piped through `tail`.
 | `npm run lint --workspace packages/workstation-glass` | **exit 0** | 0 errors; 7 warnings, all `react-refresh/only-export-components` (6 pre-existing shadcn files + `src/lib/auth.tsx` provider/hook) |
 | `npm run build --workspace packages/workstation-glass` | **exit 0** | production TanStack Start build (SSR + client), nitro worker output |
 | `npm run api:build` | **exit 0** | esbuild bundle → `dist/api/server.mjs` (217 KB) |
-| `npm audit` and `npm audit --omit=dev` | **0 vulnerabilities** | after `zod 3.25.76 → 4.6.7` |
+| `npm audit` | **6 high advisories** | all reachable exclusively from `packages/workstation-glass` dev/build stack via `@lovable.dev/vite-tanstack-config` → `nitro` → `env-runner` → `miniflare`/`undici`/`sharp`; not imported by production API bundle |
+| `npm audit --omit=dev` | **0 vulnerabilities** | production dependency tree clean |
+| `node scripts/verify-bundle.mjs` | exit 0 | API bundle exports expected shape + config gates; no dev-only vuln leaf leaks into bundle |
+| `node scripts/backup-data.mjs --dest .tmp/backup-test` | exit 0 | 2 files copied, SHA-256 manifest written (read-only against source) |
 | `node scripts/backup-data.mjs --dest .tmp/backup-test` | exit 0 | 2 files copied, SHA-256 manifest written (read-only against source) |
 
 ### New/updated tests in this pass
@@ -79,5 +82,6 @@ npm run check             # typecheck + 465 core + 107 workstation tests
 npm run lint --workspace packages/workstation-glass
 npm run build --workspace packages/workstation-glass
 npm run api:build
-npm audit
+npm audit                 # 0 vulns in production; 6 highs in frontend build/dev tooling only (see §6)
+node scripts/verify-bundle.mjs   # confirm API bundle exports expected shape + config gates
 ```
