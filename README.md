@@ -90,6 +90,50 @@ Event Bus / Data Core / Storage
 NAS / Cloud / Compute / Network
 ```
 
+## Quick Start
+
+Prerequisites: **Node.js ≥ 22** and **npm ≥ 10**.
+
+```bash
+npm ci                 # exact lockfile install (tsx + esbuild pinned)
+```
+
+**Backend API** (PowerShell or any Unix shell, run from the repo root):
+
+```bash
+npm run api:dev        # http://127.0.0.1:3000 — dev-token auth, JSON state in .tradeledger-data/
+```
+
+**Frontend workstation:**
+
+```bash
+npm run dev --workspace packages/workstation-glass   # http://localhost:4173
+```
+
+Verify: `curl http://127.0.0.1:3000/health` returns `{"status":"ok"}` and the
+workstation status pill shows **CONNECTED**. Production startup, environment
+variables and the full smoke checklist live in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+**Quality gates:**
+
+```bash
+npm run check        # typecheck + core + workstation test suites
+npm run lint --workspace packages/workstation-glass
+npm run build --workspace packages/workstation-glass
+npm run api:build    # self-contained API bundle -> dist/api/server.mjs
+npm audit
+```
+
+**Authentication:** the workstation is protected by Supabase Auth (`/auth`
+route); set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for hosted sign-in.
+Local development works without Supabase, and the API still enforces its own
+authentication on every private request. Production builds refuse to start
+without `SUPABASE_URL`, `API_HOST` and `CORS_ORIGINS`.
+
+**Backups:** `npm run backup:data` copies `.tradeledger-data/` to `backups/`
+with a SHA-256 manifest (read-only against the source). See
+[`ROLLBACK_AND_RECOVERY.md`](ROLLBACK_AND_RECOVERY.md).
+
 ## Security
 
 TradeLedger will handle highly sensitive trading and research information. Secrets, broker credentials, API keys, private certificates, personal trading history, and production credentials must never be committed to Git.
@@ -100,6 +144,11 @@ See [`SECURITY.md`](SECURITY.md) for reporting and security expectations.
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system architecture and engineering principles
 - [`ROADMAP.md`](ROADMAP.md) — planned development sequence
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — local startup, environment variables, production build and smoke tests
+- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — threat model, controls and residual risks
+- [`ROLLBACK_AND_RECOVERY.md`](ROLLBACK_AND_RECOVERY.md) — rollback, backup and incident runbook
+- [`TEST_REPORT.md`](TEST_REPORT.md) — exact commands, results and blocked checks
+- [`IMPLEMENTATION_REPORT.md`](IMPLEMENTATION_REPORT.md) — what changed and why
 - `docs/architecture/` — architecture decision records
 - `docs/specs/` — subsystem specifications
 
