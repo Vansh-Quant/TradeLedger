@@ -1,20 +1,14 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
+import { LandingPage } from "@/components/landing/LandingPage";
 
 /**
  * Public entry boundary.
  *
- * ────────────────────────────────────────────────────────────────────────────
- * INTEGRATION POINT FOR THE FUTURE LANDING PAGE (designed separately in
- * Google Stitch). Replace only this component's markup with the landing page;
- * the route stays `/`, remains public, and no other file needs to change.
- * The private dashboard lives at `/dashboard`.
- * ────────────────────────────────────────────────────────────────────────────
- *
- * Today this route only routes: signed-in visitors land on the workstation,
- * everyone else on the sign-in screen. It renders no private data and is the
- * only public page besides `/auth`.
+ * Signed-out visitors see the public landing page. Signed-in visitors are
+ * sent directly to the private workstation. Keep auth policy here; the
+ * landing page itself stays presentational and does not touch private data.
  */
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -70,31 +64,5 @@ function IndexPage() {
     );
   }
 
-  return (
-    <main className="grid min-h-screen place-items-center bg-background px-4">
-      <div className="w-full max-w-sm text-center">
-        <svg viewBox="0 0 32 32" className="mx-auto size-10" aria-hidden>
-          <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="var(--primary)" strokeWidth="2" />
-          <path d="M16 9 23 16 16 23 9 16Z" fill="var(--primary)" />
-        </svg>
-        <h1 className="mt-4 text-xl font-bold tracking-tight">TradeLedger</h1>
-        <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-          Deterministic trading OS
-        </p>
-        <Link
-          to="/auth"
-          search={{ mode: "signin" }}
-          className="mt-6 inline-flex h-9 w-full items-center justify-center rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-        >
-          Open your workstation
-        </Link>
-        <p className="mt-3 text-[11px] text-muted-foreground">
-          New here?{" "}
-          <Link to="/auth" search={{ mode: "signup" }} className="text-primary underline">
-            Create an account
-          </Link>
-        </p>
-      </div>
-    </main>
-  );
+  return <LandingPage />;
 }
