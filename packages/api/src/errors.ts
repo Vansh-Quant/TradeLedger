@@ -6,7 +6,18 @@ import {
   ValidationError,
 } from "@tradeledger/application";
 
+/** Request body exceeded the configured size limit (HTTP 413). */
+export class PayloadTooLargeError extends Error {
+  constructor(message = "request body is too large") {
+    super(message);
+    this.name = "PayloadTooLargeError";
+  }
+}
+
 export function mapError(error: unknown): { status: number; body: unknown } {
+  if (error instanceof PayloadTooLargeError) {
+    return { status: 413, body: { error: { code: "PAYLOAD_TOO_LARGE", message: error.message } } };
+  }
   if (error instanceof AuthenticationError) {
     return { status: 401, body: { error: { code: "UNAUTHORIZED", message: "authentication required" } } };
   }

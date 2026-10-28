@@ -40,4 +40,6 @@ export interface ApiServerOptions {
   readonly maxBodyBytes?: number;
   readonly rateLimit?: RateLimitPolicy;
   readonly corsOrigins?: readonly string[];
+  /** Structured logger; defaults to an info-level JSON-lines logger. */
+  readonly logger?: import("./logging.js").Logger;
 }

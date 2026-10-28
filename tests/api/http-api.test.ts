@@ -508,7 +508,7 @@ describe("HTTP API security boundary", () => {
     });
   });
 
-  it("rejects oversized request bodies", async () => {
+  it("rejects oversized request bodies with 413 and a correlation id", async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/orders`, {
         method: "POST",
@@ -519,7 +519,10 @@ describe("HTTP API security boundary", () => {
         },
         body: JSON.stringify({ data: "x".repeat(100) }),
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(413);
+      const body = await response.json() as { error: { code: string; requestId: string } };
+      expect(body.error.code).toBe("PAYLOAD_TOO_LARGE");
+      expect(body.error.requestId).toBe(response.headers.get("x-request-id"));
     }, { maxBodyBytes: 32 });
   });
 
@@ -534,11 +537,15 @@ describe("HTTP API security boundary", () => {
     });
   });
 
-  it("rate limits repeated requests", async () => {
+  it("rate limits repeated requests with Retry-After", async () => {
     await withServer(async (baseUrl) => {
       expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
       expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
-      expect((await fetch(`${baseUrl}/health`)).status).toBe(429);
+      const limited = await fetch(`${baseUrl}/health`);
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get("retry-after")).toBe("60");
+      const body = await limited.json() as { error: { code: string } };
+      expect(body.error.code).toBe("RATE_LIMITED");
     }, { rateLimit: { windowMs: 60_000, maxRequests: 2 } });
   });
 

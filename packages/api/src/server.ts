@@ -8,7 +8,8 @@ import {
   type Bar, type InstrumentId, type IntervalHistoricalProvider, type MarketDataPoint,
 } from "@tradeledger/domain";
 import { AuthorizationError, ValidationError } from "@tradeledger/application";
-import { mapError } from "./errors.js";
+import { mapError, PayloadTooLargeError } from "./errors.js";
+import { noopLogger } from "./logging.js";
 import { DEFAULT_MAX_BODY_BYTES, FixedWindowRateLimiter } from "./security.js";
 import type { ApiDependencies, ApiRequest, ApiServerOptions } from "./types.js";
 
@@ -27,7 +28,22 @@ function jsonSafe(value: unknown): unknown {
   return value;
 }
 
-function send(response: ServerResponse, id: string, status: number, body: unknown, corsOrigin?: string): void {
+function send(
+  response: ServerResponse,
+  id: string,
+  status: number,
+  body: unknown,
+  corsOrigin?: string,
+  extraHeaders?: Record<string, string>,
+): void {
+  // Every error response carries the correlation id so a user-reported
+  // failure can be traced to the matching log line without leaking internals.
+  if (status >= 400 && body !== null && typeof body === "object" && "error" in body) {
+    const error = (body as { error: unknown }).error;
+    if (error !== null && typeof error === "object" && !Array.isArray(error)) {
+      (body as { error: Record<string, unknown> }).error = { ...(error as Record<string, unknown>), requestId: id };
+    }
+  }
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
@@ -36,6 +52,7 @@ function send(response: ServerResponse, id: string, status: number, body: unknow
     "referrer-policy": "no-referrer",
     "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
     "x-request-id": id,
+    ...(extraHeaders ?? {}),
     ...(corsOrigin === undefined ? {} : { "access-control-allow-origin": corsOrigin, "vary": "Origin" }),
   });
   response.end(JSON.stringify(jsonSafe(body)));
@@ -52,7 +69,7 @@ async function readJson(request: IncomingMessage, maxBytes: number): Promise<Rec
   if (contentLength !== undefined) {
     const parsed = Number(contentLength);
     if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > maxBytes) {
-      throw new ValidationError("request body is too large");
+      throw new PayloadTooLargeError();
     }
   }
 
@@ -62,8 +79,10 @@ async function readJson(request: IncomingMessage, maxBytes: number): Promise<Rec
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > maxBytes) {
-      request.destroy();
-      throw new ValidationError("request body is too large");
+      // Stop reading, then answer 413 — do not destroy the socket, so the
+      // client still receives the structured error.
+      request.pause();
+      throw new PayloadTooLargeError();
     }
     chunks.push(buffer);
   }
@@ -866,13 +885,18 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
   for (const origin of corsOrigins) {
     if (origin.length === 0 || origin === "*") throw new Error("cors origin must be explicit");
   }
+  // Logging is explicit: the server entry points pass a configured logger;
+  // tests that don't opt in stay silent.
+  const logger = options.logger ?? noopLogger;
 
   return createServer({ maxHeaderSize: 16 * 1024 }, async (request, response) => {
     const id = crypto.randomUUID();
+    const startedAt = Date.now();
     const key = request.socket.remoteAddress ?? "unknown";
     const requestOrigin = request.headers.origin;
     const corsOrigin = typeof requestOrigin === "string" && corsOrigins.has(requestOrigin) ? requestOrigin : undefined;
     if (requestOrigin !== undefined && corsOrigin === undefined) {
+      logger.warn("http.request", { requestId: id, method: request.method, path: request.url, status: 403, reason: "cors_origin_rejected" });
       send(response, id, 403, { error: { code: "CORS_FORBIDDEN", message: "origin is not allowed" } });
       return;
     }
@@ -895,14 +919,52 @@ export function createHttpApi(deps: ApiDependencies, options: ApiServerOptions =
     }
 
     if (!limiter.allow(key)) {
-      send(response, id, 429, { error: { code: "RATE_LIMITED", message: "too many requests" } });
+      logger.warn("http.rate_limited", { requestId: id, method: request.method, path: request.url });
+      send(response, id, 429,
+        { error: { code: "RATE_LIMITED", message: "too many requests", requestId: id } },
+        corsOrigin,
+        { "retry-after": "60" });
       return;
     }
 
+    const path = (() => {
+      try { return new URL(request.url ?? "/", "http://tradeledger.local").pathname; }
+      catch { return request.url ?? "/"; }
+    })();
+    // /health and /ready are polled by the platform; keep them at debug level.
+    const logCall = path === "/health" || path === "/ready" ? logger.debug.bind(logger) : logger.info.bind(logger);
+
     try {
       await route(request, response, deps, maxBodyBytes, id, corsOrigin);
+      logCall("http.request", {
+        requestId: id,
+        method: request.method,
+        path,
+        status: response.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
     } catch (error) {
       const mapped = mapError(error);
+      if (mapped.status >= 500) {
+        logger.error("http.unhandled_error", {
+          requestId: id,
+          method: request.method,
+          path,
+          status: mapped.status,
+          durationMs: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : String(error),
+          ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack.split("\n").slice(0, 8).join("\n") } : {}),
+        });
+      } else {
+        logCall("http.request", {
+          requestId: id,
+          method: request.method,
+          path,
+          status: mapped.status,
+          durationMs: Date.now() - startedAt,
+          errorCode: (mapped.body as { error?: { code?: string } }).error?.code,
+        });
+      }
       send(response, id, mapped.status, mapped.body, corsOrigin);
     }
   });
