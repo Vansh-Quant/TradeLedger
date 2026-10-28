@@ -5,7 +5,15 @@ import { QueryView } from "@/components/terminal/primitives";
 describe("QueryView and SourceBanner", () => {
   it("renders an error message instead of stale or fixture data", () => {
     render(
-      <QueryView q={{ data: undefined, isLoading: false, error: new Error("HTTP 401"), fetchStatus: "idle", isPending: false }}>
+      <QueryView
+        q={{
+          data: undefined,
+          isLoading: false,
+          error: new Error("HTTP 401"),
+          fetchStatus: "idle",
+          isPending: false,
+        }}
+      >
         {() => <div>secret rows</div>}
       </QueryView>,
     );
@@ -17,7 +25,13 @@ describe("QueryView and SourceBanner", () => {
   it("renders an empty state when the backend list is empty", () => {
     render(
       <QueryView
-        q={{ data: { rows: [] }, isLoading: false, error: null, fetchStatus: "idle", isPending: false }}
+        q={{
+          data: { rows: [] },
+          isLoading: false,
+          error: null,
+          fetchStatus: "idle",
+          isPending: false,
+        }}
         empty={(d) => d.rows.length === 0}
         emptyTitle="No open positions"
         emptyDetail="The account context returned an empty position list."
@@ -26,7 +40,8 @@ describe("QueryView and SourceBanner", () => {
       </QueryView>,
     );
     expect(screen.getByText("No open positions")).toBeInTheDocument();
-    expect(screen.getByText("The account context returned an empty position list.")).toBeInTheDocument();
+    expect(
+      screen.getByText("The account context returned an empty position list."),
+    ).toBeInTheDocument();
   });
-
 });

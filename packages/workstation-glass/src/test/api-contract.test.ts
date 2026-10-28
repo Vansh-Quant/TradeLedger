@@ -8,7 +8,6 @@ vi.mock("@/api/config", () => ({
 
 import { api } from "@/api/client";
 
-
 // Payloads below mirror `packages/api/src/server.ts`: it serialises application
 // results with `jsonSafe` (Maps become arrays) and wraps responses in the
 // application result object. They are the contract, not a fixture convention.
@@ -21,8 +20,20 @@ const accountContextPayload = {
       portfolio: {
         // Portfolio.positions is a ReadonlyMap; jsonSafe emits its values.
         positions: [
-          { instrumentId: "AAPL", quantity: 80, averagePrice: 100.25, realizedPnl: 0, side: "long" },
-          { instrumentId: "NVDA", quantity: -20, averagePrice: 151.2, realizedPnl: 18.4, side: "short" },
+          {
+            instrumentId: "AAPL",
+            quantity: 80,
+            averagePrice: 100.25,
+            realizedPnl: 0,
+            side: "long",
+          },
+          {
+            instrumentId: "NVDA",
+            quantity: -20,
+            averagePrice: 151.2,
+            realizedPnl: 18.4,
+            side: "short",
+          },
         ],
         realizedPnl: 625.35,
         unrealizedPnl: -12.5,
@@ -64,7 +75,10 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 function respondWith(payload: unknown, status = 200) {
   fetchMock.mockResolvedValueOnce(
-    new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } }),
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    }),
   );
 }
 

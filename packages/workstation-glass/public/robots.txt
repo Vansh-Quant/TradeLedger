@@ -1,3 +1,32 @@
+# TradeLedger public crawling rules.
+# Only the public entry page (/) and, once it exists, the marketing landing
+# page are indexable. Every workstation route is private and tagged noindex
+# in its HTML as well — see the root head defaults in src/routes/__root.tsx.
+
+User-agent: *
+Allow: /
+Disallow: /auth
+Disallow: /dashboard
+Disallow: /trading
+Disallow: /orders
+Disallow: /positions
+Disallow: /executions
+Disallow: /risk
+Disallow: /competition
+Disallow: /journal
+Disallow: /research
+Disallow: /strategies
+Disallow: /backtesting
+Disallow: /market-data
+Disallow: /analytics
+Disallow: /jarvis
+Disallow: /settings
+Disallow: /api/
+
+# Add the sitemap line once the production domain is known:
+#   Sitemap: https://YOUR-DOMAIN/sitemap.xml
+# (npm run seo:sitemap -- --site https://YOUR-DOMAIN writes it for you)
+
 User-agent: Googlebot
 Allow: /
 
@@ -8,7 +37,4 @@ User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
-Allow: /
-
-User-agent: *
 Allow: /

@@ -1,13 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, Brush, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  Brush,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { CandlestickChart } from "lucide-react";
 import { api } from "@/api/client";
 import { isConfigured, useApiConfig } from "@/api/config";
 import type { CandleView } from "@/lib/chart-view";
 import {
-  DEFAULT_RANGE_ID, DEFAULT_TIMEFRAME_ID, RANGES, TIMEFRAMES,
-  describeAge, describeCoverage, formatPriceFixed, historyWindow, pricePrecision, timeframe, toCandles,
+  DEFAULT_RANGE_ID,
+  DEFAULT_TIMEFRAME_ID,
+  RANGES,
+  TIMEFRAMES,
+  describeAge,
+  describeCoverage,
+  formatPriceFixed,
+  historyWindow,
+  pricePrecision,
+  timeframe,
+  toCandles,
 } from "@/lib/chart-view";
 import { cn } from "@/lib/utils";
 import { LoadingState, NotConnectedState } from "./primitives";
@@ -38,12 +57,22 @@ function CandleShape({ x = 0, y = 0, width = 0, height = 0, payload }: CandleSha
   return (
     <g>
       <line x1={center} x2={center} y1={y} y2={y + height} stroke={color} strokeWidth={1} />
-      <rect x={x + (width - bodyWidth) / 2} y={top} width={bodyWidth} height={bodyHeight} fill={color} />
+      <rect
+        x={x + (width - bodyWidth) / 2}
+        y={top}
+        width={bodyWidth}
+        height={bodyHeight}
+        fill={color}
+      />
     </g>
   );
 }
 
-function ChartTooltip({ active, payload, precision }: {
+function ChartTooltip({
+  active,
+  payload,
+  precision,
+}: {
   active?: boolean;
   payload?: Array<{ payload?: CandleView }>;
   precision: number;
@@ -51,7 +80,10 @@ function ChartTooltip({ active, payload, precision }: {
   const candle = active && payload && payload.length > 0 ? payload[0]?.payload : undefined;
   if (!candle) return null;
   const rows: Array<[string, number]> = [
-    ["O", candle.open], ["H", candle.high], ["L", candle.low], ["C", candle.close],
+    ["O", candle.open],
+    ["H", candle.high],
+    ["L", candle.low],
+    ["C", candle.close],
   ];
   return (
     <div className="rounded-sm border border-border bg-panel px-2 py-1.5 text-[11px] shadow-md">
@@ -59,7 +91,8 @@ function ChartTooltip({ active, payload, precision }: {
       <div className="num grid grid-cols-4 gap-2">
         {rows.map(([key, value]) => (
           <span key={key} className="text-right">
-            <span className="text-muted-foreground">{key}</span> {formatPriceFixed(value, precision)}
+            <span className="text-muted-foreground">{key}</span>{" "}
+            {formatPriceFixed(value, precision)}
           </span>
         ))}
       </div>
@@ -88,10 +121,24 @@ export function TradingChart({ symbol }: { symbol: string }) {
   const hasSymbol = symbol.trim().length > 0;
 
   const q = useQuery({
-    queryKey: ["market-history", cfg.baseUrl, cfg.token, cfg.accountId, symbol, selected.interval, rangeId],
+    queryKey: [
+      "market-history",
+      cfg.baseUrl,
+      cfg.token,
+      cfg.accountId,
+      symbol,
+      selected.interval,
+      rangeId,
+    ],
     queryFn: () => {
       const window = historyWindow(rangeId, Date.now());
-      return api.marketDataHistory(cfg.accountId, symbol, selected.interval, window.startAt, window.endAt);
+      return api.marketDataHistory(
+        cfg.accountId,
+        symbol,
+        selected.interval,
+        window.startAt,
+        window.endAt,
+      );
     },
     enabled: isConfigured(cfg) && hasSymbol,
     refetchInterval: 30_000,
@@ -135,7 +182,9 @@ export function TradingChart({ symbol }: { symbol: string }) {
                 onClick={() => setMode(value)}
                 className={cn(
                   "rounded-sm px-2 py-0.5 text-[11px] capitalize",
-                  mode === value ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                  mode === value
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {value}
@@ -148,10 +197,16 @@ export function TradingChart({ symbol }: { symbol: string }) {
                 key={item.id}
                 type="button"
                 onClick={() => setTimeframeId(item.id)}
-                title={item.aggregated ? `${item.label} candles are calendar-aggregated from daily history` : `Native provider interval ${item.interval}`}
+                title={
+                  item.aggregated
+                    ? `${item.label} candles are calendar-aggregated from daily history`
+                    : `Native provider interval ${item.interval}`
+                }
                 className={cn(
                   "rounded-sm px-2 py-0.5 text-[11px]",
-                  item.id === timeframeId ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                  item.id === timeframeId
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {item.label}
@@ -167,7 +222,9 @@ export function TradingChart({ symbol }: { symbol: string }) {
               className="field-control num h-6 rounded-sm px-1 text-[11px]"
             >
               {RANGES.map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
               ))}
             </select>
           </label>
@@ -176,7 +233,11 @@ export function TradingChart({ symbol }: { symbol: string }) {
 
       <div className="relative min-h-0 flex-1">
         {!hasSymbol ? (
-          <Placeholder icon title="No instrument selected" detail="Search a symbol in the watchlist to load its chart." />
+          <Placeholder
+            icon
+            title="No instrument selected"
+            detail="Search a symbol in the watchlist to load its chart."
+          />
         ) : !isConfigured(cfg) ? (
           <NotConnectedState />
         ) : q.isLoading ? (
@@ -185,7 +246,11 @@ export function TradingChart({ symbol }: { symbol: string }) {
           <Placeholder
             icon
             title="History request failed"
-            detail={q.error instanceof Error ? q.error.message : "The backend could not load candles for this symbol."}
+            detail={
+              q.error instanceof Error
+                ? q.error.message
+                : "The backend could not load candles for this symbol."
+            }
             action={{ label: "Retry", onClick: () => void q.refetch() }}
           />
         ) : candles.length === 0 ? (
@@ -225,7 +290,13 @@ export function TradingChart({ symbol }: { symbol: string }) {
               {mode === "candles" ? (
                 <Bar dataKey="range" isAnimationActive={false} shape={<CandleShape />} />
               ) : (
-                <Line dataKey="close" dot={false} strokeWidth={1.5} stroke="var(--primary)" isAnimationActive={false} />
+                <Line
+                  dataKey="close"
+                  dot={false}
+                  strokeWidth={1.5}
+                  stroke="var(--primary)"
+                  isAnimationActive={false}
+                />
               )}
               <Brush dataKey="label" height={18} stroke="var(--border)" travellerWidth={8} />
             </ComposedChart>
@@ -241,7 +312,10 @@ export function TradingChart({ symbol }: { symbol: string }) {
         <span>
           Interval: <span className="num text-foreground">{selected.interval}</span>
           {q.data?.aggregated ? (
-            <span className="ml-1 rounded-sm border border-border px-1" title={`Aggregated from native ${q.data.sourceInterval} bars on the server`}>
+            <span
+              className="ml-1 rounded-sm border border-border px-1"
+              title={`Aggregated from native ${q.data.sourceInterval} bars on the server`}
+            >
               aggregated from {q.data.sourceInterval}
             </span>
           ) : null}
@@ -254,7 +328,12 @@ export function TradingChart({ symbol }: { symbol: string }) {
   );
 }
 
-function Placeholder({ icon, title, detail, action }: {
+function Placeholder({
+  icon,
+  title,
+  detail,
+  action,
+}: {
   icon?: boolean;
   title: string;
   detail: string;

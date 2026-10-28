@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_SPEC, compareRuns, daysAgoIso, filterRuns, isoDay, specJsonFor, todayIso, validateSpec,
+  DEFAULT_SPEC,
+  compareRuns,
+  daysAgoIso,
+  filterRuns,
+  isoDay,
+  specJsonFor,
+  todayIso,
+  validateSpec,
 } from "@/lib/research-view";
 import type { ResearchRun, StrategyCatalog } from "@/api/types";
 
@@ -12,8 +19,24 @@ const catalog: StrategyCatalog = {
       name: "SMA crossover",
       description: "Fast SMA crossing over slow SMA goes long.",
       parameters: [
-        { key: "fast", label: "Fast", help: "fast period", min: 2, max: 200, default: 10, integer: true },
-        { key: "slow", label: "Slow", help: "slow period", min: 5, max: 400, default: 30, integer: true },
+        {
+          key: "fast",
+          label: "Fast",
+          help: "fast period",
+          min: 2,
+          max: 200,
+          default: 10,
+          integer: true,
+        },
+        {
+          key: "slow",
+          label: "Slow",
+          help: "slow period",
+          min: 5,
+          max: 400,
+          default: 30,
+          integer: true,
+        },
       ],
     },
     {
@@ -21,8 +44,24 @@ const catalog: StrategyCatalog = {
       name: "RSI reversion",
       description: "Buy oversold, sell overbought.",
       parameters: [
-        { key: "oversold", label: "Oversold", help: "oversold level", min: 1, max: 49, default: 30, integer: true },
-        { key: "overbought", label: "Overbought", help: "overbought level", min: 51, max: 99, default: 70, integer: true },
+        {
+          key: "oversold",
+          label: "Oversold",
+          help: "oversold level",
+          min: 1,
+          max: 49,
+          default: 30,
+          integer: true,
+        },
+        {
+          key: "overbought",
+          label: "Overbought",
+          help: "overbought level",
+          min: 51,
+          max: 99,
+          default: 70,
+          integer: true,
+        },
       ],
     },
   ],
@@ -30,7 +69,10 @@ const catalog: StrategyCatalog = {
 
 describe("validateSpec", () => {
   it("accepts a valid spec and fills in documented defaults", () => {
-    const { spec, error } = validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: 5 } }), catalog);
+    const { spec, error } = validateSpec(
+      JSON.stringify({ kind: "sma_crossover", parameters: { fast: 5 } }),
+      catalog,
+    );
     expect(error).toBeNull();
     expect(spec).toEqual({ kind: "sma_crossover", parameters: { fast: 5, slow: 30 } });
   });
@@ -53,30 +95,55 @@ describe("validateSpec", () => {
   });
 
   it("rejects unknown parameters with the valid list", () => {
-    const { spec, error } = validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { turbo: 1 } }), catalog);
+    const { spec, error } = validateSpec(
+      JSON.stringify({ kind: "sma_crossover", parameters: { turbo: 1 } }),
+      catalog,
+    );
     expect(spec).toBeNull();
     expect(error).toContain("unknown parameter");
     expect(error).toContain("fast");
   });
 
   it("rejects non-numeric, non-integer and out-of-range values", () => {
-    expect(validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: "ten" } }), catalog).error)
-      .toContain("finite number");
-    expect(validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: 10.5, slow: 30 } }), catalog).error)
-      .toContain("integer");
-    expect(validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: 9999, slow: 30 } }), catalog).error)
-      .toContain("between");
+    expect(
+      validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: "ten" } }), catalog)
+        .error,
+    ).toContain("finite number");
+    expect(
+      validateSpec(
+        JSON.stringify({ kind: "sma_crossover", parameters: { fast: 10.5, slow: 30 } }),
+        catalog,
+      ).error,
+    ).toContain("integer");
+    expect(
+      validateSpec(
+        JSON.stringify({ kind: "sma_crossover", parameters: { fast: 9999, slow: 30 } }),
+        catalog,
+      ).error,
+    ).toContain("between");
   });
 
   it("enforces cross-parameter ordering rules", () => {
-    expect(validateSpec(JSON.stringify({ kind: "sma_crossover", parameters: { fast: 30, slow: 10 } }), catalog).error)
-      .toContain("fast < slow");
+    expect(
+      validateSpec(
+        JSON.stringify({ kind: "sma_crossover", parameters: { fast: 30, slow: 10 } }),
+        catalog,
+      ).error,
+    ).toContain("fast < slow");
     // The RSI ordering rule is defensive: its min/max ranges already force
     // oversold < overbought, so an in-range inversion cannot be constructed.
-    expect(validateSpec(JSON.stringify({ kind: "rsi_reversion", parameters: { oversold: 49, overbought: 51 } }), catalog).error)
-      .toBeNull();
-    expect(validateSpec(JSON.stringify({ kind: "rsi_reversion", parameters: { oversold: 80, overbought: 20 } }), catalog).error)
-      .toContain("between");
+    expect(
+      validateSpec(
+        JSON.stringify({ kind: "rsi_reversion", parameters: { oversold: 49, overbought: 51 } }),
+        catalog,
+      ).error,
+    ).toBeNull();
+    expect(
+      validateSpec(
+        JSON.stringify({ kind: "rsi_reversion", parameters: { oversold: 80, overbought: 20 } }),
+        catalog,
+      ).error,
+    ).toContain("between");
   });
 
   it("cannot validate before the catalog is loaded", () => {
@@ -109,7 +176,12 @@ function makeRun(overrides: Partial<ResearchRun> = {}): ResearchRun {
     interval: "1d",
     requested: { from: "2025-10-01T00:00:00.000Z", to: "2026-10-01T00:00:00.000Z" },
     dataRange: { from: "2025-10-01", to: "2026-09-30", count: 250, source: "biquote" },
-    strategy: { kind: "sma_crossover", name: "SMA crossover", version: 1, parameters: { fast: 10, slow: 30 } },
+    strategy: {
+      kind: "sma_crossover",
+      name: "SMA crossover",
+      version: 1,
+      parameters: { fast: 10, slow: 30 },
+    },
     assumptions: {
       initialCapital: 100_000,
       quantity: 1,
@@ -141,8 +213,21 @@ function makeRun(overrides: Partial<ResearchRun> = {}): ResearchRun {
 describe("filterRuns", () => {
   const runs = [
     makeRun(),
-    makeRun({ runId: "run-bbbb-2222", instrumentId: "XAUUSD", interval: "1h", createdAt: "2026-10-05T09:30:00.000Z" }),
-    makeRun({ runId: "run-cccc-3333", strategy: { kind: "rsi_reversion", name: "RSI reversion", version: 2, parameters: { oversold: 30, overbought: 70 } } }),
+    makeRun({
+      runId: "run-bbbb-2222",
+      instrumentId: "XAUUSD",
+      interval: "1h",
+      createdAt: "2026-10-05T09:30:00.000Z",
+    }),
+    makeRun({
+      runId: "run-cccc-3333",
+      strategy: {
+        kind: "rsi_reversion",
+        name: "RSI reversion",
+        version: 2,
+        parameters: { oversold: 30, overbought: 70 },
+      },
+    }),
   ];
 
   it("keeps every run for an empty query", () => {
@@ -175,7 +260,12 @@ describe("compareRuns", () => {
         runId: "run-dddd-4444",
         instrumentId: "XAUUSD",
         interval: "4h",
-        strategy: { kind: "sma_crossover", name: "SMA crossover", version: 2, parameters: { fast: 10, slow: 30 } },
+        strategy: {
+          kind: "sma_crossover",
+          name: "SMA crossover",
+          version: 2,
+          parameters: { fast: 10, slow: 30 },
+        },
         assumptions: { ...makeRun().assumptions, slippageBps: 2 },
       }),
     );
@@ -189,7 +279,10 @@ describe("compareRuns", () => {
   it("reports coverage differences as notes without blocking", () => {
     const verdict = compareRuns(
       makeRun(),
-      makeRun({ runId: "run-eeee-5555", dataRange: { from: "2025-11-01", to: "2026-09-30", count: 220, source: "biquote" } }),
+      makeRun({
+        runId: "run-eeee-5555",
+        dataRange: { from: "2025-11-01", to: "2026-09-30", count: 220, source: "biquote" },
+      }),
     );
     expect(verdict.comparable).toBe(true);
     expect(verdict.notes.join(" ")).toContain("executed coverage differs");

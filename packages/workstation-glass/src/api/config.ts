@@ -33,7 +33,9 @@ function load() {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (raw) current = { ...DEFAULT, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getApiConfig(): ApiConfig {
@@ -49,7 +51,10 @@ export function setApiConfig(next: Partial<ApiConfig>) {
 
 export function useApiConfig(): ApiConfig {
   return useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
     getApiConfig,
     () => DEFAULT,
   );

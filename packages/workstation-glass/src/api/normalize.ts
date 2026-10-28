@@ -119,9 +119,10 @@ export function normalizeOrders(raw: unknown): Order[] {
 
 export function normalizeAccountContext(raw: unknown, accountId: string): AccountContext {
   const c = contextScope(raw);
-  const portfolio = isObj(c["accountPortfolio"]) && isObj((c["accountPortfolio"] as Obj)["portfolio"])
-    ? (c["accountPortfolio"] as Obj)["portfolio"]
-    : c["portfolio"];
+  const portfolio =
+    isObj(c["accountPortfolio"]) && isObj((c["accountPortfolio"] as Obj)["portfolio"])
+      ? (c["accountPortfolio"] as Obj)["portfolio"]
+      : c["portfolio"];
   const scope: Obj = { ...c, portfolio };
 
   const limits: RiskLimits = {
@@ -159,7 +160,12 @@ function normalizeMarketDataBar(raw: unknown): MarketDataBar | undefined {
   const timeframeSeconds = num(raw, "timeframeSeconds");
   const startAt = str(raw, "startAt");
   const endAt = str(raw, "endAt");
-  if (close === undefined || timeframeSeconds === undefined || startAt === undefined || endAt === undefined) {
+  if (
+    close === undefined ||
+    timeframeSeconds === undefined ||
+    startAt === undefined ||
+    endAt === undefined
+  ) {
     return undefined;
   }
   return {
@@ -188,7 +194,9 @@ function normalizeMarketDataTrade(raw: unknown): MarketDataTrade | undefined {
     price,
     quantity: num(raw, "quantity") ?? 0,
     observedAt,
-    ...(str(raw, "side") === "buy" || str(raw, "side") === "sell" ? { side: str(raw, "side") as "buy" | "sell" } : {}),
+    ...(str(raw, "side") === "buy" || str(raw, "side") === "sell"
+      ? { side: str(raw, "side") as "buy" | "sell" }
+      : {}),
     ...(str(raw, "source") === undefined ? {} : { source: str(raw, "source") }),
   };
 }
@@ -213,22 +221,26 @@ function normalizeMarketDataQuote(raw: unknown): MarketDataState["latestQuote"] 
 
 /** Reads `GET /api/v1/market-data` states without inventing quotes. */
 export function normalizeMarketDataStates(raw: unknown): MarketDataState[] {
-  const list = Array.isArray(raw) ? raw.filter(isObj) : arr(unwrapData(raw), "states", "marketData", "data", "items");
+  const list = Array.isArray(raw)
+    ? raw.filter(isObj)
+    : arr(unwrapData(raw), "states", "marketData", "data", "items");
   return list.flatMap((state) => {
     const instrumentId = str(state, "instrumentId");
     if (instrumentId === undefined) return [];
     const quote = normalizeMarketDataQuote(state["latestQuote"]);
     const trade = normalizeMarketDataTrade(state["latestTrade"]);
     const bar = normalizeMarketDataBar(state["latestBar"]);
-    return [{
-      instrumentId,
-      ...(quote === undefined ? {} : { latestQuote: quote }),
-      ...(trade === undefined ? {} : { latestTrade: trade }),
-      ...(bar === undefined ? {} : { latestBar: bar }),
-      lastSequence: num(state, "lastSequence") ?? 0,
-      lastObservedAt: str(state, "lastObservedAt") ?? "",
-      lastReceivedAt: str(state, "lastReceivedAt") ?? "",
-    }];
+    return [
+      {
+        instrumentId,
+        ...(quote === undefined ? {} : { latestQuote: quote }),
+        ...(trade === undefined ? {} : { latestTrade: trade }),
+        ...(bar === undefined ? {} : { latestBar: bar }),
+        lastSequence: num(state, "lastSequence") ?? 0,
+        lastObservedAt: str(state, "lastObservedAt") ?? "",
+        lastReceivedAt: str(state, "lastReceivedAt") ?? "",
+      },
+    ];
   });
 }
 

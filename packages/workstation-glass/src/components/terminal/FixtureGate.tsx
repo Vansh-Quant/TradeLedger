@@ -6,7 +6,12 @@ import { Panel } from "./primitives";
  * Development fixture content must be requested explicitly. Nothing behind this
  * gate is presented as account data, and the caller states what is missing.
  */
-export function FixtureGate({ title, reason, detail, fixture }: {
+export function FixtureGate({
+  title,
+  reason,
+  detail,
+  fixture,
+}: {
   title: string;
   reason: string;
   detail: ReactNode;
@@ -17,12 +22,19 @@ export function FixtureGate({ title, reason, detail, fixture }: {
   if (open) {
     return (
       <div>
-        <div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-warning/35 bg-warning/8 px-3 py-2 text-[11px]">
+        <div
+          role="status"
+          className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-warning/35 bg-warning/8 px-3 py-2 text-[11px]"
+        >
           <span>
             <span className="font-semibold tracking-wide text-warning">DEMO / SIMULATED</span>
             <span className="ml-2 text-muted-foreground">{reason}</span>
           </span>
-          <button type="button" onClick={() => setOpen(false)} className="text-[11px] font-medium text-primary hover:underline">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-[11px] font-medium text-primary hover:underline"
+          >
             Hide fixture
           </button>
         </div>

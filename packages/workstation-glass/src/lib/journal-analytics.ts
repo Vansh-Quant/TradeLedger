@@ -41,17 +41,25 @@ function average(values: readonly number[]): number | null {
 }
 
 function chronological(entries: readonly JournalEntry[]): JournalEntry[] {
-  return [...entries].sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  return [...entries].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
 }
 
-function streaks(entries: readonly JournalEntry[]): Pick<JournalAnalytics, "currentStreak" | "bestWinStreak" | "worstLossStreak"> {
+function streaks(
+  entries: readonly JournalEntry[],
+): Pick<JournalAnalytics, "currentStreak" | "bestWinStreak" | "worstLossStreak"> {
   let currentKind: StreakKind = "NONE";
   let currentLength = 0;
   let bestWinStreak = 0;
   let worstLossStreak = 0;
 
   for (const entry of chronological(entries)) {
-    const kind: StreakKind = entry.outcome === "WIN" ? "WIN" : entry.outcome === "LOSS" ? "LOSS" : "NONE";
+    const kind: StreakKind =
+      entry.outcome === "WIN" ? "WIN" : entry.outcome === "LOSS" ? "LOSS" : "NONE";
     if (kind === "NONE") {
       currentKind = "NONE";
       currentLength = 0;
@@ -63,10 +71,17 @@ function streaks(entries: readonly JournalEntry[]): Pick<JournalAnalytics, "curr
     else worstLossStreak = Math.max(worstLossStreak, currentLength);
   }
 
-  return { currentStreak: { kind: currentKind, length: currentLength }, bestWinStreak, worstLossStreak };
+  return {
+    currentStreak: { kind: currentKind, length: currentLength },
+    bestWinStreak,
+    worstLossStreak,
+  };
 }
 
-function breakdown(entries: readonly JournalEntry[], field: "setup" | "session" | "emotion"): JournalBreakdownRow[] {
+function breakdown(
+  entries: readonly JournalEntry[],
+  field: "setup" | "session" | "emotion",
+): JournalBreakdownRow[] {
   const grouped = new Map<string, JournalEntry[]>();
   for (const entry of entries) {
     if (entry.outcome === "OPEN") continue;
@@ -76,21 +91,27 @@ function breakdown(entries: readonly JournalEntry[], field: "setup" | "session" 
     grouped.set(label, group);
   }
 
-  return [...grouped.entries()].map(([key, group]) => {
-    const wins = group.filter((entry) => entry.outcome === "WIN").length;
-    const losses = group.filter((entry) => entry.outcome === "LOSS").length;
-    const pnlValues = group.map((entry) => entry.pnl).filter((value): value is number => value !== null && Number.isFinite(value));
-    const rValues = group.map((entry) => entry.rMultiple).filter((value): value is number => value !== null && Number.isFinite(value));
-    return {
-      key,
-      trades: group.length,
-      wins,
-      losses,
-      winRate: group.length === 0 ? 0 : (wins / group.length) * 100,
-      netPnl: pnlValues.reduce((sum, value) => sum + value, 0),
-      averageR: average(rValues),
-    };
-  }).sort((a, b) => b.netPnl - a.netPnl || b.trades - a.trades || a.key.localeCompare(b.key));
+  return [...grouped.entries()]
+    .map(([key, group]) => {
+      const wins = group.filter((entry) => entry.outcome === "WIN").length;
+      const losses = group.filter((entry) => entry.outcome === "LOSS").length;
+      const pnlValues = group
+        .map((entry) => entry.pnl)
+        .filter((value): value is number => value !== null && Number.isFinite(value));
+      const rValues = group
+        .map((entry) => entry.rMultiple)
+        .filter((value): value is number => value !== null && Number.isFinite(value));
+      return {
+        key,
+        trades: group.length,
+        wins,
+        losses,
+        winRate: group.length === 0 ? 0 : (wins / group.length) * 100,
+        netPnl: pnlValues.reduce((sum, value) => sum + value, 0),
+        averageR: average(rValues),
+      };
+    })
+    .sort((a, b) => b.netPnl - a.netPnl || b.trades - a.trades || a.key.localeCompare(b.key));
 }
 
 export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalytics {
@@ -98,13 +119,17 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
   const wins = closed.filter((entry) => entry.outcome === "WIN").length;
   const losses = closed.filter((entry) => entry.outcome === "LOSS").length;
   const breakevens = closed.filter((entry) => entry.outcome === "BREAKEVEN").length;
-  const pnlEntries = chronological(closed.filter((entry) => entry.pnl !== null && Number.isFinite(entry.pnl)));
+  const pnlEntries = chronological(
+    closed.filter((entry) => entry.pnl !== null && Number.isFinite(entry.pnl)),
+  );
   const pnls = pnlEntries.map((entry) => entry.pnl as number);
   const positive = pnls.filter((value) => value > 0);
   const negative = pnls.filter((value) => value < 0);
   const grossProfit = positive.reduce((sum, value) => sum + value, 0);
   const grossLoss = Math.abs(negative.reduce((sum, value) => sum + value, 0));
-  const rValues = closed.map((entry) => entry.rMultiple).filter((value): value is number => value !== null && Number.isFinite(value));
+  const rValues = closed
+    .map((entry) => entry.rMultiple)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
 
   let equity = 0;
   let peak = 0;
@@ -117,9 +142,10 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
     maxDrawdown = Math.max(maxDrawdown, drawdown);
     if (peak > 0 && drawdown > 0) {
       const drawdownPercent = (drawdown / peak) * 100;
-      maxDrawdownPercent = maxDrawdownPercent === null
-        ? drawdownPercent
-        : Math.max(maxDrawdownPercent, drawdownPercent);
+      maxDrawdownPercent =
+        maxDrawdownPercent === null
+          ? drawdownPercent
+          : Math.max(maxDrawdownPercent, drawdownPercent);
     }
   }
 
@@ -136,9 +162,10 @@ export function analyzeJournal(entries: readonly JournalEntry[]): JournalAnalyti
     expectancy: pnls.length > 0 ? pnls.reduce((sum, value) => sum + value, 0) / pnls.length : null,
     averageWin: average(positive),
     averageLoss: negative.length > 0 ? Math.abs(average(negative) as number) : null,
-    payoffRatio: negative.length > 0 && positive.length > 0
-      ? (average(positive) as number) / Math.abs(average(negative) as number)
-      : null,
+    payoffRatio:
+      negative.length > 0 && positive.length > 0
+        ? (average(positive) as number) / Math.abs(average(negative) as number)
+        : null,
     averageR: average(rValues),
     maxDrawdown: pnlEntries.length > 0 ? maxDrawdown : null,
     maxDrawdownPercent,

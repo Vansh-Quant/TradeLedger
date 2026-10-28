@@ -87,10 +87,7 @@ describe("toCandles", () => {
   });
 
   it("de-duplicates bars sharing a timestamp, keeping the last payload", () => {
-    const candles = toCandles([
-      bar({ close: 4000, high: 4010 }),
-      bar({ close: 4020, high: 4030 }),
-    ]);
+    const candles = toCandles([bar({ close: 4000, high: 4010 }), bar({ close: 4020, high: 4030 })]);
     expect(candles).toHaveLength(1);
     expect(candles[0]!.close).toBe(4020);
     expect(candles[0]!.high).toBe(4030);
@@ -128,7 +125,11 @@ describe("coverage and age text", () => {
   });
 
   it("summarises a real range", () => {
-    const text = describeCoverage({ count: 240, returnedFrom: "2026-01-01", returnedTo: "2026-06-01" });
+    const text = describeCoverage({
+      count: 240,
+      returnedFrom: "2026-01-01",
+      returnedTo: "2026-06-01",
+    });
     expect(text.summary).toBe("240 candles · 2026-01-01 → 2026-06-01");
   });
 

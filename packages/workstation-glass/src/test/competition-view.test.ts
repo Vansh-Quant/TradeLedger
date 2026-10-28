@@ -4,7 +4,9 @@ import type { CompetitionSnapshot } from "@/api/types";
 
 const NOW = Date.parse("2026-10-20T12:00:00Z");
 
-function snapshot(overrides: Partial<CompetitionSnapshot["competition"]> = {}): CompetitionSnapshot {
+function snapshot(
+  overrides: Partial<CompetitionSnapshot["competition"]> = {},
+): CompetitionSnapshot {
   return {
     competition: {
       config: {
@@ -18,8 +20,18 @@ function snapshot(overrides: Partial<CompetitionSnapshot["competition"]> = {}): 
       },
       state: "live",
       participants: [
-        { participantId: "P-1", accountId: "ACC-1", state: "active", registeredAt: "2026-10-20T09:00:00Z" },
-        { participantId: "P-2", accountId: "ACC-2", state: "suspended", registeredAt: "2026-10-20T09:05:00Z" },
+        {
+          participantId: "P-1",
+          accountId: "ACC-1",
+          state: "active",
+          registeredAt: "2026-10-20T09:00:00Z",
+        },
+        {
+          participantId: "P-2",
+          accountId: "ACC-2",
+          state: "suspended",
+          registeredAt: "2026-10-20T09:05:00Z",
+        },
       ],
       version: 7,
       sequence: 18_421,
@@ -34,17 +46,35 @@ function snapshot(overrides: Partial<CompetitionSnapshot["competition"]> = {}): 
       maxOrdersPerParticipantPerSecond: 10,
     },
     leaderboard: [
-      { participantId: "P-1", rank: 1, realizedPnl: 500, unrealizedPnl: 120, totalPnl: 620, returnPct: 0.62 },
+      {
+        participantId: "P-1",
+        rank: 1,
+        realizedPnl: 500,
+        unrealizedPnl: 120,
+        totalPnl: 620,
+        returnPct: 0.62,
+      },
     ],
     audit: [
-      { sequence: 18_421, action: "ORDER_ACCEPTED", targetId: "P-1", outcome: "APPLIED", occurredAt: "2026-10-20T11:59:00Z" },
+      {
+        sequence: 18_421,
+        action: "ORDER_ACCEPTED",
+        targetId: "P-1",
+        outcome: "APPLIED",
+        occurredAt: "2026-10-20T11:59:00Z",
+      },
     ],
   };
 }
 
 describe("competition view", () => {
   it("reports CONNECTING with no data instead of inventing participants", () => {
-    const view = describeCompetition({ snapshot: null, error: null, lastUpdatedAt: null, now: NOW });
+    const view = describeCompetition({
+      snapshot: null,
+      error: null,
+      lastUpdatedAt: null,
+      now: NOW,
+    });
 
     expect(view.status).toBe("CONNECTING");
     expect(view.participants).toEqual([]);
@@ -54,7 +84,12 @@ describe("competition view", () => {
   });
 
   it("reports UNAVAILABLE when the first read fails", () => {
-    const view = describeCompetition({ snapshot: null, error: "Cannot reach TradeLedger API", lastUpdatedAt: null, now: NOW });
+    const view = describeCompetition({
+      snapshot: null,
+      error: "Cannot reach TradeLedger API",
+      lastUpdatedAt: null,
+      now: NOW,
+    });
 
     expect(view.status).toBe("UNAVAILABLE");
     expect(view.tone).toBe("negative");
@@ -62,7 +97,12 @@ describe("competition view", () => {
   });
 
   it("reports LIVE only for a fresh authoritative snapshot", () => {
-    const view = describeCompetition({ snapshot: snapshot(), error: null, lastUpdatedAt: NOW, now: NOW });
+    const view = describeCompetition({
+      snapshot: snapshot(),
+      error: null,
+      lastUpdatedAt: NOW,
+      now: NOW,
+    });
 
     expect(view.status).toBe("LIVE");
     expect(view.registered).toBe(2);
@@ -97,7 +137,12 @@ describe("competition view", () => {
   });
 
   it("leaves leaderboard values null when the authority does not rank a participant", () => {
-    const view = describeCompetition({ snapshot: snapshot(), error: null, lastUpdatedAt: NOW, now: NOW });
+    const view = describeCompetition({
+      snapshot: snapshot(),
+      error: null,
+      lastUpdatedAt: NOW,
+      now: NOW,
+    });
     const unranked = view.participants.find((p) => p.id === "P-2");
 
     expect(unranked).toBeDefined();
@@ -108,12 +153,22 @@ describe("competition view", () => {
   });
 
   it("derives gross P&L from the leaderboard, not a constant", () => {
-    const view = describeCompetition({ snapshot: snapshot(), error: null, lastUpdatedAt: NOW, now: NOW });
+    const view = describeCompetition({
+      snapshot: snapshot(),
+      error: null,
+      lastUpdatedAt: NOW,
+      now: NOW,
+    });
     expect(view.grossPnl).toBe(620);
   });
 
   it("maps the authority audit trail verbatim", () => {
-    const view = describeCompetition({ snapshot: snapshot(), error: null, lastUpdatedAt: NOW, now: NOW });
+    const view = describeCompetition({
+      snapshot: snapshot(),
+      error: null,
+      lastUpdatedAt: NOW,
+      now: NOW,
+    });
     expect(view.audit).toEqual([
       {
         sequence: 18_421,

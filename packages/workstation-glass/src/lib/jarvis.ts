@@ -15,9 +15,7 @@ export interface JarvisState {
 }
 
 export type JarvisDestination =
-  | { to: "/positions" }
-  | { to: "/risk" }
-  | { to: "/trading"; symbol: string };
+  { to: "/positions" } | { to: "/risk" } | { to: "/trading"; symbol: string };
 
 export interface JarvisReply {
   text: string;
@@ -38,7 +36,9 @@ export const JARVIS_DISCLOSURE =
   "No language model or agent tools are connected. JARVIS answers from the account and order state already loaded, and cannot place orders or change limits.";
 
 function unavailable(): JarvisReply {
-  return { text: "I can't reach the TradeLedger API yet, so I have no backend state to read. Configure the connection in Settings." };
+  return {
+    text: "I can't reach the TradeLedger API yet, so I have no backend state to read. Configure the connection in Settings.",
+  };
 }
 
 function positions(state: JarvisState): JarvisReply {
@@ -94,28 +94,35 @@ function explain(question: string, state: JarvisState): JarvisReply {
   const explicit = question.match(/order\s+([a-z0-9][a-z0-9_-]{1,})/i)?.[1];
   if (!explicit) {
     return {
-      text: "Which order? Include its order id, for example \"explain order ORD-1234\". I can only describe orders the backend has returned.",
+      text: 'Which order? Include its order id, for example "explain order ORD-1234". I can only describe orders the backend has returned.',
     };
   }
-  const order = orders.find((candidate) => candidate.orderId.toLowerCase() === explicit.toLowerCase());
+  const order = orders.find(
+    (candidate) => candidate.orderId.toLowerCase() === explicit.toLowerCase(),
+  );
   if (!order) {
-    return { text: `No order "${explicit}" is present in the ${orders.length} order(s) the backend returned.` };
+    return {
+      text: `No order "${explicit}" is present in the ${orders.length} order(s) the backend returned.`,
+    };
   }
   const price = order.limitPrice ?? order.stopPrice ?? order.averageFillPrice;
   return {
-    text: [
-      `Order ${order.orderId}: ${order.side ?? "?"} ${order.quantity ?? "?"} ${order.symbol ?? "?"}`,
-      order.type ?? "?",
-      order.status ?? "?",
-      `filled ${order.filledQuantity ?? 0}`,
-      price == null ? "no price on record" : `price ${price}`,
-      order.createdAt ?? "",
-    ].filter(Boolean).join(" · ") + ". This is the order record as returned by the backend.",
+    text:
+      [
+        `Order ${order.orderId}: ${order.side ?? "?"} ${order.quantity ?? "?"} ${order.symbol ?? "?"}`,
+        order.type ?? "?",
+        order.status ?? "?",
+        `filled ${order.filledQuantity ?? 0}`,
+        price == null ? "no price on record" : `price ${price}`,
+        order.createdAt ?? "",
+      ]
+        .filter(Boolean)
+        .join(" · ") + ". This is the order record as returned by the backend.",
   };
 }
 
 function analyzeSymbol(question: string): JarvisReply | undefined {
-  const match = question.match(/analy[sz]e\s+([a-z][a-z.\-]{0,9})/i);
+  const match = question.match(/analy[sz]e\s+([a-z][a-z.-]{0,9})/i);
   if (!match?.[1]) return undefined;
   const symbol = match[1].toUpperCase();
   return {
@@ -126,13 +133,15 @@ function analyzeSymbol(question: string): JarvisReply | undefined {
 
 export function answer(question: string, state: JarvisState): JarvisReply {
   const normalized = question.trim().toLowerCase();
-  if (normalized === "") return { text: "Ask about positions, exposure, risk, orders or your trading summary." };
+  if (normalized === "")
+    return { text: "Ask about positions, exposure, risk, orders or your trading summary." };
   if (!state.reachable) return unavailable();
 
   const analyzed = analyzeSymbol(question);
   if (analyzed) return analyzed;
 
-  if (/\bpositions?\b/.test(normalized) || /\bholdings?\b/.test(normalized)) return positions(state);
+  if (/\bpositions?\b/.test(normalized) || /\bholdings?\b/.test(normalized))
+    return positions(state);
   if (/\bexposure\b/.test(normalized)) return exposure(state);
   if (/\brisk\b/.test(normalized) || /\blimits?\b/.test(normalized)) {
     return {

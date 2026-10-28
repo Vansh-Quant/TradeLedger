@@ -60,7 +60,11 @@ describe("JARVIS responder", () => {
   });
 
   it("does not invent positions for an empty account", () => {
-    const reply = answer("Show my positions", { reachable: true, context: { ...context, positions: [] }, orders: [] });
+    const reply = answer("Show my positions", {
+      reachable: true,
+      context: { ...context, positions: [] },
+      orders: [],
+    });
     expect(reply.text).toContain("no open positions");
     expect(reply.destination).toBeUndefined();
   });
@@ -79,7 +83,11 @@ describe("JARVIS responder", () => {
   });
 
   it("does not claim a rejection when none exists", () => {
-    const reply = answer("Why was this order rejected?", { reachable: true, context, orders: [orders[1] as Order] });
+    const reply = answer("Why was this order rejected?", {
+      reachable: true,
+      context,
+      orders: [orders[1] as Order],
+    });
     expect(reply.text).toContain("No rejected orders");
   });
 
@@ -98,7 +106,7 @@ describe("JARVIS responder", () => {
 
   it("reports an unknown order id without fabricating one", () => {
     const reply = answer("explain order ORD-999", reachable);
-    expect(reply.text).toContain("No order \"ORD-999\"");
+    expect(reply.text).toContain('No order "ORD-999"');
   });
 
   it("never estimates equity, cash or executions in a summary", () => {

@@ -28,7 +28,10 @@ export const TIMEFRAMES: readonly ChartTimeframe[] = Object.freeze([
 export const DEFAULT_TIMEFRAME_ID = "1h";
 
 export function timeframe(id: string): ChartTimeframe {
-  return TIMEFRAMES.find((item) => item.id === id) ?? TIMEFRAMES.find((item) => item.id === DEFAULT_TIMEFRAME_ID)!;
+  return (
+    TIMEFRAMES.find((item) => item.id === id) ??
+    TIMEFRAMES.find((item) => item.id === DEFAULT_TIMEFRAME_ID)!
+  );
 }
 
 export interface ChartRange {
@@ -51,7 +54,9 @@ export const RANGES: readonly ChartRange[] = Object.freeze([
 export const DEFAULT_RANGE_ID = "ALL";
 
 export function range(id: string): ChartRange {
-  return RANGES.find((item) => item.id === id) ?? RANGES.find((item) => item.id === DEFAULT_RANGE_ID)!;
+  return (
+    RANGES.find((item) => item.id === id) ?? RANGES.find((item) => item.id === DEFAULT_RANGE_ID)!
+  );
 }
 
 /** Requested window for a range preset, as canonical ISO instants. */
@@ -127,7 +132,10 @@ export function pricePrecision(values: readonly number[]): number {
 }
 
 export function formatPriceFixed(value: number, precision: number): string {
-  return value.toLocaleString("en-US", { minimumFractionDigits: precision, maximumFractionDigits: precision });
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
 }
 
 export interface CoverageText {
@@ -137,9 +145,16 @@ export interface CoverageText {
   readonly summary: string;
 }
 
-export function describeCoverage(coverage: { count: number; returnedFrom?: string | null; returnedTo?: string | null } | undefined): CoverageText {
+export function describeCoverage(
+  coverage: { count: number; returnedFrom?: string | null; returnedTo?: string | null } | undefined,
+): CoverageText {
   if (coverage === undefined || coverage.count === 0) {
-    return { candles: 0, from: null, to: null, summary: "No candles returned for this symbol and interval." };
+    return {
+      candles: 0,
+      from: null,
+      to: null,
+      summary: "No candles returned for this symbol and interval.",
+    };
   }
   const from = coverage.returnedFrom ?? null;
   const to = coverage.returnedTo ?? null;
@@ -178,7 +193,10 @@ const SYMBOL_ALIASES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 export function normalizeSymbolQuery(input: string): string {
-  const compact = input.trim().toUpperCase().replace(/[\s/_-]+/g, "");
+  const compact = input
+    .trim()
+    .toUpperCase()
+    .replace(/[\s/_-]+/g, "");
   if (compact.length === 0) return "";
   return SYMBOL_ALIASES[compact] ?? compact;
 }

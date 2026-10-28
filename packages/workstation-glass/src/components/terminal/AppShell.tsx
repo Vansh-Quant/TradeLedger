@@ -2,23 +2,31 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Menu, Search } from "lucide-react";
 import {
-  CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 import { isConfigured, useApiConfig } from "@/api/config";
 import { useAccountContext, useHealth, useOrders } from "@/hooks/use-tradeledger";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { NAV, NAV_GROUPS } from "./nav";
 
 function Logo() {
   return (
-    <Link to="/" className="flex items-center gap-2.5">
+    <Link to="/dashboard" className="flex items-center gap-2.5">
       <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
         <path d="M16 2 30 16 16 30 2 16Z" fill="none" stroke="var(--primary)" strokeWidth="2" />
         <path d="M16 9 23 16 16 23 9 16Z" fill="var(--primary)" />
       </svg>
       <div className="leading-none">
         <div className="text-[15px] font-bold tracking-tight">TradeLedger</div>
-        <div className="mt-0.5 whitespace-nowrap text-[8px] tracking-[0.12em] text-muted-foreground">DETERMINISTIC TRADING OS</div>
+        <div className="mt-0.5 whitespace-nowrap text-[8px] tracking-[0.12em] text-muted-foreground">
+          DETERMINISTIC TRADING OS
+        </div>
       </div>
     </Link>
   );
@@ -36,12 +44,21 @@ function SystemStatus() {
   return (
     <div className="panel m-2 p-2.5 text-[11px]">
       <div className="mb-1.5 font-medium text-muted-foreground">System Status</div>
-      {!cfg.baseUrl ? <div className="text-muted-foreground">API not configured</div> : items.map(([k, v]) => (
-        <div key={k} className="flex items-center gap-2 py-0.5">
-          <span className={cn("size-1.5 rounded-full", v === true ? "bg-positive" : v === false ? "bg-negative" : "bg-muted-foreground")} />
-          {k}
-        </div>
-      ))}
+      {!cfg.baseUrl ? (
+        <div className="text-muted-foreground">API not configured</div>
+      ) : (
+        items.map(([k, v]) => (
+          <div key={k} className="flex items-center gap-2 py-0.5">
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                v === true ? "bg-positive" : v === false ? "bg-negative" : "bg-muted-foreground",
+              )}
+            />
+            {k}
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -50,20 +67,41 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <>
       {open && <div className="fixed inset-0 z-30 bg-background/70 lg:hidden" onClick={onClose} />}
-      <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-52 flex-col border-r bg-background/95 backdrop-blur transition-transform lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
-        <div className="flex h-14 items-center px-4"><Logo /></div>
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-52 flex-col border-r bg-background/95 backdrop-blur transition-transform lg:static lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <div className="flex h-14 items-center px-4">
+          <Logo />
+        </div>
         <nav className="flex-1 overflow-auto px-2 pb-2" aria-label="Primary">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="pt-1.5">
-              <div className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">{group.label}</div>
+              <div className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+                {group.label}
+              </div>
               <div className="space-y-0.5">
                 {group.items.map(({ to, label, icon: Icon }) => (
-                  <Link key={to} to={to} onClick={onClose} activeOptions={{ exact: to === "/" }}
+                  <Link
+                    key={to}
+                    to={to}
+                    onClick={onClose}
+                    activeOptions={{ exact: to === "/dashboard" }}
                     className="relative flex items-center gap-3 rounded-sm px-3 py-1.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
-                    activeProps={{ className: "!text-foreground bg-accent shadow-[inset_2px_0_0_var(--primary)] [&>svg]:text-primary" }}>
+                    activeProps={{
+                      className:
+                        "!text-foreground bg-accent shadow-[inset_2px_0_0_var(--primary)] [&>svg]:text-primary",
+                    }}
+                  >
                     <Icon className="size-4" aria-hidden />
                     <span>{label}</span>
-                    {label === "JARVIS" && <span className="ml-auto rounded-sm border border-primary/40 px-1 text-[9px] font-semibold text-primary">AI</span>}
+                    {label === "JARVIS" && (
+                      <span className="ml-auto rounded-sm border border-primary/40 px-1 text-[9px] font-semibold text-primary">
+                        AI
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -71,7 +109,9 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           ))}
         </nav>
         <SystemStatus />
-        <div className="px-4 pb-2 text-[10px] text-muted-foreground">TradeLedger · frontend v0.1</div>
+        <div className="px-4 pb-2 text-[10px] text-muted-foreground">
+          TradeLedger · frontend v0.1
+        </div>
       </aside>
     </>
   );
@@ -85,15 +125,40 @@ function ConnectionPill() {
   // "CONNECTING" until hydration keeps both renders byte-identical; without
   // this React regenerates the whole shell on mount and logs a hydration error.
   const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
-  const state = !hydrated ? "CONNECTING"
-    : !isConfigured(cfg) ? "OFFLINE"
-      : h.isLoading ? "CONNECTING"
-        : h.data?.health ? "CONNECTED" : "UNREACHABLE";
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+  const state = !hydrated
+    ? "CONNECTING"
+    : !isConfigured(cfg)
+      ? "OFFLINE"
+      : h.isLoading
+        ? "CONNECTING"
+        : h.data?.health
+          ? "CONNECTED"
+          : "UNREACHABLE";
   return (
-    <Link to="/settings" className={cn("flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[10px] font-semibold tracking-wider",
-      state === "CONNECTED" ? "border-positive/40 text-positive" : state === "CONNECTING" ? "border-warning/40 text-warning" : "border-negative/40 text-negative")}>
-      <span className={cn("size-1.5 rounded-full", state === "CONNECTED" ? "bg-positive" : state === "CONNECTING" ? "bg-warning" : "bg-negative")} />
+    <Link
+      to="/settings"
+      className={cn(
+        "flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[10px] font-semibold tracking-wider",
+        state === "CONNECTED"
+          ? "border-positive/40 text-positive"
+          : state === "CONNECTING"
+            ? "border-warning/40 text-warning"
+            : "border-negative/40 text-negative",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          state === "CONNECTED"
+            ? "bg-positive"
+            : state === "CONNECTING"
+              ? "bg-warning"
+              : "bg-negative",
+        )}
+      />
       {state}
     </Link>
   );
@@ -101,8 +166,16 @@ function ConnectionPill() {
 
 function Clock() {
   const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => { setNow(new Date()); const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-  return <span className="num hidden text-xs text-muted-foreground md:inline">{now ? now.toLocaleTimeString(undefined, { hour12: false }) : "--:--:--"}</span>;
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="num hidden text-xs text-muted-foreground md:inline">
+      {now ? now.toLocaleTimeString(undefined, { hour12: false }) : "--:--:--"}
+    </span>
+  );
 }
 
 function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
@@ -110,38 +183,66 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (o: boolean
   const ctx = useAccountContext();
   const orders = useOrders();
   const [query, setQuery] = useState("");
-  const go = (fn: () => void) => { setOpen(false); setQuery(""); fn(); };
+  const go = (fn: () => void) => {
+    setOpen(false);
+    setQuery("");
+    fn();
+  };
   const sym = query.trim().toUpperCase();
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search instruments, pages, orders, commands…" value={query} onValueChange={setQuery} />
+      <CommandInput
+        placeholder="Search instruments, pages, orders, commands…"
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
-        {/^[A-Z.\-]{1,10}$/.test(sym) && (
+        {/^[A-Z.-]{1,10}$/.test(sym) && (
           <CommandGroup heading="Instrument">
-            <CommandItem value={`instrument ${sym}`} onSelect={() => go(() => navigate({ to: "/trading", search: { symbol: sym } }))}>
+            <CommandItem
+              value={`instrument ${sym}`}
+              onSelect={() => go(() => navigate({ to: "/trading", search: { symbol: sym } }))}
+            >
               Open {sym} in Trading
             </CommandItem>
           </CommandGroup>
         )}
         <CommandGroup heading="Pages">
           {NAV.map((n) => (
-            <CommandItem key={n.to} value={n.label} onSelect={() => go(() => navigate({ to: n.to }))}>
-              <n.icon className="mr-2 size-4" />{n.label}
+            <CommandItem
+              key={n.to}
+              value={n.label}
+              onSelect={() => go(() => navigate({ to: n.to }))}
+            >
+              <n.icon className="mr-2 size-4" />
+              {n.label}
             </CommandItem>
           ))}
         </CommandGroup>
         {!!ctx.data?.positions.length && (
           <CommandGroup heading="Positions">
             {ctx.data.positions.map((p) => (
-              <CommandItem key={p.symbol} value={`position ${p.symbol}`} onSelect={() => go(() => navigate({ to: "/trading", search: { symbol: p.symbol } }))}>{p.symbol}</CommandItem>
+              <CommandItem
+                key={p.symbol}
+                value={`position ${p.symbol}`}
+                onSelect={() =>
+                  go(() => navigate({ to: "/trading", search: { symbol: p.symbol } }))
+                }
+              >
+                {p.symbol}
+              </CommandItem>
             ))}
           </CommandGroup>
         )}
         {!!orders.data?.length && (
           <CommandGroup heading="Orders">
             {orders.data.slice(0, 20).map((o) => (
-              <CommandItem key={o.orderId} value={`order ${o.orderId} ${o.symbol}`} onSelect={() => go(() => navigate({ to: "/orders" }))}>
+              <CommandItem
+                key={o.orderId}
+                value={`order ${o.orderId} ${o.symbol}`}
+                onSelect={() => go(() => navigate({ to: "/orders" }))}
+              >
                 {o.orderId} · {o.side} {o.symbol} · {o.status}
               </CommandItem>
             ))}
@@ -149,7 +250,13 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (o: boolean
         )}
         <CommandGroup heading="Commands">
           {["Show my positions", "Show my risk", "What's my current exposure?"].map((c) => (
-            <CommandItem key={c} value={`jarvis ${c}`} onSelect={() => go(() => navigate({ to: "/jarvis", search: { q: c } }))}>Ask JARVIS: {c}</CommandItem>
+            <CommandItem
+              key={c}
+              value={`jarvis ${c}`}
+              onSelect={() => go(() => navigate({ to: "/jarvis", search: { q: c } }))}
+            >
+              Ask JARVIS: {c}
+            </CommandItem>
           ))}
         </CommandGroup>
       </CommandList>
@@ -161,8 +268,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const [cmd, setCmd] = useState(false);
   const cfg = useApiConfig();
+  const auth = useAuth();
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmd((o) => !o); } };
+    const h = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmd((o) => !o);
+      }
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
@@ -171,22 +284,54 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/60 px-3 backdrop-blur">
-          <button type="button" className="shrink-0 lg:hidden" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Menu className="size-5" /></button>
-          <button type="button" onClick={() => setCmd(true)} className="panel flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 px-3 text-xs text-muted-foreground hover:border-primary/60">
+          <button
+            type="button"
+            className="shrink-0 lg:hidden"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu className="size-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCmd(true)}
+            className="panel flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 px-3 text-xs text-muted-foreground hover:border-primary/60"
+          >
             <Search className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Search pages or commands…</span>
-            <kbd className="num ml-auto hidden shrink-0 rounded-sm border bg-secondary px-1.5 text-[10px] sm:inline">Ctrl K</kbd>
+            <kbd className="num ml-auto hidden shrink-0 rounded-sm border bg-secondary px-1.5 text-[10px] sm:inline">
+              Ctrl K
+            </kbd>
           </button>
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             <Clock />
             <ConnectionPill />
             <div className="hidden items-center gap-2 sm:flex">
-              <div className="grid size-7 place-items-center rounded-sm border bg-secondary text-xs font-semibold">{(cfg.accountId || "?").slice(0, 1)}</div>
+              <div className="grid size-7 place-items-center rounded-sm border bg-secondary text-xs font-semibold">
+                {(cfg.accountId || "?").slice(0, 1)}
+              </div>
               <div className="leading-tight">
                 <div className="num text-xs font-medium">{cfg.accountId || "No account"}</div>
                 <div className="text-[10px] text-muted-foreground">Account</div>
               </div>
             </div>
+            {auth.configured && (
+              <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
+                <div className="hidden max-w-[160px] leading-tight md:block">
+                  <div className="truncate text-xs font-medium">
+                    {auth.user?.email ?? "Signed in"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Session</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void auth.signOut()}
+                  className="h-7 rounded-sm border border-border px-2 text-[11px] text-muted-foreground transition-colors hover:border-negative/50 hover:text-negative focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         </header>
         <main className="animate-page min-h-0 flex-1 overflow-auto p-3">{children}</main>

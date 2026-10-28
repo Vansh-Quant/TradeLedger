@@ -1,13 +1,37 @@
 import {
-  LayoutDashboard, CandlestickChart, ListOrdered, Briefcase, Zap, ShieldCheck, BookOpen, Trophy,
-  FlaskConical, Boxes, Activity, BarChart3, Sparkles, Settings, type LucideIcon,
+  LayoutDashboard,
+  CandlestickChart,
+  ListOrdered,
+  Briefcase,
+  Zap,
+  ShieldCheck,
+  BookOpen,
+  Trophy,
+  FlaskConical,
+  Boxes,
+  Activity,
+  BarChart3,
+  Sparkles,
+  Settings,
+  type LucideIcon,
 } from "lucide-react";
 
 export type NavPath =
-  | "/" | "/trading" | "/orders" | "/positions" | "/executions"
-  | "/risk" | "/competition"
-  | "/journal" | "/research" | "/strategies" | "/backtesting" | "/market-data" | "/analytics"
-  | "/jarvis" | "/settings";
+  | "/dashboard"
+  | "/trading"
+  | "/orders"
+  | "/positions"
+  | "/executions"
+  | "/risk"
+  | "/competition"
+  | "/journal"
+  | "/research"
+  | "/strategies"
+  | "/backtesting"
+  | "/market-data"
+  | "/analytics"
+  | "/jarvis"
+  | "/settings";
 
 export interface NavItem {
   readonly to: NavPath;
@@ -21,7 +45,7 @@ export interface NavGroup {
 }
 
 const TRADING: readonly NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/trading", label: "Trading", icon: CandlestickChart },
   { to: "/orders", label: "Orders", icon: ListOrdered },
   { to: "/positions", label: "Positions", icon: Briefcase },
@@ -43,13 +67,9 @@ const RESEARCH: readonly NavItem[] = [
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-const INTELLIGENCE: readonly NavItem[] = [
-  { to: "/jarvis", label: "JARVIS", icon: Sparkles },
-];
+const INTELLIGENCE: readonly NavItem[] = [{ to: "/jarvis", label: "JARVIS", icon: Sparkles }];
 
-const SYSTEM: readonly NavItem[] = [
-  { to: "/settings", label: "Settings", icon: Settings },
-];
+const SYSTEM: readonly NavItem[] = [{ to: "/settings", label: "Settings", icon: Settings }];
 
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: "Trading", items: TRADING },

@@ -102,7 +102,9 @@ export function compareRuns(a: ResearchRun, b: ResearchRun): RunComparison {
     blocking.push("strategy parameters differ");
   }
   if (a.requested.from !== b.requested.from || a.requested.to !== b.requested.to) {
-    notes.push(`requested window differs: ${a.requested.from} → ${a.requested.to} vs ${b.requested.from} → ${b.requested.to}`);
+    notes.push(
+      `requested window differs: ${a.requested.from} → ${a.requested.to} vs ${b.requested.from} → ${b.requested.to}`,
+    );
   }
   if (a.dataRange.from !== b.dataRange.from || a.dataRange.to !== b.dataRange.to) {
     notes.push(`executed coverage differs: ${a.dataRange.count} bars vs ${b.dataRange.count} bars`);
@@ -117,14 +119,20 @@ export function compareRuns(a: ResearchRun, b: ResearchRun): RunComparison {
  * in the domain), so the editor reports problems immediately. The backend
  * remains authoritative: it re-validates every submission.
  */
-export function validateSpec(text: string, catalog: StrategyCatalog | undefined):
-  { spec: { kind: string; parameters: Record<string, number> } | null; error: string | null } {
-  if (catalog === undefined) return { spec: null, error: "Strategy catalog unavailable — cannot validate yet." };
+export function validateSpec(
+  text: string,
+  catalog: StrategyCatalog | undefined,
+): { spec: { kind: string; parameters: Record<string, number> } | null; error: string | null } {
+  if (catalog === undefined)
+    return { spec: null, error: "Strategy catalog unavailable — cannot validate yet." };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    return { spec: null, error: `Invalid JSON: ${error instanceof Error ? error.message : "parse error"}` };
+    return {
+      spec: null,
+      error: `Invalid JSON: ${error instanceof Error ? error.message : "parse error"}`,
+    };
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     return { spec: null, error: "Strategy must be a JSON object with a kind and parameters." };
@@ -134,7 +142,8 @@ export function validateSpec(text: string, catalog: StrategyCatalog | undefined)
     return { spec: null, error: `kind must be one of: ${catalog.kinds.join(", ")}` };
   }
   const definition = catalog.strategies.find((item) => item.kind === record["kind"]);
-  if (definition === undefined) return { spec: null, error: `kind "${String(record["kind"])}" is not in the catalog.` };
+  if (definition === undefined)
+    return { spec: null, error: `kind "${String(record["kind"])}" is not in the catalog.` };
   const rawParameters = record["parameters"] ?? {};
   if (typeof rawParameters !== "object" || rawParameters === null || Array.isArray(rawParameters)) {
     return { spec: null, error: "parameters must be an object." };
@@ -144,7 +153,10 @@ export function validateSpec(text: string, catalog: StrategyCatalog | undefined)
     const spec = definition.parameters.find((item) => item.key === key);
     if (spec === undefined) {
       const valid = definition.parameters.map((p) => p.key).join(", ");
-      return { spec: null, error: `unknown parameter "${key}" for ${definition.kind}; valid: ${valid || "none"}` };
+      return {
+        spec: null,
+        error: `unknown parameter "${key}" for ${definition.kind}; valid: ${valid || "none"}`,
+      };
     }
     if (typeof value !== "number" || !Number.isFinite(value)) {
       return { spec: null, error: `parameter "${key}" must be a finite number.` };
@@ -153,12 +165,17 @@ export function validateSpec(text: string, catalog: StrategyCatalog | undefined)
       return { spec: null, error: `parameter "${key}" must be an integer.` };
     }
     if (value < spec.min || value > spec.max) {
-      return { spec: null, error: `parameter "${key}" must be between ${spec.min} and ${spec.max}.` };
+      return {
+        spec: null,
+        error: `parameter "${key}" must be between ${spec.min} and ${spec.max}.`,
+      };
     }
     parameters[key] = value;
   }
   // Missing parameters fall back to the documented defaults, like the backend.
-  const resolved = Object.fromEntries(definition.parameters.map((p) => [p.key, parameters[p.key] ?? p.default]));
+  const resolved = Object.fromEntries(
+    definition.parameters.map((p) => [p.key, parameters[p.key] ?? p.default]),
+  );
   if (definition.kind === "sma_crossover" && resolved["fast"]! >= resolved["slow"]!) {
     return { spec: null, error: "sma_crossover requires fast < slow." };
   }

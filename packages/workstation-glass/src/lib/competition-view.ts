@@ -133,21 +133,24 @@ export function describeCompetition(args: {
 
   const byParticipant = new Map(snapshot.leaderboard.map((entry) => [entry.participantId, entry]));
 
-  const participants: CompetitionParticipantRow[] = snapshot.competition.participants.map((participant) => {
-    const entry = byParticipant.get(participant.participantId);
-    return {
-      id: participant.participantId,
-      account: participant.accountId,
-      state: participant.state.toUpperCase(),
-      rank: entry?.rank ?? null,
-      totalPnl: entry?.totalPnl ?? null,
-      returnPct: entry?.returnPct ?? null,
-    };
-  });
+  const participants: CompetitionParticipantRow[] = snapshot.competition.participants.map(
+    (participant) => {
+      const entry = byParticipant.get(participant.participantId);
+      return {
+        id: participant.participantId,
+        account: participant.accountId,
+        state: participant.state.toUpperCase(),
+        rank: entry?.rank ?? null,
+        totalPnl: entry?.totalPnl ?? null,
+        returnPct: entry?.returnPct ?? null,
+      };
+    },
+  );
 
-  const grossPnl = snapshot.leaderboard.length === 0
-    ? null
-    : snapshot.leaderboard.reduce((sum, entry) => sum + entry.totalPnl, 0);
+  const grossPnl =
+    snapshot.leaderboard.length === 0
+      ? null
+      : snapshot.leaderboard.reduce((sum, entry) => sum + entry.totalPnl, 0);
 
   return {
     ...empty,

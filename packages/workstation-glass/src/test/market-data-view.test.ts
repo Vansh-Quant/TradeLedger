@@ -73,14 +73,31 @@ describe("market data view", () => {
 
   it("prefers an executed trade price over a bar close", () => {
     const view = describeMarketData({
-      states: [state({
-        latestTrade: { kind: "trade", instrumentId: "AAPL", price: 100.1, quantity: 50, observedAt: "2026-10-20T11:59:55Z", source: "vendor" },
-        latestBar: {
-          kind: "bar", instrumentId: "AAPL", timeframeSeconds: 60,
-          startAt: "2026-10-20T11:58:00Z", endAt: "2026-10-20T11:59:00Z",
-          open: 99, high: 101, low: 98, close: 100.4, volume: 1000, source: "vendor",
-        },
-      })],
+      states: [
+        state({
+          latestTrade: {
+            kind: "trade",
+            instrumentId: "AAPL",
+            price: 100.1,
+            quantity: 50,
+            observedAt: "2026-10-20T11:59:55Z",
+            source: "vendor",
+          },
+          latestBar: {
+            kind: "bar",
+            instrumentId: "AAPL",
+            timeframeSeconds: 60,
+            startAt: "2026-10-20T11:58:00Z",
+            endAt: "2026-10-20T11:59:00Z",
+            open: 99,
+            high: 101,
+            low: 98,
+            close: 100.4,
+            volume: 1000,
+            source: "vendor",
+          },
+        }),
+      ],
       error: null,
       now: NOW,
     });

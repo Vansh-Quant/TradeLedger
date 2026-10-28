@@ -41,13 +41,18 @@ export function decodeJournalEntries(raw: string | null): JournalEntry[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is Record<string, unknown> => isRecord(item))
-      .filter((item) =>
-        typeof item["id"] === "string" &&
-        typeof item["date"] === "string" &&
-        typeof item["symbol"] === "string" &&
-        (item["side"] === "LONG" || item["side"] === "SHORT") &&
-        (item["outcome"] === "WIN" || item["outcome"] === "LOSS" || item["outcome"] === "BREAKEVEN" || item["outcome"] === "OPEN"),
+    return parsed
+      .filter((item): item is Record<string, unknown> => isRecord(item))
+      .filter(
+        (item) =>
+          typeof item["id"] === "string" &&
+          typeof item["date"] === "string" &&
+          typeof item["symbol"] === "string" &&
+          (item["side"] === "LONG" || item["side"] === "SHORT") &&
+          (item["outcome"] === "WIN" ||
+            item["outcome"] === "LOSS" ||
+            item["outcome"] === "BREAKEVEN" ||
+            item["outcome"] === "OPEN"),
       )
       .map((item) => ({
         id: item["id"] as string,
@@ -63,19 +68,28 @@ export function decodeJournalEntries(raw: string | null): JournalEntry[] {
         pnl: finiteOrNull(item["pnl"]),
         rMultiple: finiteOrNull(item["rMultiple"]),
         outcome: item["outcome"] as JournalOutcome,
-        higherTimeframeBias: typeof item["higherTimeframeBias"] === "string" ? item["higherTimeframeBias"] : "",
+        higherTimeframeBias:
+          typeof item["higherTimeframeBias"] === "string" ? item["higherTimeframeBias"] : "",
         liquidityTarget: typeof item["liquidityTarget"] === "string" ? item["liquidityTarget"] : "",
-        confluence: Array.isArray(item["confluence"]) ? item["confluence"].filter((v): v is string => typeof v === "string").slice(0, 24) : [],
+        confluence: Array.isArray(item["confluence"])
+          ? item["confluence"].filter((v): v is string => typeof v === "string").slice(0, 24)
+          : [],
         emotion: typeof item["emotion"] === "string" ? item["emotion"] : "",
-        executionQuality: typeof item["executionQuality"] === "string" ? item["executionQuality"] : "",
+        executionQuality:
+          typeof item["executionQuality"] === "string" ? item["executionQuality"] : "",
         mistake: typeof item["mistake"] === "string" ? item["mistake"] : "",
         ruleAdherence: typeof item["ruleAdherence"] === "string" ? item["ruleAdherence"] : "",
         thesis: typeof item["thesis"] === "string" ? item["thesis"] : "",
         notes: typeof item["notes"] === "string" ? item["notes"] : "",
         reflection: typeof item["reflection"] === "string" ? item["reflection"] : "",
-        ...(typeof item["screenshotData"] === "string" && item["screenshotData"].startsWith("data:image/") ? { screenshotData: item["screenshotData"] } : {}),
-        createdAt: typeof item["createdAt"] === "string" ? item["createdAt"] : new Date(0).toISOString(),
-        updatedAt: typeof item["updatedAt"] === "string" ? item["updatedAt"] : new Date(0).toISOString(),
+        ...(typeof item["screenshotData"] === "string" &&
+        item["screenshotData"].startsWith("data:image/")
+          ? { screenshotData: item["screenshotData"] }
+          : {}),
+        createdAt:
+          typeof item["createdAt"] === "string" ? item["createdAt"] : new Date(0).toISOString(),
+        updatedAt:
+          typeof item["updatedAt"] === "string" ? item["updatedAt"] : new Date(0).toISOString(),
       }));
   } catch {
     return [];
@@ -86,10 +100,10 @@ export function encodeJournalEntries(entries: readonly JournalEntry[]): string {
   return JSON.stringify(entries);
 }
 
-
 function legacyNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)))
+    return Number(value);
   return null;
 }
 
@@ -105,22 +119,37 @@ export function decodeJournalBackup(raw: string): JournalEntry[] | null {
   if (isRecord(parsed) && "tl_trades" in parsed) {
     let legacy: unknown = parsed["tl_trades"];
     if (typeof legacy === "string") {
-      try { legacy = JSON.parse(legacy); } catch { return null; }
+      try {
+        legacy = JSON.parse(legacy);
+      } catch {
+        return null;
+      }
     }
     if (!Array.isArray(legacy)) return null;
     const normalized = legacy.map((value, index) => {
       if (!isRecord(value)) return null;
-      const outcomeText = String(value["outcome"] ?? "").trim().toLowerCase();
+      const outcomeText = String(value["outcome"] ?? "")
+        .trim()
+        .toLowerCase();
       const outcome: JournalOutcome =
-        outcomeText === "win" ? "WIN" :
-        outcomeText === "loss" ? "LOSS" :
-        ["be", "break-even", "breakeven", "break even"].includes(outcomeText) ? "BREAKEVEN" : "OPEN";
+        outcomeText === "win"
+          ? "WIN"
+          : outcomeText === "loss"
+            ? "LOSS"
+            : ["be", "break-even", "breakeven", "break even"].includes(outcomeText)
+              ? "BREAKEVEN"
+              : "OPEN";
       const firstImage = Array.isArray(value["images"]) ? value["images"][0] : undefined;
-      const imageData = typeof firstImage === "string" ? firstImage :
-        isRecord(firstImage) && typeof firstImage["data"] === "string" ? firstImage["data"] : undefined;
-      const timestamp = typeof value["loggedAt"] === "string" ? value["loggedAt"] : new Date(0).toISOString();
+      const imageData =
+        typeof firstImage === "string"
+          ? firstImage
+          : isRecord(firstImage) && typeof firstImage["data"] === "string"
+            ? firstImage["data"]
+            : undefined;
+      const timestamp =
+        typeof value["loggedAt"] === "string" ? value["loggedAt"] : new Date(0).toISOString();
       return {
-        id: String(value["id"] ?? ("legacy-" + index)),
+        id: String(value["id"] ?? "legacy-" + index),
         date: typeof value["date"] === "string" ? value["date"] : "",
         symbol: typeof value["symbol"] === "string" ? value["symbol"] : "",
         side: String(value["dir"] ?? "").toLowerCase() === "short" ? "SHORT" : "LONG",
@@ -135,15 +164,23 @@ export function decodeJournalBackup(raw: string): JournalEntry[] | null {
         outcome,
         higherTimeframeBias: typeof value["htf"] === "string" ? value["htf"] : "",
         liquidityTarget: typeof value["liquidity"] === "string" ? value["liquidity"] : "",
-        confluence: Array.isArray(value["confluence"]) ? value["confluence"].filter((item): item is string => typeof item === "string") : [],
+        confluence: Array.isArray(value["confluence"])
+          ? value["confluence"].filter((item): item is string => typeof item === "string")
+          : [],
         emotion: typeof value["emotion"] === "string" ? value["emotion"] : "",
-        executionQuality: Array.isArray(value["execQuality"]) ? value["execQuality"].filter((item): item is string => typeof item === "string").join(", ") : "",
+        executionQuality: Array.isArray(value["execQuality"])
+          ? value["execQuality"]
+              .filter((item): item is string => typeof item === "string")
+              .join(", ")
+          : "",
         mistake: typeof value["mistake"] === "string" ? value["mistake"] : "",
         ruleAdherence: typeof value["ruleAdhere"] === "string" ? value["ruleAdhere"] : "",
         thesis: typeof value["thesis"] === "string" ? value["thesis"] : "",
         notes: typeof value["notes"] === "string" ? value["notes"] : "",
         reflection: typeof value["reflection"] === "string" ? value["reflection"] : "",
-        ...(typeof imageData === "string" && imageData.startsWith("data:image/") ? { screenshotData: imageData } : {}),
+        ...(typeof imageData === "string" && imageData.startsWith("data:image/")
+          ? { screenshotData: imageData }
+          : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -163,13 +200,16 @@ export function summarizeJournal(entries: readonly JournalEntry[]) {
   const closed = entries.filter((entry) => entry.outcome !== "OPEN");
   const wins = closed.filter((entry) => entry.outcome === "WIN").length;
   const pnl = entries.reduce((sum, entry) => sum + (entry.pnl ?? 0), 0);
-  const rValues = closed.map((entry) => entry.rMultiple).filter((value): value is number => value !== null);
+  const rValues = closed
+    .map((entry) => entry.rMultiple)
+    .filter((value): value is number => value !== null);
   return {
     total: entries.length,
     closed: closed.length,
     wins,
     winRate: closed.length === 0 ? 0 : (wins / closed.length) * 100,
     pnl,
-    averageR: rValues.length === 0 ? null : rValues.reduce((sum, value) => sum + value, 0) / rValues.length,
+    averageR:
+      rValues.length === 0 ? null : rValues.reduce((sum, value) => sum + value, 0) / rValues.length,
   };
 }

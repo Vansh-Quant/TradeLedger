@@ -3,11 +3,31 @@ import { analyzeJournal } from "../lib/journal-analytics";
 import type { JournalEntry } from "../lib/journal-store";
 
 const trade = (overrides: Partial<JournalEntry> = {}): JournalEntry => ({
-  id: "t-1", date: "2026-10-01", symbol: "XAUUSD", side: "LONG", setup: "Sweep",
-  session: "London", entryPrice: 100, exitPrice: 110, stopLoss: 95, quantity: 1,
-  pnl: 10, rMultiple: 2, outcome: "WIN", higherTimeframeBias: "Bullish", liquidityTarget: "PDH",
-  confluence: [], emotion: "Calm", executionQuality: "Good", mistake: "", ruleAdherence: "Followed",
-  thesis: "", notes: "", reflection: "", createdAt: "2026-10-01T10:00:00.000Z", updatedAt: "2026-10-01T10:00:00.000Z",
+  id: "t-1",
+  date: "2026-10-01",
+  symbol: "XAUUSD",
+  side: "LONG",
+  setup: "Sweep",
+  session: "London",
+  entryPrice: 100,
+  exitPrice: 110,
+  stopLoss: 95,
+  quantity: 1,
+  pnl: 10,
+  rMultiple: 2,
+  outcome: "WIN",
+  higherTimeframeBias: "Bullish",
+  liquidityTarget: "PDH",
+  confluence: [],
+  emotion: "Calm",
+  executionQuality: "Good",
+  mistake: "",
+  ruleAdherence: "Followed",
+  thesis: "",
+  notes: "",
+  reflection: "",
+  createdAt: "2026-10-01T10:00:00.000Z",
+  updatedAt: "2026-10-01T10:00:00.000Z",
   ...overrides,
 });
 
@@ -45,7 +65,10 @@ describe("journal performance analytics", () => {
   });
 
   it("returns unavailable ratios when denominator data is absent", () => {
-    const result = analyzeJournal([trade({ pnl: 20 }), trade({ id: "open", outcome: "OPEN", pnl: null })]);
+    const result = analyzeJournal([
+      trade({ pnl: 20 }),
+      trade({ id: "open", outcome: "OPEN", pnl: null }),
+    ]);
     expect(result.profitFactor).toBeNull();
     expect(result.payoffRatio).toBeNull();
     expect(result.maxDrawdownPercent).toBeNull();
@@ -68,17 +91,34 @@ describe("journal performance analytics", () => {
   it("breaks down closed trades by setup, session and emotion", () => {
     const result = analyzeJournal([
       trade({ id: "1", pnl: 50, setup: "Sweep", session: "London", emotion: "Calm" }),
-      trade({ id: "2", pnl: -10, outcome: "LOSS", setup: "Sweep", session: "New York", emotion: "FOMO" }),
+      trade({
+        id: "2",
+        pnl: -10,
+        outcome: "LOSS",
+        setup: "Sweep",
+        session: "New York",
+        emotion: "FOMO",
+      }),
       trade({ id: "3", pnl: null, outcome: "OPEN", setup: "Open setup" }),
     ]);
-    expect(result.setups[0]).toMatchObject({ key: "Sweep", trades: 2, wins: 1, losses: 1, netPnl: 40, winRate: 50 });
+    expect(result.setups[0]).toMatchObject({
+      key: "Sweep",
+      trades: 2,
+      wins: 1,
+      losses: 1,
+      netPnl: 40,
+      winRate: 50,
+    });
     expect(result.sessions.map((row) => row.key)).toEqual(["London", "New York"]);
     expect(result.emotions.map((row) => row.key)).toEqual(["Calm", "FOMO"]);
     expect(result.setups.some((row) => row.key === "Open setup")).toBe(false);
   });
 
   it("does not mutate the caller's array", () => {
-    const entries = [trade({ id: "b", date: "2026-10-02" }), trade({ id: "a", date: "2026-10-01" })];
+    const entries = [
+      trade({ id: "b", date: "2026-10-02" }),
+      trade({ id: "a", date: "2026-10-01" }),
+    ];
     const before = entries.map((entry) => entry.id);
     analyzeJournal(entries);
     expect(entries.map((entry) => entry.id)).toEqual(before);

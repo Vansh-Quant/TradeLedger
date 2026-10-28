@@ -106,7 +106,8 @@ export function useBacktestRuns() {
 export function useRunBacktest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ body, signal }: { body: BacktestRequest; signal?: AbortSignal }) => api.runBacktest(body, signal),
+    mutationFn: ({ body, signal }: { body: BacktestRequest; signal?: AbortSignal }) =>
+      api.runBacktest(body, signal),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["backtest-runs"] }),
   });
 }
@@ -115,7 +116,10 @@ export function useSubmitOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (i: SubmitOrderIntent) => api.submitOrder(i),
-    onSettled: () => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["context"] }); },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["context"] });
+    },
   });
 }
 

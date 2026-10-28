@@ -43,12 +43,22 @@ export function describeMarketData(args: {
 
   if (states === undefined) {
     const status: MarketStatus = error === null ? "CONNECTING" : "UNAVAILABLE";
-    return { status, tone: status === "UNAVAILABLE" ? "negative" : "muted", rows: [], freshestAgeMs: null, newestReceivedAt: null };
+    return {
+      status,
+      tone: status === "UNAVAILABLE" ? "negative" : "muted",
+      rows: [],
+      freshestAgeMs: null,
+      newestReceivedAt: null,
+    };
   }
 
   const rows: MarketDataRow[] = states.map((state) => {
     const price = state.latestTrade?.price ?? state.latestBar?.close ?? null;
-    const observedAt = state.latestQuote?.observedAt ?? state.latestTrade?.observedAt ?? state.latestBar?.endAt ?? state.lastObservedAt;
+    const observedAt =
+      state.latestQuote?.observedAt ??
+      state.latestTrade?.observedAt ??
+      state.latestBar?.endAt ??
+      state.lastObservedAt;
     const parsed = observedAt ? Date.parse(observedAt) : Number.NaN;
     const ageMs = Number.isFinite(parsed) ? Math.max(0, now - parsed) : null;
     return {
@@ -56,7 +66,8 @@ export function describeMarketData(args: {
       bid: state.latestQuote?.bid ?? null,
       ask: state.latestQuote?.ask ?? null,
       last: price,
-      source: state.latestQuote?.source ?? state.latestTrade?.source ?? state.latestBar?.source ?? null,
+      source:
+        state.latestQuote?.source ?? state.latestTrade?.source ?? state.latestBar?.source ?? null,
       sequence: state.lastSequence,
       observedAt: observedAt || null,
       ageMs,
@@ -74,11 +85,12 @@ export function describeMarketData(args: {
   // by definition, even if the request itself just succeeded.
   const status: MarketStatus = freshestAgeMs !== null && freshestAgeMs <= maxAge ? "LIVE" : "STALE";
 
-  const newestReceivedAt = states
-    .map((state) => state.lastReceivedAt)
-    .filter((value) => value !== "")
-    .sort()
-    .at(-1) ?? null;
+  const newestReceivedAt =
+    states
+      .map((state) => state.lastReceivedAt)
+      .filter((value) => value !== "")
+      .sort()
+      .at(-1) ?? null;
 
   return {
     status,

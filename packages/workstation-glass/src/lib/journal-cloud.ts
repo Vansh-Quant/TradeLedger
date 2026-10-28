@@ -16,7 +16,10 @@ type JournalRow = {
 };
 
 function requireClient() {
-  if (!supabase) throw new Error("Hosted journal is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+  if (!supabase)
+    throw new Error(
+      "Hosted journal is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
+    );
   return supabase;
 }
 
@@ -56,7 +59,9 @@ export async function loadCloudJournalEntries(): Promise<JournalEntry[]> {
   const payload = (data ?? []).map((row) => row.payload);
   const decoded = decodeJournalEntries(JSON.stringify(payload));
   if (decoded.length !== payload.length) {
-    throw new Error("Some hosted journal records are invalid. Export a database backup before changing them.");
+    throw new Error(
+      "Some hosted journal records are invalid. Export a database backup before changing them.",
+    );
   }
   return decoded;
 }
@@ -88,7 +93,10 @@ export async function signInToJournal(email: string, password: string): Promise<
   if (error) throw error;
 }
 
-export async function signUpForJournal(email: string, password: string): Promise<{ confirmationRequired: boolean }> {
+export async function signUpForJournal(
+  email: string,
+  password: string,
+): Promise<{ confirmationRequired: boolean }> {
   const client = requireClient();
   const { data, error } = await client.auth.signUp({ email, password });
   if (error) throw error;
@@ -99,4 +107,37 @@ export async function signOutOfJournal(): Promise<void> {
   const client = requireClient();
   const { error } = await client.auth.signOut();
   if (error) throw error;
+}
+
+/** Where Supabase sends the user after clicking a recovery link. */
+export function recoveryRedirectUrl(): string {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}/auth?mode=reset`;
+}
+
+/** Sends a password-recovery email. Account existence is not disclosed by us. */
+export async function sendPasswordResetEmail(email: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: recoveryRedirectUrl(),
+  });
+  if (error) throw error;
+}
+
+/** Sets a new password for the currently signed-in (recovery) session. */
+export async function updateAccountPassword(password: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.auth.updateUser({ password });
+  if (error) throw error;
+}
+
+/** True when Supabase reports that no account matches — used to avoid
+ *  disclosing whether an address is registered. */
+export function isUserNotFound(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "";
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return code === "user_not_found" || message.includes("user not found");
 }

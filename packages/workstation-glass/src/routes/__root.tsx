@@ -3,7 +3,9 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  useNavigate,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -14,6 +16,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/terminal/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { authGate } from "@/lib/auth-policy";
 
 function NotFoundComponent() {
   return (
@@ -86,9 +90,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "TradeLedger — Deterministic Trading OS" },
-      { name: "description", content: "Institutional trading workstation for the TradeLedger deterministic trading engine." },
+      {
+        name: "description",
+        content:
+          "Institutional trading workstation for the TradeLedger deterministic trading engine.",
+      },
+      // Default deny for crawlers: every private route inherits this. The
+      // public entry page (routes/index.tsx) opts back in with index,follow;
+      // sitemap.xml lists only public pages.
+      { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "TradeLedger — Deterministic Trading OS" },
-      { property: "og:description", content: "Institutional trading workstation for the TradeLedger deterministic trading engine." },
+      {
+        property: "og:description",
+        content:
+          "Institutional trading workstation for the TradeLedger deterministic trading engine.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -99,7 +115,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap",
+      },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
@@ -128,9 +147,93 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <AppShell><Outlet /></AppShell>
-      <Toaster theme="dark" position="bottom-right" />
+      <AuthProvider>
+        <RouteGate />
+        <Toaster theme="dark" position="bottom-right" />
+      </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+/**
+ * Decides what renders for the current URL:
+ *
+ * - public paths (`/` entry boundary, `/auth`) → the page itself, no shell
+ * - private paths with a session → the workstation shell
+ * - private paths without a session → redirect to sign-in (preserving the
+ *   intended destination) or, while restoring, a loading screen
+ * - production builds without Supabase configuration → a hard stop notice
+ *
+ * This is UX gating only: the API authenticates and authorizes every request
+ * independently (packages/api/src/auth.ts + authorization.ts).
+ */
+function RouteGate() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { ready, configured, session, expired } = useAuth();
+  const navigate = useNavigate();
+  const decision = authGate({
+    pathname,
+    ready,
+    configured,
+    hasSession: session !== null,
+    isProduction: import.meta.env.PROD,
+  });
+
+  const redirectTo = decision.kind === "sign-in" ? decision.redirect : undefined;
+  useEffect(() => {
+    if (redirectTo !== undefined) {
+      void navigate({
+        to: "/auth",
+        search: { mode: "signin", redirect: redirectTo },
+        replace: true,
+      });
+    }
+  }, [redirectTo, navigate]);
+
+  if (decision.kind === "public") return <Outlet />;
+  if (decision.kind === "blocked") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-4">
+        <div className="max-w-md text-center">
+          <h1 className="text-lg font-semibold">Authentication is not configured</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This build has no Supabase project configured, so the workstation stays locked. Set{" "}
+            <span className="num">VITE_SUPABASE_URL</span> and{" "}
+            <span className="num">VITE_SUPABASE_ANON_KEY</span>, rebuild, and sign in. See
+            DEPLOYMENT.md.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  if (decision.kind === "sign-in") {
+    return (
+      <div
+        className="grid min-h-screen place-items-center bg-background text-muted-foreground"
+        role="status"
+        aria-label="Redirecting to sign in"
+      >
+        <span className="text-xs">
+          Redirecting to sign in…{expired ? " (session expired)" : ""}
+        </span>
+      </div>
+    );
+  }
+  if (decision.kind === "loading") {
+    return (
+      <div
+        className="grid min-h-screen place-items-center bg-background text-muted-foreground"
+        role="status"
+        aria-label="Restoring session"
+      >
+        <span className="text-xs animate-pulse">Restoring your session…</span>
+      </div>
+    );
+  }
+  // Required: nested routes render inside the workstation shell.
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
   );
 }

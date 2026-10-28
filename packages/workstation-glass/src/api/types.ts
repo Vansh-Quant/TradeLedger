@@ -5,8 +5,15 @@ export type Side = "BUY" | "SELL";
 export type OrderType = "MARKET" | "LIMIT" | "STOP" | "STOP_LIMIT";
 export type TimeInForce = "DAY" | "GTC" | "IOC" | "FOK";
 export type OrderStatus =
-  | "CREATED" | "SUBMITTED" | "ACKNOWLEDGED" | "PARTIALLY_FILLED" | "FILLED"
-  | "CANCEL_REQUESTED" | "CANCELLED" | "REJECTED" | "EXPIRED";
+  | "CREATED"
+  | "SUBMITTED"
+  | "ACKNOWLEDGED"
+  | "PARTIALLY_FILLED"
+  | "FILLED"
+  | "CANCEL_REQUESTED"
+  | "CANCELLED"
+  | "REJECTED"
+  | "EXPIRED";
 
 export interface Order {
   orderId: string;
@@ -180,7 +187,12 @@ export interface MarketDataIngestionStatus {
 }
 
 export interface MarketDataStatus {
-  provider: { providerId: string; healthy: boolean; checkedAt: string; message?: string | undefined };
+  provider: {
+    providerId: string;
+    healthy: boolean;
+    checkedAt: string;
+    message?: string | undefined;
+  };
   ingestion: MarketDataIngestionStatus | null;
 }
 
@@ -247,7 +259,12 @@ export interface ResearchRun {
     strategyId: string;
     performance: ResearchMetrics;
     validation: { passed: boolean; failures: string[] };
-    robustness: { tradeCount: number; positiveTradePct: number; worstTrade: number; bestTrade: number };
+    robustness: {
+      tradeCount: number;
+      positiveTradePct: number;
+      worstTrade: number;
+      bestTrade: number;
+    };
   };
   equityCurve: { at: string; equity: number }[];
   trades: ResearchTrade[];
@@ -269,11 +286,14 @@ export interface BacktestRequest {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public body?: unknown) {
+  constructor(
+    message: string,
+    public status: number,
+    public body?: unknown,
+  ) {
     super(message);
   }
 }
-
 
 export interface CompetitionParticipant {
   participantId: string;
@@ -293,7 +313,15 @@ export interface CompetitionLeaderboardEntry {
 
 export interface CompetitionSnapshot {
   competition: {
-    config: { id: string; name: string; maxParticipants: number; allowedInstruments: string[]; maxOrderNotional: number; maxOrdersPerParticipantPerSecond: number; startingEquity: number };
+    config: {
+      id: string;
+      name: string;
+      maxParticipants: number;
+      allowedInstruments: string[];
+      maxOrderNotional: number;
+      maxOrdersPerParticipantPerSecond: number;
+      startingEquity: number;
+    };
     state: string;
     participants: CompetitionParticipant[];
     version: number;
@@ -308,5 +336,12 @@ export interface CompetitionSnapshot {
     maxOrdersPerParticipantPerSecond: number;
   };
   leaderboard: CompetitionLeaderboardEntry[];
-  audit: Array<{ sequence: number; action: string; targetId?: string; outcome: string; reason?: string; occurredAt: string }>;
+  audit: Array<{
+    sequence: number;
+    action: string;
+    targetId?: string;
+    outcome: string;
+    reason?: string;
+    occurredAt: string;
+  }>;
 }

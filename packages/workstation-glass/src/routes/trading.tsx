@@ -11,9 +11,15 @@ export const Route = createFileRoute("/trading")({
   head: () => ({
     meta: [
       { title: "Trading — TradeLedger" },
-      { name: "description", content: "Trading terminal: watchlist, chart, order ticket and blotter." },
+      {
+        name: "description",
+        content: "Trading terminal: watchlist, chart, order ticket and blotter.",
+      },
       { property: "og:title", content: "Trading — TradeLedger" },
-      { property: "og:description", content: "Trading terminal: watchlist, chart, order ticket and blotter." },
+      {
+        property: "og:description",
+        content: "Trading terminal: watchlist, chart, order ticket and blotter.",
+      },
     ],
   }),
   component: Trading,
@@ -27,22 +33,43 @@ function Trading() {
   return (
     <div className="grid gap-3 lg:h-[calc(100vh-5rem)] lg:grid-rows-[1fr_264px]">
       <div className="grid min-h-0 gap-3 lg:grid-cols-[240px_minmax(0,1fr)_300px]">
-        <Panel title="Watchlist" className="h-80 min-w-0 lg:h-auto"><Watchlist selected={symbol} onSelect={setSymbol} /></Panel>
+        <Panel title="Watchlist" className="h-80 min-w-0 lg:h-auto">
+          <Watchlist selected={symbol} onSelect={setSymbol} />
+        </Panel>
         {/* The chart carries its own compact toolbar as the panel header row. */}
-        <Panel className="h-96 min-w-0 lg:h-auto" bodyClassName="min-h-0"><TradingChart symbol={symbol} /></Panel>
-        <Panel title="Order Ticket" className="min-w-0" bodyClassName="overflow-auto"><OrderTicket symbol={symbol} onSymbol={setSymbol} /></Panel>
+        <Panel className="h-96 min-w-0 lg:h-auto" bodyClassName="min-h-0">
+          <TradingChart symbol={symbol} />
+        </Panel>
+        <Panel title="Order Ticket" className="min-w-0" bodyClassName="overflow-auto">
+          <OrderTicket symbol={symbol} onSymbol={setSymbol} />
+        </Panel>
       </div>
       <Panel
         className="h-72 min-w-0 lg:h-auto"
         title={
           <div className="flex gap-1">
             {(["positions", "orders", "executions"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={cn("rounded-sm px-2 py-0.5 capitalize", tab === t ? "bg-primary/25 text-foreground" : "text-muted-foreground")}>{t}</button>
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "rounded-sm px-2 py-0.5 capitalize",
+                  tab === t ? "bg-primary/25 text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {t}
+              </button>
             ))}
           </div>
         }
       >
-        {tab === "positions" ? <PositionTable /> : tab === "orders" ? <OrderTable /> : <ExecutionTable />}
+        {tab === "positions" ? (
+          <PositionTable />
+        ) : tab === "orders" ? (
+          <OrderTable />
+        ) : (
+          <ExecutionTable />
+        )}
       </Panel>
     </div>
   );
